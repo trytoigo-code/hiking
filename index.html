@@ -119,6 +119,7 @@
     .badge-c { background: #2c3e50; }
     .badge-m { background: #b89752; }
     .badge-j { background: #888; }
+    .badge-t { background: #c0392b; }
 
     /* Toast */
     #toast {
@@ -182,6 +183,7 @@
         <label>結果種別</label>
         <select id="result-type">
           <option value="chuoshi">中押し</option>
+          <option value="jikan">時間切れ</option>
           <option value="moku">目数差</option>
           <option value="jigo">持碁</option>
         </select>
@@ -395,6 +397,9 @@ document.getElementById("add-match").addEventListener("click", () => {
       if (isNaN(mk) || mk <= 0) { showToast("目数差を正しく入力してください"); return; }
       m = { type:"moku", winner:state.players[wi], loser:state.players[li], mokusuu:mk, date:d };
       showToast(`${m.winner} の勝利（${mk}目差）を登録！`);
+    } else if (type === "jikan") {
+      m = { type:"jikan", winner:state.players[wi], loser:state.players[li], date:d };
+      showToast(`${m.winner} の勝利（時間切れ）を登録！`);
     } else {
       m = { type:"chuoshi", winner:state.players[wi], loser:state.players[li], date:d };
       showToast(`${m.winner} の勝利（中押し）を登録！`);
@@ -471,6 +476,7 @@ function renderStandings() {
 function badgeHTML(m) {
   if (m.type==="jigo")    return `<span class="badge badge-j">持碁</span>`;
   if (m.type==="chuoshi") return `<span class="badge badge-c">中押し</span>`;
+  if (m.type==="jikan")   return `<span class="badge badge-t">時間切れ</span>`;
   return `<span class="badge badge-m">${m.mokusuu}目差</span>`;
 }
 
