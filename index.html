@@ -175,6 +175,10 @@
     <div class="panel" id="panel-input">
       <h3>対局結果を入力</h3>
       <div class="fg">
+        <label>対局日</label>
+        <input type="date" id="match-date">
+      </div>
+      <div class="fg">
         <label>結果種別</label>
         <select id="result-type">
           <option value="chuoshi">中押し</option>
@@ -347,6 +351,15 @@ function buildSelects() {
 }
 buildSelects();
 
+// 対局日を今日で初期化
+(function() {
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth()+1).padStart(2,"0");
+  const dd = String(today.getDate()).padStart(2,"0");
+  document.getElementById("match-date").value = `${yyyy}-${mm}-${dd}`;
+})();
+
 document.getElementById("result-type").addEventListener("change", function() {
   const t = this.value;
   document.getElementById("normal-inputs").style.display = t !== "jigo" ? "" : "none";
@@ -356,8 +369,15 @@ document.getElementById("result-type").addEventListener("change", function() {
 
 document.getElementById("add-match").addEventListener("click", () => {
   const type = document.getElementById("result-type").value;
-  const now = new Date();
-  const d = `${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${pad(now.getMinutes())}`;
+  const dateVal = document.getElementById("match-date").value;
+  let d;
+  if (dateVal) {
+    const [y, mo, dy] = dateVal.split("-");
+    d = `${parseInt(mo)}/${parseInt(dy)}`;
+  } else {
+    const now = new Date();
+    d = `${now.getMonth()+1}/${now.getDate()}`;
+  }
   let m;
 
   if (type === "jigo") {
