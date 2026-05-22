@@ -152,7 +152,7 @@
   <!-- Tabs -->
   <div id="nav">
     <button class="tab-btn active" data-tab="setup">設定</button>
-    <button class="tab-btn" data-tab="input">対局入力</button>
+    <button class="tab-btn" data-tab="input">結果入力</button>
     <button class="tab-btn" data-tab="standings">星取表</button>
     <button class="tab-btn" data-tab="history">履歴</button>
     <button class="tab-btn" data-tab="handicap">手合い</button>
@@ -179,57 +179,39 @@
       <button class="btn" id="save-players">保存して全員に同期</button>
     </div>
 
-    <!-- 対局入力 -->
+    <!-- 結果入力 -->
     <div class="panel" id="panel-input">
-      <h3>対局結果を入力</h3>
+      <h3>結果入力</h3>
       <div class="fg">
         <label>対局日</label>
         <input type="date" id="match-date">
       </div>
       <div class="fg">
-        <label>結果種別</label>
+        <label>結果</label>
         <select id="result-type">
+          <option value="">指定なし</option>
           <option value="chuoshi">中押し</option>
           <option value="jikan">時間切れ</option>
           <option value="moku">目数差</option>
           <option value="jigo">持碁</option>
         </select>
       </div>
-      <div id="normal-inputs">
-        <div class="fg"><label>勝者 👑</label><select id="winner"></select></div>
-        <div class="fg"><label>敗者</label><select id="loser"></select></div>
-        <div class="fg" id="moku-fg" style="display:none">
-          <label>目数差</label><input id="mokusuu" type="number" placeholder="例: 3.5" min="0.5" step="0.5">
-        </div>
-        <div class="fg">
-          <label>勝者の手合い</label>
-          <select id="winner-teai">
-            <option value="">指定なし</option>
-            <option value="互白">互白（コミあり・白番）</option>
-            <option value="互黒">互黒（コミあり・黒番）</option>
-            <option value="向先">向先（コミなし・白番）</option>
-            <option value="先">先（コミなし・黒番）</option>
-          </select>
-          <div id="loser-teai-row" style="margin-top:8px;font-size:0.88rem;color:#555;display:none">
-            敗者の手合い：<strong id="loser-teai-val"></strong>
-          </div>
-        </div>
+      <div class="fg"><label id="label-left">勝者 👑</label><select id="winner"></select></div>
+      <div class="fg"><label id="label-right">敗者</label><select id="loser"></select></div>
+      <div class="fg" id="moku-fg" style="display:none">
+        <label>目数差</label><input id="mokusuu" type="number" placeholder="例: 3.5" min="0.5" step="0.5">
       </div>
-      <div id="jigo-inputs" style="display:none">
-        <div class="fg"><label>対局者 A</label><select id="jigo-p1"></select></div>
-        <div class="fg"><label>対局者 B</label><select id="jigo-p2"></select></div>
-        <div class="fg">
-          <label>対局者Aの手合い</label>
-          <select id="jigo-teai">
-            <option value="">指定なし</option>
-            <option value="互白">互白（コミあり・白番）</option>
-            <option value="互黒">互黒（コミあり・黒番）</option>
-            <option value="向先">向先（コミなし・白番）</option>
-            <option value="先">先（コミなし・黒番）</option>
-          </select>
-          <div id="jigo-p2-teai-row" style="margin-top:8px;font-size:0.88rem;color:#555;display:none">
-            対局者Bの手合い：<strong id="jigo-p2-teai-val"></strong>
-          </div>
+      <div class="fg">
+        <label id="label-left-teai">勝者の手合い</label>
+        <select id="winner-teai">
+          <option value="">指定なし</option>
+          <option value="互白">互白（コミあり・白番）</option>
+          <option value="互黒">互黒（コミあり・黒番）</option>
+          <option value="向先">向先（コミなし・白番）</option>
+          <option value="先">先（コミなし・黒番）</option>
+        </select>
+        <div id="loser-teai-row" style="margin-top:8px;font-size:0.88rem;color:#555;display:none">
+          <span id="label-right-teai">敗者</span>の手合い：<strong id="loser-teai-val"></strong>
         </div>
       </div>
       <button class="btn" id="add-match">登録する（全員に即時反映）</button>
@@ -380,14 +362,36 @@ document.getElementById("save-players").addEventListener("click", () => {
 const TEAI_PAIR = { "互白":"互黒", "互黒":"互白", "向先":"先", "先":"向先", "":"" };
 
 function buildSelects() {
-  ["winner","loser","jigo-p1","jigo-p2"].forEach(id => {
+  ["winner","loser"].forEach(id => {
     const sel = document.getElementById(id);
-    sel.innerHTML = state.players.map((p,i) => `<option value="${i}">${p}</option>`).join("");
+    sel.innerHTML = `<option value="">指定なし</option>` +
+      state.players.map((p,i) => `<option value="${i}">${p}</option>`).join("");
+    sel.selectedIndex = 0;
   });
-  document.getElementById("loser").selectedIndex = 1;
-  document.getElementById("jigo-p2").selectedIndex = 1;
 }
 buildSelects();
+
+// ③ 対局者選択時に手合いを自動設定
+function autoFillTeai() {
+  const type = document.getElementById("result-type").value;
+  const v1 = document.getElementById("winner").value;
+  const v2 = document.getElementById("loser").value;
+  if (!v1 || !v2 || v1 === v2) return;
+  const pA = state.players[+v1], pB = state.players[+v2];
+  const { level } = calcPairHandicapRaw(pA, pB);
+  if (level === 0) return;
+  // levelから左プレイヤー(pA)の手合いを決定
+  const upper = level > 0 ? pA : pB;
+  const teaiA = pA === upper ? "向先" : "先";
+  const teaiB = TEAI_PAIR[teaiA];
+  document.getElementById("winner-teai").value = teaiA;
+  document.getElementById("loser-teai-val").textContent = teaiB;
+  document.getElementById("loser-teai-row").style.display = "";
+}
+
+["winner","loser"].forEach(id => {
+  document.getElementById(id).addEventListener("change", autoFillTeai);
+});
 
 // 勝者手合い変更 → 敗者手合いを自動表示
 document.getElementById("winner-teai").addEventListener("change", function() {
@@ -396,19 +400,6 @@ document.getElementById("winner-teai").addEventListener("change", function() {
   const row = document.getElementById("loser-teai-row");
   if (val) {
     document.getElementById("loser-teai-val").textContent = pair;
-    row.style.display = "";
-  } else {
-    row.style.display = "none";
-  }
-});
-
-// 持碁：対局者A手合い変更 → Bを自動表示
-document.getElementById("jigo-teai").addEventListener("change", function() {
-  const val = this.value;
-  const pair = TEAI_PAIR[val];
-  const row = document.getElementById("jigo-p2-teai-row");
-  if (val) {
-    document.getElementById("jigo-p2-teai-val").textContent = pair;
     row.style.display = "";
   } else {
     row.style.display = "none";
@@ -426,13 +417,19 @@ document.getElementById("jigo-teai").addEventListener("change", function() {
 
 document.getElementById("result-type").addEventListener("change", function() {
   const t = this.value;
-  document.getElementById("normal-inputs").style.display = t !== "jigo" ? "" : "none";
-  document.getElementById("jigo-inputs").style.display  = t === "jigo" ? "" : "none";
-  document.getElementById("moku-fg").style.display      = t === "moku" ? "" : "none";
+  const isJigo = t === "jigo";
+  document.getElementById("moku-fg").style.display = t === "moku" ? "" : "none";
+  // ラベルを結果種別に応じて切替
+  document.getElementById("label-left").textContent      = isJigo ? "対局者A" : "勝者 👑";
+  document.getElementById("label-right").textContent     = isJigo ? "対局者B" : "敗者";
+  document.getElementById("label-left-teai").textContent = isJigo ? "対局者Aの手合い" : "勝者の手合い";
+  document.getElementById("label-right-teai").textContent= isJigo ? "対局者B" : "敗者";
+  autoFillTeai();
 });
 
 document.getElementById("add-match").addEventListener("click", () => {
   const type = document.getElementById("result-type").value;
+  if (!type) { showToast("結果種別を選択してください"); return; }
   const dateVal = document.getElementById("match-date").value;
   let d;
   if (dateVal) {
@@ -445,17 +442,21 @@ document.getElementById("add-match").addEventListener("click", () => {
   let m;
 
   if (type === "jigo") {
-    const i1 = +document.getElementById("jigo-p1").value;
-    const i2 = +document.getElementById("jigo-p2").value;
+    const v1 = document.getElementById("winner").value;
+    const v2 = document.getElementById("loser").value;
+    if (!v1 || !v2) { showToast("対局者を選択してください"); return; }
+    const i1 = +v1, i2 = +v2;
     if (i1 === i2) { showToast("同じ人は選べません"); return; }
-    const ta1 = document.getElementById("jigo-teai").value;
+    const ta1 = document.getElementById("winner-teai").value;
     const ta2 = TEAI_PAIR[ta1] || "";
     m = { type:"jigo", p1:state.players[i1], p2:state.players[i2],
           teai1:ta1, teai2:ta2, date:d };
     showToast(`${m.p1} vs ${m.p2}：持碁を登録しました`);
   } else {
-    const wi = +document.getElementById("winner").value;
-    const li = +document.getElementById("loser").value;
+    const wv = document.getElementById("winner").value;
+    const lv = document.getElementById("loser").value;
+    if (!wv || !lv) { showToast("勝者と敗者を選択してください"); return; }
+    const wi = +wv, li = +lv;
     if (wi === li) { showToast("同じ人は選べません"); return; }
     const tw = document.getElementById("winner-teai").value;
     const tl = TEAI_PAIR[tw] || "";
@@ -531,8 +532,12 @@ function renderStandings() {
       if (p1 === p2) { html += `<td class="cell-self">—</td>`; return; }
       const cells = [];
       [...state.history].reverse().forEach(m => {
-        if (m.type==="jigo" && ((m.p1===p1&&m.p2===p2)||(m.p1===p2&&m.p2===p1)))
-          cells.push(`<span class="stone-j">△</span>`);
+        if (m.type==="jigo" && ((m.p1===p1&&m.p2===p2)||(m.p1===p2&&m.p2===p1))) {
+          const jw = jigoWinner(m);
+          if (jw === p1)      cells.push(`<span class="stone-w">●</span>`);
+          else if (jw === p2) cells.push(`<span class="stone-l">○</span>`);
+          else                cells.push(`<span class="stone-j">△</span>`); // 手合い未設定
+        }
         if (m.winner===p1 && m.loser===p2) cells.push(`<span class="stone-w">●</span>`);
         if (m.winner===p2 && m.loser===p1) cells.push(`<span class="stone-l">○</span>`);
       });
@@ -692,48 +697,40 @@ function renderHistory() {
   });
 }
 
-// ペアの現在の手合いを5連勝ルールで計算
-function calcPairHandicap(pA, pB) {
-  // 古い順（chronological）に並べる
+// levelだけを返す軽量版（autoFillTeai用）
+function calcPairHandicapRaw(pA, pB) {
   const matches = [...state.history].reverse().filter(m => {
     if (m.type === "jigo") return (m.p1===pA&&m.p2===pB)||(m.p1===pB&&m.p2===pA);
     return (m.winner===pA&&m.loser===pB)||(m.winner===pB&&m.loser===pA);
   });
-
-  // handicapLevel: 正=pAが向先, 負=pBが向先, 0=互先
-  // streakはリセットされる。levelは複数段階に対応
-  let level = 0;   // 0: 互先, 1: pA向先, -1: pB向先 ...
-  let streak = 0;  // 正: pA連勝, 負: pB連勝
-
+  let level = 0, streak = 0;
   for (const m of matches) {
-    let winner = null;
-    if (m.type === "jigo") {
-      winner = jigoWinner(m); // 手合い未設定ならnull → スキップ
-    } else {
-      winner = m.winner;
-    }
+    let winner = m.type === "jigo" ? jigoWinner(m) : m.winner;
     if (!winner) continue;
-
     if (winner === pA) streak = streak >= 0 ? streak + 1 : 1;
     else              streak = streak <= 0 ? streak - 1 : -1;
-
-    if (streak >= 5) {
-      level++;
-      streak = 0;
-    } else if (streak <= -5) {
-      level--;
-      streak = 0;
-    }
+    if (streak >= 5)  { level++; streak = 0; }
+    else if (streak <= -5) { level--; streak = 0; }
   }
+  return { level, streak };
+}
+
+// ペアの現在の手合いを5連勝ルールで計算
+function calcPairHandicap(pA, pB) {
+  const { level, streak } = calcPairHandicapRaw(pA, pB);
 
   // levelから手合い文字列を生成
   let handicapStr;
   if (level === 0) {
     handicapStr = "互先";
-  } else if (level > 0) {
+  } else if (level === 1) {
     handicapStr = `向先（${pA}の白番・コミなし）`;
-  } else {
+  } else if (level === -1) {
     handicapStr = `向先（${pB}の白番・コミなし）`;
+  } else if (level > 1) {
+    handicapStr = `${level}子（${pB}の置き石・${pA}上手）`;
+  } else {
+    handicapStr = `${Math.abs(level)}子（${pA}の置き石・${pB}上手）`;
   }
 
   // 残り連勝数
