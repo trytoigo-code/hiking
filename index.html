@@ -235,7 +235,7 @@
     <!-- 手合い -->
     <div class="panel" id="panel-handicap">
       <h3>手合い割</h3>
-      <p class="note">首位と最下位が確定している場合のみ先番を表示します。</p>
+      <p class="note">5連勝で手合い割が変わります。</p>
       <div class="matrix-wrap">
         <table id="handicap-table">
           <thead><tr><th>対局</th><th>現在の手合い</th><th>状況</th></tr></thead>
@@ -724,20 +724,20 @@ function calcPairHandicap(pA, pB) {
   if (level === 0) {
     handicapStr = "互先";
   } else if (level === 1) {
-    handicapStr = `向先（${pA}の白番・コミなし）`;
+    handicapStr = `向先（${pA}上手・${pB}下手）`;
   } else if (level === -1) {
-    handicapStr = `向先（${pB}の白番・コミなし）`;
+    handicapStr = `向先（${pB}上手・${pA}下手）`;
   } else if (level > 1) {
-    handicapStr = `${level}子（${pB}の置き石・${pA}上手）`;
+    handicapStr = `${level}子（${pA}上手・${pB}下手）`;
   } else {
-    handicapStr = `${Math.abs(level)}子（${pA}の置き石・${pB}上手）`;
+    handicapStr = `${Math.abs(level)}子（${pB}上手・${pA}下手）`;
   }
 
   // 残り連勝数
   const remain = 5 - Math.abs(streak);
   let statusStr;
   if (streak === 0) {
-    statusStr = `<span style="color:#999">互角</span>`;
+    statusStr = `<span style="color:#999">—</span>`;
   } else if (streak > 0) {
     statusStr = `<span style="color:#b89752">${pA} ${streak}連勝中<br><small>あと${remain}連勝で手合変更</small></span>`;
   } else {
