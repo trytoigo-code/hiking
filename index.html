@@ -107,6 +107,13 @@
       display: flex; justify-content: space-between; align-items: center; gap: 8px;
     }
     .hist-date { font-size: 0.78rem; color: #999; }
+    .filter-btn {
+      padding: 5px 10px; border-radius: 14px; border: 1px solid #ddd8cc;
+      background: #fff; font-size: 0.78rem; cursor: pointer; color: #555; font-weight: bold;
+    }
+    .filter-btn.active {
+      background: #2c3e50; color: #fff; border-color: #2c3e50;
+    }
     .del-btn {
       background: #e74c3c; color: #fff; border: none;
       padding: 5px 10px; border-radius: 4px; font-size: 0.78rem;
@@ -239,6 +246,7 @@
     <!-- 履歴 -->
     <div class="panel" id="panel-history">
       <h3>対局履歴</h3>
+      <div id="history-filter" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;"></div>
       <div id="history-list"></div>
     </div>
 
@@ -542,20 +550,73 @@ function badgeHTML(m) {
   return `<span class="badge badge-m">${m.mokusuu}目差</span>`;
 }
 
+let currentFilter = "all";
+
+function getMatchPlayers(m) {
+  // 登録順で固定した [左プレイヤー, 右プレイヤー, 左が勝者か]
+  const ps = state.players;
+  if (m.type === "jigo") {
+    const i1 = ps.indexOf(m.p1), i2 = ps.indexOf(m.p2);
+    return i1 <= i2
+      ? { left: m.p1, right: m.p2, leftTeai: m.teai1, rightTeai: m.teai2, winner: null }
+      : { left: m.p2, right: m.p1, leftTeai: m.teai2, rightTeai: m.teai1, winner: null };
+  } else {
+    const iw = ps.indexOf(m.winner), il = ps.indexOf(m.loser);
+    return iw <= il
+      ? { left: m.winner, right: m.loser, leftTeai: m.teai_w, rightTeai: m.teai_l, winner: "left" }
+      : { left: m.loser, right: m.winner, leftTeai: m.teai_l, rightTeai: m.teai_w, winner: "right" };
+  }
+}
+
+function matchKey(m) {
+  const { left, right } = getMatchPlayers(m);
+  return `${left}|${right}`;
+}
+
+function renderHistoryFilter() {
+  const fc = document.getElementById("history-filter");
+  const pairs = [];
+  const ps = state.players;
+  for (let i = 0; i < ps.length; i++)
+    for (let j = i+1; j < ps.length; j++)
+      pairs.push({ key: `${ps[i]}|${ps[j]}`, label: `${ps[i]} vs ${ps[j]}` });
+
+  fc.innerHTML = [{ key:"all", label:"すべて" }, ...pairs].map(p =>
+    `<button class="filter-btn${currentFilter===p.key?" active":""}" data-key="${p.key}">${p.label}</button>`
+  ).join("");
+
+  fc.querySelectorAll(".filter-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      currentFilter = btn.dataset.key;
+      renderHistory();
+    });
+  });
+}
+
 function renderHistory() {
+  renderHistoryFilter();
   const el = document.getElementById("history-list");
-  if (state.history.length === 0) {
+
+  const filtered = state.history
+    .map((m, idx) => ({ m, idx }))
+    .filter(({ m }) => currentFilter === "all" || matchKey(m) === currentFilter);
+
+  if (filtered.length === 0) {
     el.innerHTML = `<p style="color:#999">対局記録はありません。</p>`;
     return;
   }
-  el.innerHTML = state.history.map((m, idx) => {
-    const teai = (t) => t ? `<span style="font-size:0.78rem;color:#888;font-weight:normal">（${t}）</span>` : "";
-    let matchStr;
-    if (m.type === "jigo") {
-      matchStr = `<strong>${m.p1}</strong>${teai(m.teai1)} vs <strong>${m.p2}</strong>${teai(m.teai2)} ${badgeHTML(m)}`;
-    } else {
-      matchStr = `<strong>${m.winner}</strong>${teai(m.teai_w)} 👑 vs ${m.loser}${teai(m.teai_l)} ${badgeHTML(m)}`;
-    }
+
+  const teai = (t) => t ? `<span style="font-size:0.78rem;color:#888;font-weight:normal">（${t}）</span>` : "";
+
+  el.innerHTML = filtered.map(({ m, idx }) => {
+    const { left, right, leftTeai, rightTeai, winner } = getMatchPlayers(m);
+    const leftName  = winner === "left"  ? `<strong>${left}</strong>${teai(leftTeai)} 👑`
+                    : winner === "right" ? `<strong>${left}</strong>${teai(leftTeai)}`
+                    : `<strong>${left}</strong>${teai(leftTeai)}`;
+    const rightName = winner === "right" ? `<strong>${right}</strong>${teai(rightTeai)} 👑`
+                    : winner === "left"  ? `${right}${teai(rightTeai)}`
+                    : `<strong>${right}</strong>${teai(rightTeai)}`;
+    const matchStr = `${leftName} vs ${rightName} ${badgeHTML(m)}`;
     return `
       <div class="hist-item">
         <div>${matchStr}<br><span class="hist-date">${m.date}</span></div>
