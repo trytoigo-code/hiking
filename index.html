@@ -194,10 +194,36 @@
         <div class="fg" id="moku-fg" style="display:none">
           <label>目数差</label><input id="mokusuu" type="number" placeholder="例: 3.5" min="0.5" step="0.5">
         </div>
+        <div class="fg">
+          <label>勝者の手合い</label>
+          <select id="winner-teai">
+            <option value="">指定なし</option>
+            <option value="互白">互白（コミあり・白番）</option>
+            <option value="互黒">互黒（コミあり・黒番）</option>
+            <option value="向先">向先（コミなし・白番）</option>
+            <option value="先">先（コミなし・黒番）</option>
+          </select>
+          <div id="loser-teai-row" style="margin-top:8px;font-size:0.88rem;color:#555;display:none">
+            敗者の手合い：<strong id="loser-teai-val"></strong>
+          </div>
+        </div>
       </div>
       <div id="jigo-inputs" style="display:none">
         <div class="fg"><label>対局者 A</label><select id="jigo-p1"></select></div>
         <div class="fg"><label>対局者 B</label><select id="jigo-p2"></select></div>
+        <div class="fg">
+          <label>対局者Aの手合い</label>
+          <select id="jigo-teai">
+            <option value="">指定なし</option>
+            <option value="互白">互白（コミあり・白番）</option>
+            <option value="互黒">互黒（コミあり・黒番）</option>
+            <option value="向先">向先（コミなし・白番）</option>
+            <option value="先">先（コミなし・黒番）</option>
+          </select>
+          <div id="jigo-p2-teai-row" style="margin-top:8px;font-size:0.88rem;color:#555;display:none">
+            対局者Bの手合い：<strong id="jigo-p2-teai-val"></strong>
+          </div>
+        </div>
       </div>
       <button class="btn" id="add-match">登録する（全員に即時反映）</button>
     </div>
@@ -343,6 +369,8 @@ document.getElementById("save-players").addEventListener("click", () => {
 });
 
 // ---------- Match Input ----------
+const TEAI_PAIR = { "互白":"互黒", "互黒":"互白", "向先":"先", "先":"向先", "":"" };
+
 function buildSelects() {
   ["winner","loser","jigo-p1","jigo-p2"].forEach(id => {
     const sel = document.getElementById(id);
@@ -352,6 +380,32 @@ function buildSelects() {
   document.getElementById("jigo-p2").selectedIndex = 1;
 }
 buildSelects();
+
+// 勝者手合い変更 → 敗者手合いを自動表示
+document.getElementById("winner-teai").addEventListener("change", function() {
+  const val = this.value;
+  const pair = TEAI_PAIR[val];
+  const row = document.getElementById("loser-teai-row");
+  if (val) {
+    document.getElementById("loser-teai-val").textContent = pair;
+    row.style.display = "";
+  } else {
+    row.style.display = "none";
+  }
+});
+
+// 持碁：対局者A手合い変更 → Bを自動表示
+document.getElementById("jigo-teai").addEventListener("change", function() {
+  const val = this.value;
+  const pair = TEAI_PAIR[val];
+  const row = document.getElementById("jigo-p2-teai-row");
+  if (val) {
+    document.getElementById("jigo-p2-teai-val").textContent = pair;
+    row.style.display = "";
+  } else {
+    row.style.display = "none";
+  }
+});
 
 // 対局日を今日で初期化
 (function() {
@@ -386,22 +440,30 @@ document.getElementById("add-match").addEventListener("click", () => {
     const i1 = +document.getElementById("jigo-p1").value;
     const i2 = +document.getElementById("jigo-p2").value;
     if (i1 === i2) { showToast("同じ人は選べません"); return; }
-    m = { type:"jigo", p1:state.players[i1], p2:state.players[i2], date:d };
+    const ta1 = document.getElementById("jigo-teai").value;
+    const ta2 = TEAI_PAIR[ta1] || "";
+    m = { type:"jigo", p1:state.players[i1], p2:state.players[i2],
+          teai1:ta1, teai2:ta2, date:d };
     showToast(`${m.p1} vs ${m.p2}：持碁を登録しました`);
   } else {
     const wi = +document.getElementById("winner").value;
     const li = +document.getElementById("loser").value;
     if (wi === li) { showToast("同じ人は選べません"); return; }
+    const tw = document.getElementById("winner-teai").value;
+    const tl = TEAI_PAIR[tw] || "";
     if (type === "moku") {
       const mk = parseFloat(document.getElementById("mokusuu").value);
       if (isNaN(mk) || mk <= 0) { showToast("目数差を正しく入力してください"); return; }
-      m = { type:"moku", winner:state.players[wi], loser:state.players[li], mokusuu:mk, date:d };
+      m = { type:"moku", winner:state.players[wi], loser:state.players[li],
+            mokusuu:mk, teai_w:tw, teai_l:tl, date:d };
       showToast(`${m.winner} の勝利（${mk}目差）を登録！`);
     } else if (type === "jikan") {
-      m = { type:"jikan", winner:state.players[wi], loser:state.players[li], date:d };
+      m = { type:"jikan", winner:state.players[wi], loser:state.players[li],
+            teai_w:tw, teai_l:tl, date:d };
       showToast(`${m.winner} の勝利（時間切れ）を登録！`);
     } else {
-      m = { type:"chuoshi", winner:state.players[wi], loser:state.players[li], date:d };
+      m = { type:"chuoshi", winner:state.players[wi], loser:state.players[li],
+            teai_w:tw, teai_l:tl, date:d };
       showToast(`${m.winner} の勝利（中押し）を登録！`);
     }
   }
@@ -476,7 +538,7 @@ function renderStandings() {
 function badgeHTML(m) {
   if (m.type==="jigo")    return `<span class="badge badge-j">持碁</span>`;
   if (m.type==="chuoshi") return `<span class="badge badge-c">中押し</span>`;
-  if (m.type==="jikan")   return `<span class="badge badge-t">時間切れ</span>`;
+  if (m.type==="jikan")   return `<span class="badge badge-t">時間切</span>`;
   return `<span class="badge badge-m">${m.mokusuu}目差</span>`;
 }
 
@@ -487,9 +549,13 @@ function renderHistory() {
     return;
   }
   el.innerHTML = state.history.map((m, idx) => {
-    const matchStr = m.type==="jigo"
-      ? `<strong>${m.p1}</strong> vs <strong>${m.p2}</strong> ${badgeHTML(m)}`
-      : `<strong>${m.winner}</strong> 👑 vs ${m.loser} ${badgeHTML(m)}`;
+    const teai = (t) => t ? `<span style="font-size:0.78rem;color:#888;font-weight:normal">（${t}）</span>` : "";
+    let matchStr;
+    if (m.type === "jigo") {
+      matchStr = `<strong>${m.p1}</strong>${teai(m.teai1)} vs <strong>${m.p2}</strong>${teai(m.teai2)} ${badgeHTML(m)}`;
+    } else {
+      matchStr = `<strong>${m.winner}</strong>${teai(m.teai_w)} 👑 vs ${m.loser}${teai(m.teai_l)} ${badgeHTML(m)}`;
+    }
     return `
       <div class="hist-item">
         <div>${matchStr}<br><span class="hist-date">${m.date}</span></div>
