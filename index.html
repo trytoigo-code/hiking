@@ -256,7 +256,7 @@
       <p class="note">首位と最下位が確定している場合のみ先番を表示します。</p>
       <div class="matrix-wrap">
         <table id="handicap-table">
-          <thead><tr><th>対局</th><th>手合い</th></tr></thead>
+          <thead><tr><th>対局</th><th>現在の手合い</th><th>状況</th></tr></thead>
           <tbody id="handicap-body"></tbody>
         </table>
       </div>
@@ -523,7 +523,8 @@ function renderStandings() {
 
   // 星取表
   const ps = state.players;
-  let html = "<thead><tr><th>相手↑/自分→</th>" + ps.map(p=>`<th>${p}</th>`).join("") + "</tr></thead><tbody>";
+  const diagCell = `<th style="background:linear-gradient(to bottom left,transparent calc(50% - 0.5px),#bbb calc(50% - 0.5px),#bbb calc(50% + 0.5px),transparent calc(50% + 0.5px))"></th>`;
+  let html = "<thead><tr>" + diagCell + ps.map(p=>`<th>${p}</th>`).join("") + "</tr></thead><tbody>";
   ps.forEach(p1 => {
     html += `<tr><th>${p1}</th>`;
     ps.forEach(p2 => {
@@ -593,6 +594,53 @@ function renderHistoryFilter() {
   });
 }
 
+// 持碁の黒番（下手）判定
+const BLACK_TEAI = ["互黒", "先"];
+
+function jigoWinner(m) {
+  // 持碁は黒番（下手）の勝ちとして勝者を返す。手合い未設定ならnull
+  if (BLACK_TEAI.includes(m.teai1)) return m.p1;
+  if (BLACK_TEAI.includes(m.teai2)) return m.p2;
+  return null;
+}
+
+function calcRecord(filtered) {
+  const rec = {};
+  state.players.forEach(p => rec[p] = { wins:0, losses:0 });
+  filtered.forEach(({ m }) => {
+    let w = null, l = null;
+    if (m.type === "jigo") {
+      w = jigoWinner(m);
+      l = w ? (w === m.p1 ? m.p2 : m.p1) : null;
+    } else {
+      w = m.winner; l = m.loser;
+    }
+    if (w && rec[w]) rec[w].wins++;
+    if (l && rec[l]) rec[l].losses++;
+  });
+  return rec;
+}
+
+function recordBanner(filtered) {
+  const rec = calcRecord(filtered);
+  if (currentFilter === "all") {
+    // 全員の勝敗サマリー
+    const rows = state.players.map(p =>
+      `<span style="margin-right:12px"><strong>${p}</strong> ${rec[p].wins}勝 ${rec[p].losses}敗</span>`
+    ).join("");
+    return `<div style="background:#f1f0ea;border:1px solid #e0dbcd;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:0.85rem;color:#2c3e50;line-height:2">${rows}</div>`;
+  } else {
+    const [leftP, rightP] = currentFilter.split("|");
+    const lw = rec[leftP]?.wins ?? 0, ll = rec[leftP]?.losses ?? 0;
+    const rw = rec[rightP]?.wins ?? 0, rl = rec[rightP]?.losses ?? 0;
+    return `<div style="background:#f1f0ea;border:1px solid #e0dbcd;border-radius:6px;padding:8px 14px;margin-bottom:12px;font-size:0.9rem;color:#2c3e50;display:flex;justify-content:space-around;text-align:center">
+      <div><strong>${leftP}</strong><br>${lw}勝 ${ll}敗</div>
+      <div style="color:#999;align-self:center">vs</div>
+      <div><strong>${rightP}</strong><br>${rw}勝 ${rl}敗</div>
+    </div>`;
+  }
+}
+
 function renderHistory() {
   renderHistoryFilter();
   const el = document.getElementById("history-list");
@@ -608,13 +656,21 @@ function renderHistory() {
 
   const teai = (t) => t ? `<span style="font-size:0.78rem;color:#888;font-weight:normal">（${t}）</span>` : "";
 
-  el.innerHTML = filtered.map(({ m, idx }) => {
+  const items = filtered.map(({ m, idx }) => {
     const { left, right, leftTeai, rightTeai, winner } = getMatchPlayers(m);
-    const leftName  = winner === "left"  ? `<strong>${left}</strong>${teai(leftTeai)} 👑`
-                    : winner === "right" ? `<strong>${left}</strong>${teai(leftTeai)}`
+
+    // 持碁の場合、手合いから勝者を判定して表示
+    let effectiveWinner = winner;
+    if (m.type === "jigo") {
+      const jw = jigoWinner(m);
+      if (jw) effectiveWinner = jw === left ? "left" : "right";
+    }
+
+    const leftName  = effectiveWinner === "left"  ? `<strong>${left}</strong>${teai(leftTeai)} 👑`
+                    : effectiveWinner === "right" ? `${left}${teai(leftTeai)}`
                     : `<strong>${left}</strong>${teai(leftTeai)}`;
-    const rightName = winner === "right" ? `<strong>${right}</strong>${teai(rightTeai)} 👑`
-                    : winner === "left"  ? `${right}${teai(rightTeai)}`
+    const rightName = effectiveWinner === "right" ? `<strong>${right}</strong>${teai(rightTeai)} 👑`
+                    : effectiveWinner === "left"  ? `${right}${teai(rightTeai)}`
                     : `<strong>${right}</strong>${teai(rightTeai)}`;
     const matchStr = `${leftName} vs ${rightName} ${badgeHTML(m)}`;
     return `
@@ -623,6 +679,8 @@ function renderHistory() {
         <button class="del-btn" data-idx="${idx}">削除</button>
       </div>`;
   }).join("");
+
+  el.innerHTML = recordBanner(filtered) + items;
 
   el.querySelectorAll(".del-btn").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -634,19 +692,75 @@ function renderHistory() {
   });
 }
 
+// ペアの現在の手合いを5連勝ルールで計算
+function calcPairHandicap(pA, pB) {
+  // 古い順（chronological）に並べる
+  const matches = [...state.history].reverse().filter(m => {
+    if (m.type === "jigo") return (m.p1===pA&&m.p2===pB)||(m.p1===pB&&m.p2===pA);
+    return (m.winner===pA&&m.loser===pB)||(m.winner===pB&&m.loser===pA);
+  });
+
+  // handicapLevel: 正=pAが向先, 負=pBが向先, 0=互先
+  // streakはリセットされる。levelは複数段階に対応
+  let level = 0;   // 0: 互先, 1: pA向先, -1: pB向先 ...
+  let streak = 0;  // 正: pA連勝, 負: pB連勝
+
+  for (const m of matches) {
+    let winner = null;
+    if (m.type === "jigo") {
+      winner = jigoWinner(m); // 手合い未設定ならnull → スキップ
+    } else {
+      winner = m.winner;
+    }
+    if (!winner) continue;
+
+    if (winner === pA) streak = streak >= 0 ? streak + 1 : 1;
+    else              streak = streak <= 0 ? streak - 1 : -1;
+
+    if (streak >= 5) {
+      level++;
+      streak = 0;
+    } else if (streak <= -5) {
+      level--;
+      streak = 0;
+    }
+  }
+
+  // levelから手合い文字列を生成
+  let handicapStr;
+  if (level === 0) {
+    handicapStr = "互先";
+  } else if (level > 0) {
+    handicapStr = `向先（${pA}の白番・コミなし）`;
+  } else {
+    handicapStr = `向先（${pB}の白番・コミなし）`;
+  }
+
+  // 残り連勝数
+  const remain = 5 - Math.abs(streak);
+  let statusStr;
+  if (streak === 0) {
+    statusStr = `<span style="color:#999">互角</span>`;
+  } else if (streak > 0) {
+    statusStr = `<span style="color:#b89752">${pA} ${streak}連勝中<br><small>あと${remain}連勝で手合変更</small></span>`;
+  } else {
+    statusStr = `<span style="color:#b89752">${pB} ${Math.abs(streak)}連勝中<br><small>あと${remain}連勝で手合変更</small></span>`;
+  }
+
+  return { handicapStr, statusStr };
+}
+
 function renderHandicap() {
-  const sorted = calcStats();
-  const top = sorted[0].wins !== sorted[1].wins ? sorted[0].name : null;
-  const btm = sorted[2].wins !== sorted[3].wins ? sorted[3].name : null;
   const ps = state.players;
   let html = "";
   for (let i=0; i<ps.length; i++) {
     for (let j=i+1; j<ps.length; j++) {
-      const p1=ps[i], p2=ps[j];
-      let h = "互先";
-      if (top && btm && ((p1===top&&p2===btm)||(p1===btm&&p2===top)))
-        h = `先（${top}の白番・コミなし）`;
-      html += `<tr><td>${p1} vs ${p2}</td><td>${h}</td></tr>`;
+      const { handicapStr, statusStr } = calcPairHandicap(ps[i], ps[j]);
+      html += `<tr>
+        <td style="white-space:nowrap">${ps[i]} vs ${ps[j]}</td>
+        <td>${handicapStr}</td>
+        <td style="font-size:0.82rem">${statusStr}</td>
+      </tr>`;
     }
   }
   document.getElementById("handicap-body").innerHTML = html;
