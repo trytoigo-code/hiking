@@ -834,10 +834,16 @@ function calcPairHandicap(pA, pB) {
   let statusStr;
   if (streak === 0) {
     statusStr = `<span style="color:#999">—</span>`;
-  } else if (streak > 0) {
-    statusStr = `<span style="color:#b89752">${pA} ${streak}連勝中<br><small>あと${remain}連勝で手合変更</small></span>`;
   } else {
-    statusStr = `<span style="color:#b89752">${pB} ${Math.abs(streak)}連勝中<br><small>あと${remain}連勝で手合変更</small></span>`;
+    const leader = streak > 0 ? pA : pB;
+    const absStreak = Math.abs(streak);
+    // プログレスバー：●が連勝数、○が残り
+    const filled = Array(absStreak).fill(`<span style="color:#2c3e50;font-size:1rem">●</span>`).join("");
+    const empty  = Array(remain).fill(`<span style="color:#ccc;font-size:1rem">○</span>`).join("");
+    statusStr = `
+      <div style="font-size:0.82rem;color:#2c3e50;font-weight:bold">${leader} ${absStreak}連勝中</div>
+      <div style="letter-spacing:2px;margin:3px 0">${filled}${empty}</div>
+      <div style="font-size:0.75rem;color:#999">あと${remain}連勝で手合変更</div>`;
   }
 
   return { handicapStr, statusStr };
