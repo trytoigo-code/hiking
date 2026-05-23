@@ -532,7 +532,7 @@ function renderStandings() {
         <div class="rank-num">${medals[i] || (i+1)}</div>
         <div class="rank-info">
           <strong>${p.name}</strong>
-          <span class="rank-record"> ${p.wins}勝 ${p.losses}敗${jigoStr}</span>
+          <span class="rank-record"> ${p.wins}勝 ${p.losses}敗${jigoStr}${winRate(p.wins, p.losses)}</span>
           <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
         </div>
       </div>`;
