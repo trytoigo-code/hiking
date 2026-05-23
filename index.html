@@ -152,11 +152,11 @@
 
   <!-- Tabs -->
   <div id="nav">
-    <button class="tab-btn active" data-tab="setup">設定</button>
-    <button class="tab-btn" data-tab="input">結果入力</button>
-    <button class="tab-btn" data-tab="standings">星取表</button>
-    <button class="tab-btn" data-tab="history">履歴</button>
-    <button class="tab-btn" data-tab="handicap">手合い</button>
+    <button class="tab-btn active" data-tab="setup">⚙️設定</button>
+    <button class="tab-btn" data-tab="input">📝結果入力</button>
+    <button class="tab-btn" data-tab="standings">🏆星取表</button>
+    <button class="tab-btn" data-tab="history">📜履歴</button>
+    <button class="tab-btn" data-tab="handicap">🤝手合い</button>
   </div>
 
   <!-- Content -->
@@ -565,17 +565,29 @@ function heatmapText(wins, losses) {
 function renderStandings() {
   const sorted = calcStats();
   const medals = ["🥇","🥈","🥉","",""];
+  // 順位変動用: 前回の並び順を保持
 
-  // 順位
+  // 順位変動計算
+  const prevOrder = lastSorted.map(p => p.name);
+  lastSorted = sorted.map(p => ({ ...p }));
+
   document.getElementById("rank-list").innerHTML = sorted.map((p,i) => {
     const pct = Math.min((p.total/10)*100, 100);
     const jigoStr = p.jigo > 0 ? ` ${p.jigo}持碁` : "";
+    const prevRank = prevOrder.indexOf(p.name);
+    let badge = "";
+    if (prevOrder.length > 0 && prevRank !== -1) {
+      const diff = prevRank - i;
+      if (diff > 0)      badge = `<span style="color:#e74c3c;font-size:0.8rem;font-weight:bold">▲${diff}</span>`;
+      else if (diff < 0) badge = `<span style="color:#3498db;font-size:0.8rem;font-weight:bold">▼${Math.abs(diff)}</span>`;
+      else               badge = `<span style="color:#ccc;font-size:0.8rem">－</span>`;
+    }
     return `
       <div class="rank-row">
         <div class="rank-num">${medals[i] || (i+1)}</div>
         <div class="rank-info">
-          <strong>${p.name}</strong>
-          <span class="rank-record"> ${p.wins}勝 ${p.losses}敗${jigoStr}${winRate(p.wins, p.losses)}</span>
+          <div><strong>${p.name}</strong> ${badge}
+          <span class="rank-record"> ${p.wins}勝 ${p.losses}敗${jigoStr}${winRate(p.wins, p.losses)}</span></div>
           <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
         </div>
       </div>`;
@@ -621,7 +633,8 @@ function badgeHTML(m) {
   return `<span class="badge badge-m">${m.mokusuu}目差</span>`;
 }
 
-let selectedPlayers = []; // 0=全表示, 1=1人の全対局, 2=2人の対局
+let selectedPlayers = [];
+let lastSorted = []; // 順位変動比較用 // 0=全表示, 1=1人の全対局, 2=2人の対局
 
 function getMatchPlayers(m) {
   // 登録順で固定した [左対局者, 右対局者, 左が勝者か]
