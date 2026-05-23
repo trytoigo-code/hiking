@@ -494,7 +494,30 @@ document.getElementById("add-match").addEventListener("click", () => {
   }
   state.history.unshift(m);
   pushState();
+  resetInputForm();
 });
+
+function resetInputForm() {
+  document.getElementById("result-type").value = "";
+  document.getElementById("winner").selectedIndex = 0;
+  document.getElementById("loser").selectedIndex = 0;
+  document.getElementById("winner-teai").value = "";
+  document.getElementById("loser-teai-row").style.display = "none";
+  document.getElementById("loser-teai-val").textContent = "";
+  document.getElementById("moku-fg").style.display = "none";
+  document.getElementById("mokusuu").value = "";
+  // ラベルを初期状態に戻す
+  document.getElementById("label-left").textContent      = "勝者 👑";
+  document.getElementById("label-right").textContent     = "敗者";
+  document.getElementById("label-left-teai").textContent = "勝者の手合い";
+  document.getElementById("label-right-teai").textContent= "敗者";
+  // 対局日は今日にリセット
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth()+1).padStart(2,"0");
+  const dd = String(today.getDate()).padStart(2,"0");
+  document.getElementById("match-date").value = `${yyyy}-${mm}-${dd}`;
+}
 
 // ---------- Render ----------
 function renderAll() {
@@ -517,6 +540,26 @@ function calcStats() {
     }
   });
   return Object.values(s).sort((a,b) => b.wins - a.wins || a.losses - b.losses);
+}
+
+function heatmapColor(wins, losses) {
+  const total = wins + losses;
+  if (total === 0) return "#ffffff";
+  const rate = wins / total;
+  if (rate >= 0.80) return "#1a3a5c";       // 濃紺
+  if (rate >= 0.60) return "#6a9fc0";       // 薄紺
+  if (rate > 0.40)  return "#f5f5f5";       // ほぼ互角・薄グレー
+  if (rate >= 0.20) return "#e8a090";       // 薄赤
+  return "#c0392b";                          // 濃赤
+}
+
+function heatmapText(wins, losses) {
+  const total = wins + losses;
+  if (total === 0) return "#333";
+  const rate = wins / total;
+  // 濃い背景色の時は白文字
+  if (rate >= 0.80 || rate < 0.20) return "#fff";
+  return "#333";
 }
 
 function renderStandings() {
@@ -547,17 +590,22 @@ function renderStandings() {
     ps.forEach(p2 => {
       if (p1 === p2) { html += `<td class="cell-self">—</td>`; return; }
       const cells = [];
+      let w1=0, l1=0;
       [...state.history].reverse().forEach(m => {
         if (m.type==="jigo" && ((m.p1===p1&&m.p2===p2)||(m.p1===p2&&m.p2===p1))) {
           const jw = jigoWinner(m);
-          if (jw === p1)      cells.push(`<span class="stone-w">●</span>`);
-          else if (jw === p2) cells.push(`<span class="stone-l">○</span>`);
-          else                cells.push(`<span class="stone-j">△</span>`); // 手合い未設定
+          if (jw === p1)      { cells.push(`<span class="stone-w">●</span>`); w1++; }
+          else if (jw === p2) { cells.push(`<span class="stone-l">○</span>`); l1++; }
+          else                  cells.push(`<span class="stone-j">△</span>`);
         }
-        if (m.winner===p1 && m.loser===p2) cells.push(`<span class="stone-w">●</span>`);
-        if (m.winner===p2 && m.loser===p1) cells.push(`<span class="stone-l">○</span>`);
+        if (m.winner===p1 && m.loser===p2) { cells.push(`<span class="stone-w">●</span>`); w1++; }
+        if (m.winner===p2 && m.loser===p1) { cells.push(`<span class="stone-l">○</span>`); l1++; }
       });
-      html += `<td>${cells.join(" ")}</td>`;
+      const bg = heatmapColor(w1, l1);
+      const fg = heatmapText(w1, l1);
+      const total = w1 + l1;
+      const cellText = total === 0 ? "" : `${w1}勝${l1}敗`;
+      html += `<td style="background:${bg};color:${fg};font-size:0.78rem;font-weight:bold">${cellText}</td>`;
     });
     html += "</tr>";
   });
@@ -573,7 +621,7 @@ function badgeHTML(m) {
   return `<span class="badge badge-m">${m.mokusuu}目差</span>`;
 }
 
-let currentFilter = "all";
+let selectedPlayers = []; // 0=全表示, 1=1人の全対局, 2=2人の対局
 
 function getMatchPlayers(m) {
   // 登録順で固定した [左対局者, 右対局者, 左が勝者か]
@@ -598,19 +646,35 @@ function matchKey(m) {
 
 function renderHistoryFilter() {
   const fc = document.getElementById("history-filter");
-  const pairs = [];
   const ps = state.players;
-  for (let i = 0; i < ps.length; i++)
-    for (let j = i+1; j < ps.length; j++)
-      pairs.push({ key: `${ps[i]}|${ps[j]}`, label: `${ps[i]} vs ${ps[j]}` });
 
-  fc.innerHTML = [{ key:"all", label:"すべて" }, ...pairs].map(p =>
-    `<button class="filter-btn${currentFilter===p.key?" active":""}" data-key="${p.key}">${p.label}</button>`
+  const allBtn = `<button class="filter-btn${selectedPlayers.length===0?" active":""}" data-action="all">すべて</button>`;
+  const playerBtns = ps.map(p =>
+    `<button class="filter-btn player-btn${selectedPlayers.includes(p)?" active":""}" data-player="${p}">${p}</button>`
   ).join("");
 
-  fc.querySelectorAll(".filter-btn").forEach(btn => {
+  fc.innerHTML = `
+    <div style="margin-bottom:6px">${allBtn}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">${playerBtns}</div>
+  `;
+
+  fc.querySelector("[data-action='all']").addEventListener("click", () => {
+    selectedPlayers = [];
+    renderHistory();
+  });
+
+  fc.querySelectorAll(".player-btn").forEach(btn => {
     btn.addEventListener("click", () => {
-      currentFilter = btn.dataset.key;
+      const p = btn.dataset.player;
+      if (selectedPlayers.includes(p)) {
+        // 選択解除
+        selectedPlayers = selectedPlayers.filter(x => x !== p);
+      } else if (selectedPlayers.length < 2) {
+        selectedPlayers.push(p);
+      } else {
+        // 3人目は古い方を置き換え
+        selectedPlayers = [selectedPlayers[1], p];
+      }
       renderHistory();
     });
   });
@@ -651,13 +715,8 @@ function winRate(w, l) {
 
 function recordBanner(filtered) {
   const rec = calcRecord(filtered);
-  if (currentFilter === "all") {
-    const rows = state.players.map(p =>
-      `<span style="margin-right:12px"><strong>${p}</strong> ${rec[p].wins}勝 ${rec[p].losses}敗${winRate(rec[p].wins, rec[p].losses)}</span>`
-    ).join("");
-    return `<div style="background:#f1f0ea;border:1px solid #e0dbcd;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:0.85rem;color:#2c3e50;line-height:2">${rows}</div>`;
-  } else {
-    const [leftP, rightP] = currentFilter.split("|");
+  if (selectedPlayers.length === 2) {
+    const [leftP, rightP] = selectedPlayers;
     const lw = rec[leftP]?.wins ?? 0, ll = rec[leftP]?.losses ?? 0;
     const rw = rec[rightP]?.wins ?? 0, rl = rec[rightP]?.losses ?? 0;
     return `<div style="background:#f1f0ea;border:1px solid #e0dbcd;border-radius:6px;padding:8px 14px;margin-bottom:12px;font-size:0.9rem;color:#2c3e50;display:flex;justify-content:space-around;text-align:center">
@@ -665,6 +724,12 @@ function recordBanner(filtered) {
       <div style="color:#999;align-self:center">vs</div>
       <div><strong>${rightP}</strong><br>${rw}勝 ${rl}敗${winRate(rw, rl)}</div>
     </div>`;
+  } else {
+    const targets = selectedPlayers.length === 1 ? [selectedPlayers[0]] : state.players;
+    const rows = targets.map(p =>
+      `<span style="margin-right:12px"><strong>${p}</strong> ${rec[p]?.wins??0}勝 ${rec[p]?.losses??0}敗${winRate(rec[p]?.wins??0, rec[p]?.losses??0)}</span>`
+    ).join("");
+    return `<div style="background:#f1f0ea;border:1px solid #e0dbcd;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:0.85rem;color:#2c3e50;line-height:2">${rows}</div>`;
   }
 }
 
@@ -674,7 +739,16 @@ function renderHistory() {
 
   const filtered = state.history
     .map((m, idx) => ({ m, idx }))
-    .filter(({ m }) => currentFilter === "all" || matchKey(m) === currentFilter);
+    .filter(({ m }) => {
+      if (selectedPlayers.length === 0) return true;
+      const { left, right } = getMatchPlayers(m);
+      if (selectedPlayers.length === 1) {
+        return left === selectedPlayers[0] || right === selectedPlayers[0];
+      }
+      // 2人選択: その2人の対局のみ
+      return (left === selectedPlayers[0] && right === selectedPlayers[1]) ||
+             (left === selectedPlayers[1] && right === selectedPlayers[0]);
+    });
 
   if (filtered.length === 0) {
     el.innerHTML = `<p style="color:#999">対局記録はありません。</p>`;
