@@ -172,10 +172,11 @@
       </div>
       <h3>メンバー設定</h3>
       <p class="note">名前を変更したら「保存して同期」を押すと全員の画面に即時反映されます。</p>
-      <div class="fg"><label>プレイヤー 1</label><input id="p0" type="text"></div>
-      <div class="fg"><label>プレイヤー 2</label><input id="p1" type="text"></div>
-      <div class="fg"><label>プレイヤー 3</label><input id="p2" type="text"></div>
-      <div class="fg"><label>プレイヤー 4</label><input id="p3" type="text"></div>
+      <div class="fg"><label>対局者 1</label><input id="p0" type="text"></div>
+      <div class="fg"><label>対局者 2</label><input id="p1" type="text"></div>
+      <div class="fg"><label>対局者 3</label><input id="p2" type="text"></div>
+      <div class="fg"><label>対局者 4</label><input id="p3" type="text"></div>
+      <div class="fg"><label>対局者 5</label><input id="p4" type="text"></div>
       <button class="btn" id="save-players">保存して全員に同期</button>
     </div>
 
@@ -209,6 +210,10 @@
           <option value="互黒">互黒（コミあり・黒番）</option>
           <option value="向先">向先（コミなし・白番）</option>
           <option value="先">先（コミなし・黒番）</option>
+          <option value="向2">向2（向2子・上手）</option>
+          <option value="2子">2子（下手）</option>
+          <option value="向3">向3（向3子・上手）</option>
+          <option value="3子">3子（下手）</option>
         </select>
         <div id="loser-teai-row" style="margin-top:8px;font-size:0.88rem;color:#555;display:none">
           <span id="label-right-teai">敗者</span>の手合い：<strong id="loser-teai-val"></strong>
@@ -266,7 +271,7 @@ const firebaseConfig = {
 
 // ---------- State ----------
 let state = {
-  players: ["プレイヤー1", "プレイヤー2", "プレイヤー3", "プレイヤー4"],
+  players: ["対局者1", "対局者2", "対局者3", "対局者4", "対局者5"],
   history: []
 };
 let stateRef = null;
@@ -338,28 +343,29 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
 // ---------- Setup ----------
 function fillPlayerInputs() {
   state.players.forEach((name, i) => {
-    document.getElementById("p" + i).value = name;
+    const el = document.getElementById("p" + i);
+    if (el) el.value = name;
   });
 }
 fillPlayerInputs();
 
-[0,1,2,3].forEach(i => {
+[0,1,2,3,4].forEach(i => {
   const el = document.getElementById("p" + i);
   el.addEventListener("focus", () => editingPlayers = true);
   el.addEventListener("blur",  () => editingPlayers = false);
 });
 
 document.getElementById("save-players").addEventListener("click", () => {
-  state.players = [0,1,2,3].map(i => {
+  state.players = [0,1,2,3,4].map(i => {
     const v = document.getElementById("p" + i).value.trim();
-    return v || `プレイヤー${i+1}`;
+    return v || `対局者${i+1}`;
   });
   pushState();
   showToast("メンバー名を全員に同期しました！");
 });
 
 // ---------- Match Input ----------
-const TEAI_PAIR = { "互白":"互黒", "互黒":"互白", "向先":"先", "先":"向先", "":"" };
+const TEAI_PAIR = { "互白":"互黒", "互黒":"互白", "向先":"先", "先":"向先", "向2":"2子", "2子":"向2", "向3":"3子", "3子":"向3", "":"" };
 
 function buildSelects() {
   ["winner","loser"].forEach(id => {
@@ -380,10 +386,13 @@ function autoFillTeai() {
   const pA = state.players[+v1], pB = state.players[+v2];
   const { level } = calcPairHandicapRaw(pA, pB);
   if (level === 0) return;
-  // levelから左プレイヤー(pA)の手合いを決定
+  // levelから左対局者(pA)の手合いを決定
   const upper = level > 0 ? pA : pB;
-  const teaiA = pA === upper ? "向先" : "先";
-  const teaiB = TEAI_PAIR[teaiA];
+  const absLevel = Math.abs(level);
+  const upperTeai = absLevel === 1 ? "向先" : absLevel === 2 ? "向2" : `向${absLevel}`;
+  const lowerTeai = absLevel === 1 ? "先"  : absLevel === 2 ? "2子" : `${absLevel}子`;
+  const teaiA = pA === upper ? upperTeai : lowerTeai;
+  const teaiB = pA === upper ? lowerTeai : upperTeai;
   document.getElementById("winner-teai").value = teaiA;
   document.getElementById("loser-teai-val").textContent = teaiB;
   document.getElementById("loser-teai-row").style.display = "";
@@ -505,7 +514,7 @@ function calcStats() {
 
 function renderStandings() {
   const sorted = calcStats();
-  const medals = ["🥇","🥈","🥉",""];
+  const medals = ["🥇","🥈","🥉","",""];
 
   // 順位
   document.getElementById("rank-list").innerHTML = sorted.map((p,i) => {
@@ -559,7 +568,7 @@ function badgeHTML(m) {
 let currentFilter = "all";
 
 function getMatchPlayers(m) {
-  // 登録順で固定した [左プレイヤー, 右プレイヤー, 左が勝者か]
+  // 登録順で固定した [左対局者, 右対局者, 左が勝者か]
   const ps = state.players;
   if (m.type === "jigo") {
     const i1 = ps.indexOf(m.p1), i2 = ps.indexOf(m.p2);
