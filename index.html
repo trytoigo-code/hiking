@@ -492,6 +492,10 @@ document.getElementById("add-match").addEventListener("click", () => {
       showToast(`${m.winner} の勝利（中押し）を登録！`);
     }
   }
+  // 対局登録前の順位をスナップショット
+  lastSorted = calcStats()
+    .sort((a,b) => b.wins - a.wins || a.losses - b.losses)
+    .map(p => ({ ...p }));
   state.history.unshift(m);
   pushState();
   resetInputForm();
@@ -567,9 +571,8 @@ function renderStandings() {
   const medals = ["🥇","🥈","🥉","",""];
   // 順位変動用: 前回の並び順を保持
 
-  // 順位変動計算
+  // 順位変動計算（lastSortedはaddMatch側で更新）
   const prevOrder = lastSorted.map(p => p.name);
-  lastSorted = sorted.map(p => ({ ...p }));
 
   document.getElementById("rank-list").innerHTML = sorted.map((p,i) => {
     const pct = Math.min((p.total/10)*100, 100);
