@@ -127,6 +127,7 @@
     .badge-m { background: #b89752; }
     .badge-j { background: #888; }
     .badge-t { background: #c0392b; }
+    .badge-f { background: #7f8c8d; }
 
     /* Toast */
     #toast {
@@ -195,6 +196,7 @@
           <option value="jikan">時間切れ</option>
           <option value="moku">目数差</option>
           <option value="jigo">持碁</option>
+          <option value="fumei">不明</option>
         </select>
       </div>
       <div class="fg"><label id="label-left">勝者 👑</label><select id="winner"></select></div>
@@ -206,6 +208,7 @@
         <label id="label-left-teai">勝者の手合い</label>
         <select id="winner-teai">
           <option value="">指定なし</option>
+          <option value="互先">互先（白黒不明）</option>
           <option value="互白">互白（コミあり・白番）</option>
           <option value="互黒">互黒（コミあり・黒番）</option>
           <option value="向先">向先（コミなし・白番）</option>
@@ -365,7 +368,7 @@ document.getElementById("save-players").addEventListener("click", () => {
 });
 
 // ---------- Match Input ----------
-const TEAI_PAIR = { "互白":"互黒", "互黒":"互白", "向先":"先", "先":"向先", "向2":"2子", "2子":"向2", "向3":"3子", "3子":"向3", "":"" };
+const TEAI_PAIR = { "互先":"互先", "互白":"互黒", "互黒":"互白", "向先":"先", "先":"向先", "向2":"2子", "2子":"向2", "向3":"3子", "3子":"向3", "":"" };
 
 function buildSelects() {
   ["winner","loser"].forEach(id => {
@@ -479,6 +482,10 @@ document.getElementById("add-match").addEventListener("click", () => {
       m = { type:"jikan", winner:state.players[wi], loser:state.players[li],
             teai_w:tw, teai_l:tl, date:d };
       showToast(`${m.winner} の勝利（時間切れ）を登録！`);
+    } else if (type === "fumei") {
+      m = { type:"fumei", winner:state.players[wi], loser:state.players[li],
+            teai_w:tw, teai_l:tl, date:d };
+      showToast(`${m.winner} の勝利（不明）を登録！`);
     } else {
       m = { type:"chuoshi", winner:state.players[wi], loser:state.players[li],
             teai_w:tw, teai_l:tl, date:d };
@@ -562,6 +569,7 @@ function badgeHTML(m) {
   if (m.type==="jigo")    return `<span class="badge badge-j">持碁</span>`;
   if (m.type==="chuoshi") return `<span class="badge badge-c">中押し</span>`;
   if (m.type==="jikan")   return `<span class="badge badge-t">時間切</span>`;
+  if (m.type==="fumei")   return `<span class="badge badge-f">不明</span>`;
   return `<span class="badge badge-m">${m.mokusuu}目差</span>`;
 }
 
@@ -635,12 +643,17 @@ function calcRecord(filtered) {
   return rec;
 }
 
+function winRate(w, l) {
+  const total = w + l;
+  if (total === 0) return "";
+  return `（${(w / total).toFixed(2)}）`;
+}
+
 function recordBanner(filtered) {
   const rec = calcRecord(filtered);
   if (currentFilter === "all") {
-    // 全員の勝敗サマリー
     const rows = state.players.map(p =>
-      `<span style="margin-right:12px"><strong>${p}</strong> ${rec[p].wins}勝 ${rec[p].losses}敗</span>`
+      `<span style="margin-right:12px"><strong>${p}</strong> ${rec[p].wins}勝 ${rec[p].losses}敗${winRate(rec[p].wins, rec[p].losses)}</span>`
     ).join("");
     return `<div style="background:#f1f0ea;border:1px solid #e0dbcd;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:0.85rem;color:#2c3e50;line-height:2">${rows}</div>`;
   } else {
@@ -648,9 +661,9 @@ function recordBanner(filtered) {
     const lw = rec[leftP]?.wins ?? 0, ll = rec[leftP]?.losses ?? 0;
     const rw = rec[rightP]?.wins ?? 0, rl = rec[rightP]?.losses ?? 0;
     return `<div style="background:#f1f0ea;border:1px solid #e0dbcd;border-radius:6px;padding:8px 14px;margin-bottom:12px;font-size:0.9rem;color:#2c3e50;display:flex;justify-content:space-around;text-align:center">
-      <div><strong>${leftP}</strong><br>${lw}勝 ${ll}敗</div>
+      <div><strong>${leftP}</strong><br>${lw}勝 ${ll}敗${winRate(lw, ll)}</div>
       <div style="color:#999;align-self:center">vs</div>
-      <div><strong>${rightP}</strong><br>${rw}勝 ${rl}敗</div>
+      <div><strong>${rightP}</strong><br>${rw}勝 ${rl}敗${winRate(rw, rl)}</div>
     </div>`;
   }
 }
