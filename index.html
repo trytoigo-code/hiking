@@ -195,7 +195,7 @@
           <option value="chuoshi">中押し</option>
           <option value="jikan">時間切れ</option>
           <option value="moku">目数差</option>
-          <option value="jigo">持碁</option>
+          <option value="jigo">持碁（黒勝ち）</option>
           <option value="fumei">不明</option>
         </select>
       </div>
@@ -536,8 +536,17 @@ function calcStats() {
   state.players.forEach(p => s[p] = { name:p, wins:0, losses:0, jigo:0, total:0 });
   state.history.forEach(m => {
     if (m.type === "jigo") {
-      if (s[m.p1]) { s[m.p1].jigo++; s[m.p1].total++; }
-      if (s[m.p2]) { s[m.p2].jigo++; s[m.p2].total++; }
+      const jw = jigoWinner(m);
+      if (jw) {
+        // 黒番（下手）の勝ち
+        const loser = jw === m.p1 ? m.p2 : m.p1;
+        if (s[jw])    { s[jw].wins++;    s[jw].total++;    }
+        if (s[loser]) { s[loser].losses++; s[loser].total++; }
+      } else {
+        // 手合い未設定の持碁は引き分けカウント
+        if (s[m.p1]) { s[m.p1].jigo++; s[m.p1].total++; }
+        if (s[m.p2]) { s[m.p2].jigo++; s[m.p2].total++; }
+      }
     } else {
       if (s[m.winner]) { s[m.winner].wins++; s[m.winner].total++; }
       if (s[m.loser])  { s[m.loser].losses++; s[m.loser].total++; }
