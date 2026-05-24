@@ -40,7 +40,8 @@
   - 手合い自動計算（5連勝で手合い変更、多段階対応）
   - 手合いレベルの独立保存（履歴に依存せず管理）
   - 初期手合い設定（ペアごとに手合いを手動設定可能）
-  - シーズンリセット（履歴をリセット・手合いレベルは引き継ぎ）
+  - シーズンリセット（履歴をFirebaseに保存後リセット・手合いレベルは引き継ぎ）
+  - 過去シーズンのアーカイブ表示（Firebase go-league/seasons/ に保存）
   - Firebase によるリアルタイム同期
 
 【今後の改良候補】
@@ -204,18 +205,18 @@
 
   <!-- Tabs -->
   <div id="nav">
-    <button class="tab-btn active" data-tab="setup">⚙️設定</button>
+    <button class="tab-btn active" data-tab="standings">🏆星取表</button>
     <button class="tab-btn" data-tab="input">📝結果入力</button>
-    <button class="tab-btn" data-tab="standings">🏆星取表</button>
     <button class="tab-btn" data-tab="history">📜履歴</button>
     <button class="tab-btn" data-tab="handicap">🤝手合い</button>
+    <button class="tab-btn" data-tab="setup">⚙️設定</button>
   </div>
 
   <!-- Content -->
   <div id="content">
 
     <!-- 設定 -->
-    <div class="panel active" id="panel-setup">
+    <div class="panel" id="panel-setup">
       <div id="setup-banner">
         ⚙️ <strong>Firebase未設定 — ローカル動作中</strong><br>
         全員でリアルタイム共有するには <code>index.html</code> の
@@ -223,23 +224,31 @@
         <a href="https://console.firebase.google.com" target="_blank">console.firebase.google.com</a>
         → Realtime Database を有効化
       </div>
-      <h3>対局者設定</h3>
-      <p class="note">名前を変更したら「保存して同期」を押すと全員の画面に即時反映されます。</p>
-      <div class="fg"><label>対局者 1</label><input id="p0" type="text"></div>
-      <div class="fg"><label>対局者 2</label><input id="p1" type="text"></div>
-      <div class="fg"><label>対局者 3</label><input id="p2" type="text"></div>
-      <div class="fg"><label>対局者 4</label><input id="p3" type="text"></div>
-      <div class="fg"><label>対局者 5</label><input id="p4" type="text"></div>
-      <button class="btn" id="save-players">保存して全員に同期</button>
+      <div id="admin-toggle" style="cursor:pointer;padding:12px 0;display:flex;align-items:center;gap:8px;color:#2c3e50;font-weight:bold;font-size:1rem;border-bottom:1px solid #e0dbcd">
+        <span id="admin-arrow">▶</span>
+        <span>管理者の仕事</span>
+      </div>
+      <div id="admin-body" style="display:none;margin-top:16px">
+        <h3>対局者設定</h3>
+        <p class="note">名前を変更したら「保存して同期」を押すと全員の画面に即時反映されます。</p>
+        <div class="fg"><label>対局者 1</label><input id="p0" type="text"></div>
+        <div class="fg"><label>対局者 2</label><input id="p1" type="text"></div>
+        <div class="fg"><label>対局者 3</label><input id="p2" type="text"></div>
+        <div class="fg"><label>対局者 4</label><input id="p3" type="text"></div>
+        <div class="fg"><label>対局者 5</label><input id="p4" type="text"></div>
+        <button class="btn" id="save-players">保存して全員に同期</button>
 
-      <h3 style="margin-top:24px">初期手合い設定</h3>
-      <p class="note">使い始めやシーズン開始時に、ペアごとの手合いを設定します。</p>
-      <div id="level-settings"></div>
-      <button class="btn" id="save-levels" style="background:#b89752">手合いを保存して同期</button>
+        <h3 style="margin-top:24px">初期手合い設定</h3>
+        <p class="note">使い始めやシーズン開始時に、ペアごとの手合いを設定します。</p>
+        <div id="level-settings"></div>
+        <button class="btn" id="save-levels" style="background:#b89752">手合いを保存して同期</button>
 
-      <h3 style="margin-top:24px">シーズン管理</h3>
-      <p class="note">対局履歴と連勝カウントをリセットします。手合いレベルは引き継ぎます。</p>
-      <button class="btn" id="season-reset" style="background:#e74c3c">新シーズンを始める</button>
+        <h3 style="margin-top:24px">シーズン管理</h3>
+        <p class="note">対局履歴と連勝カウントをリセットします。手合いレベルは引き継ぎます。</p>
+        <div id="season-info" style="margin-bottom:12px;font-size:0.9rem;color:#2c3e50"></div>
+        <button class="btn" id="season-reset" style="background:#e74c3c">新シーズンを始める</button>
+        <div id="past-seasons" style="margin-top:16px"></div>
+      </div>
     </div>
 
     <!-- 結果入力 -->
@@ -287,7 +296,7 @@
     </div>
 
     <!-- 星取表 -->
-    <div class="panel" id="panel-standings">
+    <div class="panel active" id="panel-standings">
       <h3>順位</h3>
       <div id="rank-list"></div>
       <h3 style="margin-top:24px">星取表</h3>
@@ -338,9 +347,11 @@ let state = {
   players: ["対局者1", "対局者2", "対局者3", "対局者4", "対局者5"],
   history: [],
   levels:  {},  // ペアごとの手合いレベル { "西|山田": 1, ... }
-  streaks: {}   // ペアごとの現在の連勝数  { "西|山田": 3, ... }
+  streaks: {},  // ペアごとの現在の連勝数  { "西|山田": 3, ... }
+  season:  1    // 現在のシーズン番号
 };
 let stateRef = null;
+let seasonsRef = null;
 const isConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY";
 // 対局者名の入力中にFirebaseのonValueが発火すると、
 // 入力途中の文字が上書きされてしまう。
@@ -352,6 +363,7 @@ if (isConfigured) {
   try {
     firebase.initializeApp(firebaseConfig);
     stateRef = firebase.database().ref("go-league/state");
+    seasonsRef = firebase.database().ref("go-league/seasons");
     stateRef.on("value", (snap) => {
       const data = snap.val();
       if (data) {
@@ -359,7 +371,8 @@ if (isConfigured) {
           players: Array.isArray(data.players) ? data.players : state.players,
           history: Array.isArray(data.history) ? data.history : [],
           levels:  (data.levels  && typeof data.levels  === "object") ? data.levels  : {},
-          streaks: (data.streaks && typeof data.streaks === "object") ? data.streaks : {}
+          streaks: (data.streaks && typeof data.streaks === "object") ? data.streaks : {},
+          season:  (typeof data.season === "number") ? data.season : 1
         };
         // 後方互換: 既存データにlevels/streaksがなければ履歴から移行
         if (Object.keys(state.levels).length === 0 && state.history.length > 0) {
@@ -605,6 +618,7 @@ function renderAll() {
   renderHistory();
   renderHandicap();
   renderLevelSettings();
+  renderSeasonInfo();
 }
 
 function calcStats() {
@@ -1077,14 +1091,66 @@ document.getElementById("save-levels").addEventListener("click", () => {
   showToast("手合いを保存しました！");
 });
 
-document.getElementById("season-reset").addEventListener("click", () => {
-  if (!confirm("新シーズンを始めます。\n対局履歴と連勝カウントをリセットします。\n手合いレベルは引き継ぎます。\n\nよろしいですか？")) return;
+document.getElementById("season-reset").addEventListener("click", async () => {
+  if (!confirm(
+    `シーズン${state.season}を終了して新シーズンを始めます。\n` +
+    `対局履歴と連勝カウントをリセットします。\n` +
+    `手合いレベルは引き継ぎます。\n\nよろしいですか？`
+  )) return;
+
+  // 現在のシーズンデータをFirebaseに保存
+  if (seasonsRef) {
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()}`;
+    await seasonsRef.child(state.season).set({
+      season:  state.season,
+      players: state.players,
+      history: state.history,
+      levels:  state.levels,
+      endDate: dateStr
+    });
+  }
+
+  // リセット
+  state.season = (state.season || 1) + 1;
   state.history = [];
-  // streaksのみリセット、levelsは引き継ぐ
   Object.keys(state.streaks).forEach(k => state.streaks[k] = 0);
   lastSorted = [];
   pushState();
-  showToast("新シーズンを開始しました！");
+  showToast(`シーズン${state.season - 1}を保存しました。シーズン${state.season}開始！`);
+});
+
+// ---------- シーズン情報表示 ----------
+function renderSeasonInfo() {
+  const el = document.getElementById("season-info");
+  if (el) el.textContent = `現在：シーズン ${state.season}`;
+
+  // 過去シーズン一覧をFirebaseから取得
+  const pastEl = document.getElementById("past-seasons");
+  if (!pastEl || !seasonsRef) return;
+  seasonsRef.once("value", snap => {
+    const data = snap.val();
+    if (!data) { pastEl.innerHTML = ""; return; }
+    const seasons = Object.values(data).sort((a,b) => b.season - a.season);
+    pastEl.innerHTML = `
+      <p style="font-size:0.85rem;font-weight:bold;color:#2c3e50;margin-bottom:8px">過去のシーズン</p>
+      ${seasons.map(s => {
+        const total = Array.isArray(s.history) ? s.history.length : 0;
+        return `<div style="background:#f1f0ea;border:1px solid #e0dbcd;border-radius:6px;padding:8px 12px;margin-bottom:8px;font-size:0.85rem">
+          <strong>シーズン ${s.season}</strong>（終了：${s.endDate}）<br>
+          <span style="color:#666">対局数：${total}局 / 対局者：${Array.isArray(s.players)?s.players.join("・"):""}</span>
+        </div>`;
+      }).join("")}`;
+  });
+}
+
+// ---------- 管理者メニュー開閉 ----------
+document.getElementById("admin-toggle").addEventListener("click", () => {
+  const body  = document.getElementById("admin-body");
+  const arrow = document.getElementById("admin-arrow");
+  const isOpen = body.style.display !== "none";
+  body.style.display  = isOpen ? "none" : "";
+  arrow.textContent   = isOpen ? "▶" : "▼";
 });
 
 // ---------- Toast ----------
