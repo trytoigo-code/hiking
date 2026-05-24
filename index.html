@@ -36,7 +36,10 @@
   - 対局者設定（現時点では5名、拡張余地あり）
   - 結果入力（中押し・時間切れ・目数差・持碁・不明）
   - 星取表・順位表示（ヒートマップ付き）
-  - 対局履歴（対局者フィルター・勝率表示）
+  - 対局履歴（多視点表示）
+      全体：全対局の記録
+      1人選択：最近の流れ・相手別成績・決着内容・対局履歴
+      2人選択：最近の流れ・決着内容・直接対局履歴
   - 手合い自動計算（5連勝で手合い変更、多段階対応）
   - 手合いレベルの独立保存（履歴に依存せず管理）
   - 初期手合い設定（ペアごとに手合いを手動設定可能）
@@ -864,56 +867,195 @@ function recordBanner(filtered) {
   }
 }
 
-function renderHistory() {
-  renderHistoryFilter();
-  const el = document.getElementById("history-list");
-
-  const filtered = state.history
-    .map((m, idx) => ({ m, idx }))
-    .filter(({ m }) => {
-      if (selectedPlayers.length === 0) return true;
-      const { left, right } = getMatchPlayers(m);
-      if (selectedPlayers.length === 1) {
-        return left === selectedPlayers[0] || right === selectedPlayers[0];
-      }
-      // 2人選択: その2人の対局のみ
-      return (left === selectedPlayers[0] && right === selectedPlayers[1]) ||
-             (left === selectedPlayers[1] && right === selectedPlayers[0]);
-    });
-
-  if (filtered.length === 0) {
-    el.innerHTML = `<p style="color:#999">対局記録はありません。</p>`;
-    return;
+// 対局結果を1人視点で ○●△ に変換
+function getResultSymbol(m, player) {
+  if (m.type === "jigo") {
+    const jw = jigoWinner(m);
+    if (!jw) return "△";
+    return jw === player ? "○" : "●";
   }
+  return m.winner === player ? "○" : "●";
+}
 
+// 流れシンボルHTML (○●△) を生成
+function flowSymbolsHTML(matches, player) {
+  if (matches.length === 0) return '<span style="color:#999">—</span>';
+  return [...matches].reverse().map(({ m }) => {
+    const sym = getResultSymbol(m, player);
+    const color = sym === "○" ? "#2c3e50" : sym === "●" ? "#e74c3c" : "#888";
+    return `<span style="color:${color};font-size:1.1rem;font-weight:bold;margin-right:2px">${sym}</span>`;
+  }).join("");
+}
+
+// 流れの勝敗集計
+function flowStats(matches, player) {
+  let w = 0, l = 0, j = 0;
+  matches.forEach(({ m }) => {
+    const sym = getResultSymbol(m, player);
+    if (sym === "○") w++;
+    else if (sym === "●") l++;
+    else j++;
+  });
+  return { w, l, j };
+}
+
+// 決着内容HTML
+function decisionBreakdownHTML(matches, player) {
+  const counts = { chuoshi:0, moku:0, jikan:0, jigo:0, fumei:0 };
+  let komi = 0, hanme = 0;
+  matches.forEach(({ m }) => {
+    if (m.type === "moku") {
+      counts.moku++;
+      if (m.mokusuu === 0.5) hanme++;
+      else if (m.mokusuu <= 6.5) komi++;
+    } else if (counts[m.type] !== undefined) {
+      counts[m.type]++;
+    }
+  });
+  const total = matches.length;
+  if (total === 0) return '<p style="color:#999">対局記録なし</p>';
+  let html = '<div style="font-size:0.88rem;color:#333;line-height:2">';
+  if (counts.chuoshi) html += `<div>中押し　${counts.chuoshi}局</div>`;
+  if (counts.moku) {
+    html += `<div>目数差　${counts.moku}局`;
+    if (hanme)  html += `<span style="color:#888;font-size:0.8rem"> (半目 ${hanme})</span>`;
+    if (komi)   html += `<span style="color:#888;font-size:0.8rem"> (コミ以内 ${komi})</span>`;
+    html += '</div>';
+  }
+  if (counts.jikan) html += `<div>時間切れ　${counts.jikan}局</div>`;
+  if (counts.jigo)  html += `<div>持碁　${counts.jigo}局</div>`;
+  if (counts.fumei) html += `<div>不明　${counts.fumei}局</div>`;
+  html += '</div>';
+  return html;
+}
+
+// 通常の対局履歴リストHTML
+function matchListHTML(filtered) {
   const teai = (t) => t ? `<span style="font-size:0.78rem;color:#888;font-weight:normal">（${t}）</span>` : "";
-
-  const items = filtered.map(({ m, idx }) => {
+  return filtered.map(({ m, idx }) => {
     const { left, right, leftTeai, rightTeai, winner } = getMatchPlayers(m);
-
-    // 持碁の場合、手合いから勝者を判定して表示
     let effectiveWinner = winner;
     if (m.type === "jigo") {
       const jw = jigoWinner(m);
       if (jw) effectiveWinner = jw === left ? "left" : "right";
     }
-
     const leftName  = effectiveWinner === "left"  ? `<strong>${left}</strong>${teai(leftTeai)} 👑`
                     : effectiveWinner === "right" ? `${left}${teai(leftTeai)}`
                     : `<strong>${left}</strong>${teai(leftTeai)}`;
     const rightName = effectiveWinner === "right" ? `<strong>${right}</strong>${teai(rightTeai)} 👑`
                     : effectiveWinner === "left"  ? `${right}${teai(rightTeai)}`
                     : `<strong>${right}</strong>${teai(rightTeai)}`;
-    const matchStr = `${leftName} vs ${rightName} ${badgeHTML(m)}`;
     return `
       <div class="hist-item">
-        <div>${matchStr}<br><span class="hist-date">${m.date}</span></div>
+        <div>${leftName} vs ${rightName} ${badgeHTML(m)}<br>
+        <span class="hist-date">${m.date}</span></div>
         <button class="del-btn" data-id="${m.id || idx}">削除</button>
       </div>`;
   }).join("");
+}
 
-  el.innerHTML = recordBanner(filtered) + items;
+// セクション見出しHTML
+function sectionHead(title) {
+  return `<h4 style="border-left:4px solid #b89752;padding-left:8px;color:#2c3e50;margin:18px 0 10px;font-size:0.95rem">${title}</h4>`;
+}
 
+function renderHistory() {
+  renderHistoryFilter();
+  const el = document.getElementById("history-list");
+
+  const allFiltered = state.history
+    .map((m, idx) => ({ m, idx }))
+    .filter(({ m }) => {
+      if (selectedPlayers.length === 0) return true;
+      const { left, right } = getMatchPlayers(m);
+      if (selectedPlayers.length === 1)
+        return left === selectedPlayers[0] || right === selectedPlayers[0];
+      return (left === selectedPlayers[0] && right === selectedPlayers[1]) ||
+             (left === selectedPlayers[1] && right === selectedPlayers[0]);
+    });
+
+  // ===== 未選択: 全体表示 =====
+  if (selectedPlayers.length === 0) {
+    if (allFiltered.length === 0) {
+      el.innerHTML = '<p style="color:#999">対局記録はありません。</p>';
+      return;
+    }
+    el.innerHTML = recordBanner(allFiltered) + matchListHTML(allFiltered);
+
+  // ===== 1人選択: 個人視点 =====
+  } else if (selectedPlayers.length === 1) {
+    const player = selectedPlayers[0];
+    const recent = allFiltered.slice(0, 10);
+    const { w, l, j } = flowStats(recent, player);
+    const jigoStr = j > 0 ? ` ${j}持碁` : "";
+
+    // 相手別成績
+    const opponents = {};
+    allFiltered.forEach(({ m, idx }) => {
+      const opp = (m.type === "jigo")
+        ? (m.p1 === player ? m.p2 : m.p1)
+        : (m.winner === player ? m.loser : m.winner);
+      if (!opponents[opp]) opponents[opp] = [];
+      opponents[opp].push({ m, idx });
+    });
+    const oppHTML = Object.entries(opponents).map(([opp, matches]) => {
+      const { w: ow, l: ol, j: oj } = flowStats(matches, player);
+      const jigoStr2 = oj > 0 ? ` ${oj}持碁` : "";
+      const flow = flowSymbolsHTML(matches.slice(0, 6), player);
+      return `<div style="padding:8px 0;border-bottom:1px solid #f0ede3">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span><strong>vs ${opp}</strong>　${ow}勝 ${ol}敗${jigoStr2}</span>
+          <span style="letter-spacing:3px">${flow}</span>
+        </div>
+      </div>`;
+    }).join("");
+
+    let html = '';
+    // 最近の流れ
+    html += sectionHead("最近の流れ（直近10局）");
+    html += `<div style="background:#f9f8f4;border-radius:6px;padding:12px 14px;margin-bottom:4px">
+      <div style="letter-spacing:4px;margin-bottom:6px">${flowSymbolsHTML(recent, player)}</div>
+      <div style="font-size:0.85rem;color:#666">${w}勝 ${l}敗${jigoStr}（${recent.length}局）</div>
+    </div>`;
+    // 相手別成績
+    html += sectionHead("相手別成績");
+    html += oppHTML || '<p style="color:#999">データなし</p>';
+    // 決着内容
+    html += sectionHead("決着内容");
+    html += decisionBreakdownHTML(allFiltered, player);
+    // 対局履歴
+    html += sectionHead("対局履歴");
+    if (allFiltered.length === 0) html += '<p style="color:#999">対局記録はありません。</p>';
+    else html += matchListHTML(allFiltered);
+
+    el.innerHTML = html;
+
+  // ===== 2人選択: ペア視点 =====
+  } else {
+    const [pA, pB] = selectedPlayers;
+    const recent = allFiltered.slice(0, 10);
+    const { w, l, j } = flowStats(recent, pA);
+    const jigoStr = j > 0 ? ` ${j}持碁` : "";
+
+    let html = recordBanner(allFiltered);
+    // 最近の流れ
+    html += sectionHead(`最近の流れ（直近10局・${pA}視点）`);
+    html += `<div style="background:#f9f8f4;border-radius:6px;padding:12px 14px;margin-bottom:4px">
+      <div style="letter-spacing:4px;margin-bottom:6px">${flowSymbolsHTML(recent, pA)}</div>
+      <div style="font-size:0.85rem;color:#666">${pA} ${w}勝 ${l}敗${jigoStr}（${recent.length}局）</div>
+    </div>`;
+    // 決着内容
+    html += sectionHead("決着内容");
+    html += decisionBreakdownHTML(allFiltered, pA);
+    // 直接対局履歴
+    html += sectionHead("対局履歴");
+    if (allFiltered.length === 0) html += '<p style="color:#999">対局記録はありません。</p>';
+    else html += matchListHTML(allFiltered);
+
+    el.innerHTML = html;
+  }
+
+  // 削除ボタンリスナー
   el.querySelectorAll(".del-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       if (!confirm("この対局記録を削除しますか？")) return;
