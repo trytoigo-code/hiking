@@ -38,11 +38,15 @@
   - 星取表・順位表示（ヒートマップ付き）
   - 対局履歴（対局者フィルター・勝率表示）
   - 手合い自動計算（5連勝で手合い変更、多段階対応）
+  - 手合いレベルの独立保存（履歴に依存せず管理）
+  - 初期手合い設定（ペアごとに手合いを手動設定可能）
+  - シーズンリセット（履歴をリセット・手合いレベルは引き継ぎ）
   - Firebase によるリアルタイム同期
 
 【今後の改良候補】
   - 結果入力画面のカード型UI
   - ダークモード対応
+  - データのバックアップ・エクスポート
   - 囲碁語録アプリとの連携
 ================================================================================
 -->
@@ -227,6 +231,15 @@
       <div class="fg"><label>対局者 4</label><input id="p3" type="text"></div>
       <div class="fg"><label>対局者 5</label><input id="p4" type="text"></div>
       <button class="btn" id="save-players">保存して全員に同期</button>
+
+      <h3 style="margin-top:24px">初期手合い設定</h3>
+      <p class="note">使い始めやシーズン開始時に、ペアごとの手合いを設定します。</p>
+      <div id="level-settings"></div>
+      <button class="btn" id="save-levels" style="background:#b89752">手合いを保存して同期</button>
+
+      <h3 style="margin-top:24px">シーズン管理</h3>
+      <p class="note">対局履歴と連勝カウントをリセットします。手合いレベルは引き継ぎます。</p>
+      <button class="btn" id="season-reset" style="background:#e74c3c">新シーズンを始める</button>
     </div>
 
     <!-- 結果入力 -->
@@ -323,7 +336,9 @@ const firebaseConfig = {
 // ---------- State ----------
 let state = {
   players: ["対局者1", "対局者2", "対局者3", "対局者4", "対局者5"],
-  history: []
+  history: [],
+  levels:  {},  // ペアごとの手合いレベル { "西|山田": 1, ... }
+  streaks: {}   // ペアごとの現在の連勝数  { "西|山田": 3, ... }
 };
 let stateRef = null;
 const isConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY";
@@ -342,8 +357,14 @@ if (isConfigured) {
       if (data) {
         state = {
           players: Array.isArray(data.players) ? data.players : state.players,
-          history: Array.isArray(data.history) ? data.history : []
+          history: Array.isArray(data.history) ? data.history : [],
+          levels:  (data.levels  && typeof data.levels  === "object") ? data.levels  : {},
+          streaks: (data.streaks && typeof data.streaks === "object") ? data.streaks : {}
         };
+        // 後方互換: 既存データにlevels/streaksがなければ履歴から移行
+        if (Object.keys(state.levels).length === 0 && state.history.length > 0) {
+          migrateFromHistory();
+        }
         if (!editingPlayers) fillPlayerInputs();
         renderAll();
       }
@@ -550,6 +571,7 @@ document.getElementById("add-match").addEventListener("click", () => {
     .sort((a,b) => b.wins - a.wins || a.losses - b.losses)
     .map(p => ({ ...p }));
   state.history.unshift(m);
+  updateLevelsAndStreaks(m);
   pushState();
   resetInputForm();
 });
@@ -582,6 +604,7 @@ function renderAll() {
   renderStandings();
   renderHistory();
   renderHandicap();
+  renderLevelSettings();
 }
 
 function calcStats() {
@@ -877,8 +900,15 @@ function renderHistory() {
   });
 }
 
-// levelだけを返す軽量版（autoFillTeai用）
-function calcPairHandicapRaw(pA, pB) {
+// ペアキー生成: 対局者インデックスの小さい方を左に固定
+function pairKey(pA, pB) {
+  const ps = state.players;
+  const iA = ps.indexOf(pA), iB = ps.indexOf(pB);
+  return iA <= iB ? `${pA}|${pB}` : `${pB}|${pA}`;
+}
+
+// 既存履歴からlevels/streaksを計算して移行（後方互換用）
+function calcFromHistory(pA, pB) {
   const matches = [...state.history].reverse().filter(m => {
     if (m.type === "jigo") return (m.p1===pA&&m.p2===pB)||(m.p1===pB&&m.p2===pA);
     return (m.winner===pA&&m.loser===pB)||(m.winner===pB&&m.loser===pA);
@@ -888,11 +918,68 @@ function calcPairHandicapRaw(pA, pB) {
     let winner = m.type === "jigo" ? jigoWinner(m) : m.winner;
     if (!winner) continue;
     if (winner === pA) streak = streak >= 0 ? streak + 1 : 1;
-    else              streak = streak <= 0 ? streak - 1 : -1;
-    if (streak >= 5)  { level++; streak = 0; }
+    else               streak = streak <= 0 ? streak - 1 : -1;
+    if (streak >= 5)   { level++; streak = 0; }
     else if (streak <= -5) { level--; streak = 0; }
   }
   return { level, streak };
+}
+
+function migrateFromHistory() {
+  const ps = state.players;
+  for (let i = 0; i < ps.length; i++) {
+    for (let j = i+1; j < ps.length; j++) {
+      const key = `${ps[i]}|${ps[j]}`;
+      const { level, streak } = calcFromHistory(ps[i], ps[j]);
+      state.levels[key]  = level;
+      state.streaks[key] = streak;
+    }
+  }
+  pushState();
+}
+
+// 対局登録後にlevels/streaksを更新する
+function updateLevelsAndStreaks(m) {
+  let winner;
+  if (m.type === "jigo") {
+    winner = jigoWinner(m);
+    if (!winner) return;
+  } else {
+    winner = m.winner;
+  }
+  const pA = m.type === "jigo" ? m.p1 : m.winner;
+  const pB = m.type === "jigo" ? m.p2 : m.loser;
+  const key = pairKey(pA, pB);
+  const ps = state.players;
+  // キーの左側プレイヤー（インデックスが小さい方）を基準にstreakの符号を決める
+  const leftP = ps.indexOf(pA) <= ps.indexOf(pB) ? pA : pB;
+
+  const cur = state.streaks[key] || 0;
+  let newStreak;
+  if (winner === leftP) newStreak = cur >= 0 ? cur + 1 : 1;
+  else                  newStreak = cur <= 0 ? cur - 1 : -1;
+
+  let newLevel = state.levels[key] || 0;
+  if (newStreak >= 5)       { newLevel++; newStreak = 0; }
+  else if (newStreak <= -5) { newLevel--; newStreak = 0; }
+
+  state.levels[key]  = newLevel;
+  state.streaks[key] = newStreak;
+}
+
+// levelだけを返す（autoFillTeai・renderHandicap用）
+// 新設計: 履歴ではなくstate.levels/streaksから読む
+function calcPairHandicapRaw(pA, pB) {
+  const key = pairKey(pA, pB);
+  const ps = state.players;
+  const isReversed = ps.indexOf(pA) > ps.indexOf(pB);
+  const storedLevel  = state.levels[key]  || 0;
+  const storedStreak = state.streaks[key] || 0;
+  // pAがキーの右側（逆順）なら符号を反転
+  return {
+    level:  isReversed ? -storedLevel  : storedLevel,
+    streak: isReversed ? -storedStreak : storedStreak
+  };
 }
 
 // ペアの現在の手合いを5連勝ルールで計算
@@ -948,6 +1035,57 @@ function renderHandicap() {
   }
   document.getElementById("handicap-body").innerHTML = html;
 }
+
+// ---------- 初期手合い設定 ----------
+function levelLabel(level, pA, pB) {
+  if (level === 0)  return "互先";
+  if (level === 1)  return `向先（${pA}上手・${pB}下手）`;
+  if (level === -1) return `向先（${pB}上手・${pA}下手）`;
+  if (level > 1)    return `${level}子（${pA}上手・${pB}下手）`;
+  return `${Math.abs(level)}子（${pB}上手・${pA}下手）`;
+}
+
+function renderLevelSettings() {
+  const el = document.getElementById("level-settings");
+  if (!el) return;
+  const ps = state.players;
+  let html = "";
+  for (let i = 0; i < ps.length; i++) {
+    for (let j = i+1; j < ps.length; j++) {
+      const pA = ps[i], pB = ps[j];
+      const key = `${pA}|${pB}`;
+      const cur = state.levels[key] || 0;
+      const options = [-3,-2,-1,0,1,2,3].map(v =>
+        `<option value="${v}"${cur===v?" selected":""}>${levelLabel(v,pA,pB)}</option>`
+      ).join("");
+      html += `
+        <div class="fg">
+          <label>${pA} vs ${pB}</label>
+          <select class="inp level-sel" data-key="${key}">${options}</select>
+        </div>`;
+    }
+  }
+  el.innerHTML = html;
+}
+
+document.getElementById("save-levels").addEventListener("click", () => {
+  document.querySelectorAll(".level-sel").forEach(sel => {
+    state.levels[sel.dataset.key]  = parseInt(sel.value);
+    state.streaks[sel.dataset.key] = 0; // 手動設定時は連勝リセット
+  });
+  pushState();
+  showToast("手合いを保存しました！");
+});
+
+document.getElementById("season-reset").addEventListener("click", () => {
+  if (!confirm("新シーズンを始めます。\n対局履歴と連勝カウントをリセットします。\n手合いレベルは引き継ぎます。\n\nよろしいですか？")) return;
+  state.history = [];
+  // streaksのみリセット、levelsは引き継ぐ
+  Object.keys(state.streaks).forEach(k => state.streaks[k] = 0);
+  lastSorted = [];
+  pushState();
+  showToast("新シーズンを開始しました！");
+});
 
 // ---------- Toast ----------
 let toastTimer = null;
