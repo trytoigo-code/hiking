@@ -298,6 +298,10 @@
     <!-- 星取表 -->
     <div class="panel active" id="panel-standings">
       <h3>順位</h3>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <button class="filter-btn active" id="sort-wins">勝数順</button>
+        <button class="filter-btn" id="sort-rate">勝率順</button>
+      </div>
       <div id="rank-list"></div>
       <h3 style="margin-top:24px">星取表</h3>
       <div class="matrix-wrap"><table id="matrix"></table></div>
@@ -666,7 +670,15 @@ function heatmapText(wins, losses) {
 }
 
 function renderStandings() {
-  const sorted = calcStats();
+  const raw = calcStats();
+  const sorted = raw.slice().sort((a,b) => {
+    if (sortMode === "rate") {
+      const rA = a.total > 0 ? a.wins / a.total : 0;
+      const rB = b.total > 0 ? b.wins / b.total : 0;
+      return rB - rA || b.wins - a.wins;
+    }
+    return b.wins - a.wins || a.losses - b.losses;
+  });
   const medals = ["🥇","🥈","🥉","",""];
   // 順位変動用: 前回の並び順を保持
 
@@ -736,7 +748,8 @@ function badgeHTML(m) {
 }
 
 let selectedPlayers = [];
-let lastSorted = []; // 順位変動比較用 // 0=全表示, 1=1人の全対局, 2=2人の対局
+let lastSorted = []; // 順位変動比較用
+let sortMode = "wins"; // wins or rate // 0=全表示, 1=1人の全対局, 2=2人の対局
 
 function getMatchPlayers(m) {
   // 登録順で固定した [左対局者, 右対局者, 左が勝者か]
@@ -1143,6 +1156,20 @@ function renderSeasonInfo() {
       }).join("")}`;
   });
 }
+
+// ---------- 順位ソート切り替え ----------
+document.getElementById("sort-wins").addEventListener("click", () => {
+  sortMode = "wins";
+  document.getElementById("sort-wins").classList.add("active");
+  document.getElementById("sort-rate").classList.remove("active");
+  renderStandings();
+});
+document.getElementById("sort-rate").addEventListener("click", () => {
+  sortMode = "rate";
+  document.getElementById("sort-rate").classList.add("active");
+  document.getElementById("sort-wins").classList.remove("active");
+  renderStandings();
+});
 
 // ---------- 管理者メニュー開閉 ----------
 document.getElementById("admin-toggle").addEventListener("click", () => {
