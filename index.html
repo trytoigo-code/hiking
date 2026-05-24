@@ -882,8 +882,9 @@ function flowSymbolsHTML(matches, player) {
   if (matches.length === 0) return '<span style="color:#999">—</span>';
   return [...matches].reverse().map(({ m }) => {
     const sym = getResultSymbol(m, player);
+    const display = sym === "●" ? "×" : sym;
     const color = sym === "○" ? "#2c3e50" : sym === "●" ? "#e74c3c" : "#888";
-    return `<span style="color:${color};font-size:1.1rem;font-weight:bold;margin-right:2px">${sym}</span>`;
+    return `<span style="color:${color};font-size:1.1rem;font-weight:bold;margin-right:2px">${display}</span>`;
   }).join("");
 }
 
