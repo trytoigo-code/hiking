@@ -7,7 +7,7 @@
 【アプリの目的】
   少人数の囲碁リーグ戦を、グループLINEで共有しながら管理する。
   対局結果・星取表・手合い割を全員がリアルタイムで確認できることを重視する。
-  現時点では5名での利用を想定しているが、今後の拡張余地を残した設計とする。
+  現時点では6名での利用を想定しているが、今後の拡張余地を残した設計とする。
 
 【利用環境】
   - スマホ利用を最優先とする（モバイルファースト）
@@ -45,6 +45,7 @@
   - 初期手合い設定（ペアごとに手合いを手動設定可能）
   - シーズンリセット（履歴をFirebaseに保存後リセット・手合いレベルは引き継ぎ）
   - 過去シーズンのアーカイブ表示（Firebase go-league/seasons/ に保存）
+  - 管理者メニュー（折りたたみ式・対局者設定・初期手合い設定・シーズン管理を収録）
   - Firebase によるリアルタイム同期
 
 【今後の改良候補】
@@ -188,9 +189,15 @@
     /* Toast */
     #toast {
       position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
-      background: #2c3e50; color: #fff; padding: 10px 22px;
+      background: #2c3e50; color: #fff; padding: 10px 18px;
       border-radius: 20px; font-size: 0.88rem; z-index: 999;
-      white-space: nowrap; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      display: none; align-items: center; gap: 12px; white-space: nowrap;
+    }
+    #toast-undo {
+      background: none; border: 1px solid #fff; color: #fff;
+      padding: 3px 10px; border-radius: 12px; font-size: 0.82rem;
+      cursor: pointer; white-space: nowrap;
     }
   </style>
 </head>
@@ -246,6 +253,7 @@
         <p class="note">ペアごとの手合いを手動で設定します。使い始めや手合いを直接変更したい時にお使いください。</p>
         <div id="level-settings"></div>
         <button class="btn" id="save-levels" style="background:#b89752">手合いを保存して同期</button>
+        <p class="note" style="margin-top:8px">※ 対局記録を修正しても手合いレベルは自動で再計算されません。必要な場合はここで手動調整してください。</p>
 
         <h3 style="margin-top:24px">シーズン管理</h3>
         <p class="note">対局履歴と連勝カウントをリセットします。手合いレベルは引き継ぎます。</p>
@@ -258,6 +266,7 @@
     <!-- 結果入力 -->
     <div class="panel" id="panel-input">
       <h3>結果入力</h3>
+      <p class="note">※ 同じ日に複数対局した場合は、対局した順番に登録してください。</p>
       <div class="fg">
         <label>対局日</label>
         <input type="date" id="match-date">
@@ -332,7 +341,7 @@
 
   </div><!-- /content -->
 </div><!-- /app -->
-<div id="toast"></div>
+<div id="toast"><span id="toast-msg"></span><button id="toast-undo" style="display:none">元に戻す</button></div>
 
 <!-- 修正モーダル -->
 <div id="edit-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;overflow-y:auto">
@@ -1077,12 +1086,15 @@ function renderHistory() {
     const oppHTML = Object.entries(opponents).map(([opp, matches]) => {
       const { w: ow, l: ol, j: oj } = flowStats(matches, player);
       const jigoStr2 = oj > 0 ? ` ${oj}持碁` : "";
-      const flow = flowSymbolsHTML(matches.slice(0, 6), player);
+      const limit = 10;
+      const displayMatches = matches.slice(0, limit);
+      const flow = flowSymbolsHTML(displayMatches, player);
+      const recentNote = matches.length > limit
+        ? `<div style="font-size:0.75rem;color:#aaa;margin-top:2px">直近${limit}局</div>` : "";
       return `<div style="padding:8px 0;border-bottom:1px solid #f0ede3">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <span><strong>vs ${opp}</strong>　${ow}勝 ${ol}敗${jigoStr2}</span>
-          <span style="letter-spacing:3px">${flow}</span>
-        </div>
+        <div><strong>vs ${opp}</strong>　${ow}勝 ${ol}敗${jigoStr2}</div>
+        <div style="flex-wrap:wrap;margin-top:4px;letter-spacing:3px">${flow}</div>
+        ${recentNote}
       </div>`;
     }).join("");
 
@@ -1102,7 +1114,7 @@ function renderHistory() {
     // 対局履歴
     html += sectionHead("対局履歴");
     if (allFiltered.length === 0) html += '<p style="color:#999">対局記録はありません。</p>';
-    else html += matchListHTML(allFiltered, player);
+    else html += matchListHTML(allFiltered, pA);
 
     el.innerHTML = html;
 
@@ -1134,13 +1146,10 @@ function renderHistory() {
   // 削除ボタンリスナー
   el.querySelectorAll(".del-btn").forEach(btn => {
     btn.addEventListener("click", () => {
-      if (!confirm("この対局記録を削除しますか？")) return;
       const delId = btn.dataset.id;
       // id付きデータはidで検索。id未付与の旧データはindexで代替（後方互換）。
       const delIdx = state.history.findIndex(m => (m.id || String(state.history.indexOf(m))) === delId);
-      if (delIdx !== -1) state.history.splice(delIdx, 1);
-      pushState();
-      showToast("削除しました");
+      if (delIdx !== -1) showDeleteUndo(delIdx);
     });
   });
 
@@ -1540,15 +1549,55 @@ document.getElementById("admin-toggle").addEventListener("click", () => {
   arrow.textContent   = isOpen ? "▶" : "▼";
 });
 
-// ---------- Toast ----------
+// ---------- Toast & Undo ----------
 let toastTimer = null;
+let undoTimer = null;
+let pendingDelete = null; // { idx, record } 削除待ちデータ
+
 function showToast(msg) {
   const el = document.getElementById("toast");
-  el.textContent = msg;
-  el.style.display = "block";
+  document.getElementById("toast-msg").textContent = msg;
+  document.getElementById("toast-undo").style.display = "none";
+  el.style.display = "flex";
   if (toastTimer) clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { el.style.display = "none"; }, 2500);
 }
+
+function showDeleteUndo(delIdx) {
+  // 削除対象を一時退避（まだFirebaseには書き込まない）
+  pendingDelete = { idx: delIdx, record: state.history[delIdx] };
+  state.history.splice(delIdx, 1);
+  renderAll(); // 画面上から即消す
+
+  const el = document.getElementById("toast");
+  document.getElementById("toast-msg").textContent = "削除しました";
+  document.getElementById("toast-undo").style.display = "inline-block";
+  el.style.display = "flex";
+
+  if (toastTimer) clearTimeout(toastTimer);
+  if (undoTimer)  clearTimeout(undoTimer);
+
+  // 10秒後にFirebaseへ反映（確定）
+  undoTimer = setTimeout(() => {
+    el.style.display = "none";
+    if (pendingDelete) {
+      pushState(); // ここで初めてFirebaseに書き込む
+      pendingDelete = null;
+    }
+  }, 10000);
+}
+
+// 「元に戻す」ボタン
+document.getElementById("toast-undo").addEventListener("click", () => {
+  if (pendingDelete) {
+    // 元の位置に戻す
+    state.history.splice(pendingDelete.idx, 0, pendingDelete.record);
+    pendingDelete = null;
+    if (undoTimer) clearTimeout(undoTimer);
+    renderAll();
+    showToast("元に戻しました");
+  }
+});
 
 // Initial render
 renderAll();
