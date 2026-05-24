@@ -1102,7 +1102,7 @@ function renderHistory() {
     // 対局履歴
     html += sectionHead("対局履歴");
     if (allFiltered.length === 0) html += '<p style="color:#999">対局記録はありません。</p>';
-    else html += matchListHTML(allFiltered, pA);
+    else html += matchListHTML(allFiltered, player);
 
     el.innerHTML = html;
 
