@@ -1,3 +1,51 @@
+<!--
+================================================================================
+  このアプリについて
+  囲碁リーグ戦管理アプリ「星取」― 設計思想と共同編集の進め方
+================================================================================
+
+【アプリの目的】
+  少人数の囲碁リーグ戦を、グループLINEで共有しながら管理する。
+  対局結果・星取表・手合い割を全員がリアルタイムで確認できることを重視する。
+  現時点では5名での利用を想定しているが、今後の拡張余地を残した設計とする。
+
+【利用環境】
+  - スマホ利用を最優先とする（モバイルファースト）
+  - GitHub Pages でホスティング（現時点では単一 index.html で完結）
+  - Firebase Realtime Database によるリアルタイム同期
+
+【技術構成】
+  - バニラJS（現時点では React・Babel 不使用）
+  - Firebase Realtime Database（CDN読み込み）
+  - 外部ライブラリなし・ビルド不要・1ファイル完結
+  - 新技術の導入より、継続して利用しやすい構成を優先する
+
+【共同編集の進め方】
+  このアプリは、ユーザーと生成AIが対話しながら少しずつ育てていくものです。
+  以下は、その共同作業をうまく続けるための共通認識です。
+
+  ・このアプリの文脈と歴史を理解した上で提案する
+  ・変更の意図と影響範囲を共有しながら進める
+  ・小さな積み重ねを大切にし、一度に大きく変えない
+  ・既存の操作感や雰囲気はできるだけ引き継ぐ
+  ・読みやすく・触りやすく・壊れにくい構成を選ぶ
+  ・新しい技術より、長く使い続けられることを優先する
+  ・機能を追加・変更したら「主な機能」と「今後の改良候補」を合わせて更新する
+
+【主な機能（現時点）】
+  - 対局者設定（現時点では5名、拡張余地あり）
+  - 結果入力（中押し・時間切れ・目数差・持碁・不明）
+  - 星取表・順位表示（ヒートマップ付き）
+  - 対局履歴（対局者フィルター・勝率表示）
+  - 手合い自動計算（5連勝で手合い変更、多段階対応）
+  - Firebase によるリアルタイム同期
+
+【今後の改良候補】
+  - 結果入力画面のカード型UI
+  - ダークモード対応
+  - 囲碁語録アプリとの連携
+================================================================================
+-->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -279,6 +327,9 @@ let state = {
 };
 let stateRef = null;
 const isConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY";
+// 対局者名の入力中にFirebaseのonValueが発火すると、
+// 入力途中の文字が上書きされてしまう。
+// このフラグが立っている間はfillPlayerInputs()を呼ばない。
 let editingPlayers = false;
 
 // ---------- Firebase ----------
@@ -461,7 +512,7 @@ document.getElementById("add-match").addEventListener("click", () => {
     if (i1 === i2) { showToast("同じ人は選べません"); return; }
     const ta1 = document.getElementById("winner-teai").value;
     const ta2 = TEAI_PAIR[ta1] || "";
-    m = { type:"jigo", p1:state.players[i1], p2:state.players[i2],
+    m = { id:crypto.randomUUID(), type:"jigo", p1:state.players[i1], p2:state.players[i2],
           teai1:ta1, teai2:ta2, date:d };
     showToast(`${m.p1} vs ${m.p2}：持碁を登録しました`);
   } else {
@@ -475,24 +526,26 @@ document.getElementById("add-match").addEventListener("click", () => {
     if (type === "moku") {
       const mk = parseFloat(document.getElementById("mokusuu").value);
       if (isNaN(mk) || mk <= 0) { showToast("目数差を正しく入力してください"); return; }
-      m = { type:"moku", winner:state.players[wi], loser:state.players[li],
+      m = { id:crypto.randomUUID(), type:"moku", winner:state.players[wi], loser:state.players[li],
             mokusuu:mk, teai_w:tw, teai_l:tl, date:d };
       showToast(`${m.winner} の勝利（${mk}目差）を登録！`);
     } else if (type === "jikan") {
-      m = { type:"jikan", winner:state.players[wi], loser:state.players[li],
+      m = { id:crypto.randomUUID(), type:"jikan", winner:state.players[wi], loser:state.players[li],
             teai_w:tw, teai_l:tl, date:d };
       showToast(`${m.winner} の勝利（時間切れ）を登録！`);
     } else if (type === "fumei") {
-      m = { type:"fumei", winner:state.players[wi], loser:state.players[li],
+      m = { id:crypto.randomUUID(), type:"fumei", winner:state.players[wi], loser:state.players[li],
             teai_w:tw, teai_l:tl, date:d };
       showToast(`${m.winner} の勝利（不明）を登録！`);
     } else {
-      m = { type:"chuoshi", winner:state.players[wi], loser:state.players[li],
+      m = { id:crypto.randomUUID(), type:"chuoshi", winner:state.players[wi], loser:state.players[li],
             teai_w:tw, teai_l:tl, date:d };
       showToast(`${m.winner} の勝利（中押し）を登録！`);
     }
   }
-  // 対局登録前の順位をスナップショット
+  // 対局登録前の順位をスナップショットしておく。
+  // 登録後にFirebaseのonValueが即座に発火して再レンダリングされるため、
+  // renderStandings内ではなくここで保存しないと順位変動が正しく表示されない。
   lastSorted = calcStats()
     .sort((a,b) => b.wins - a.wins || a.losses - b.losses)
     .map(p => ({ ...p }));
@@ -706,6 +759,9 @@ function renderHistoryFilter() {
 }
 
 // 持碁の黒番（下手）判定
+// 黒番（下手）に該当する手合い。
+// 互黒=互先の黒番、先=向先局の黒番（下手）。
+// 持碁はこの手合いを持つ側の勝ちとして扱う。
 const BLACK_TEAI = ["互黒", "先"];
 
 function jigoWinner(m) {
@@ -802,7 +858,7 @@ function renderHistory() {
     return `
       <div class="hist-item">
         <div>${matchStr}<br><span class="hist-date">${m.date}</span></div>
-        <button class="del-btn" data-idx="${idx}">削除</button>
+        <button class="del-btn" data-id="${m.id || idx}">削除</button>
       </div>`;
   }).join("");
 
@@ -811,7 +867,10 @@ function renderHistory() {
   el.querySelectorAll(".del-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       if (!confirm("この対局記録を削除しますか？")) return;
-      state.history.splice(+btn.dataset.idx, 1);
+      const delId = btn.dataset.id;
+      // id付きデータはidで検索。id未付与の旧データはindexで代替（後方互換）。
+      const delIdx = state.history.findIndex(m => (m.id || String(state.history.indexOf(m))) === delId);
+      if (delIdx !== -1) state.history.splice(delIdx, 1);
       pushState();
       showToast("削除しました");
     });
