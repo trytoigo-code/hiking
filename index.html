@@ -334,6 +334,52 @@
 </div><!-- /app -->
 <div id="toast"></div>
 
+<!-- 修正モーダル -->
+<div id="edit-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;overflow-y:auto">
+  <div style="background:#fcfaf2;max-width:500px;margin:40px auto;border-radius:10px;padding:20px;box-sizing:border-box">
+    <h3 style="border-left:4px solid #b89752;padding-left:8px;color:#2c3e50;margin-top:0">対局記録の修正</h3>
+    <div class="fg"><label>対局日</label><input type="date" id="edit-date"></div>
+    <div class="fg">
+      <label>結果</label>
+      <select id="edit-result">
+        <option value="">指定なし</option>
+        <option value="chuoshi">中押し</option>
+        <option value="jikan">時間切れ</option>
+        <option value="moku">目数差</option>
+        <option value="jigo">持碁（黒勝ち）</option>
+        <option value="fumei">不明</option>
+      </select>
+    </div>
+    <div class="fg"><label id="edit-label-left">勝者 👑</label><select id="edit-winner"></select></div>
+    <div class="fg"><label id="edit-label-right">敗者</label><select id="edit-loser"></select></div>
+    <div class="fg" id="edit-moku-fg" style="display:none">
+      <label>目数差</label><input type="number" id="edit-mokusuu" min="0.5" step="0.5" placeholder="例: 3.5">
+    </div>
+    <div class="fg">
+      <label id="edit-label-teai">勝者の手合い</label>
+      <select id="edit-teai">
+        <option value="">指定なし</option>
+        <option value="互先">互先（白黒不明）</option>
+        <option value="互白">互白（コミあり・白番）</option>
+        <option value="互黒">互黒（コミあり・黒番）</option>
+        <option value="向先">向先（コミなし・白番）</option>
+        <option value="先">先（コミなし・黒番）</option>
+        <option value="向2">向2（向2子・上手）</option>
+        <option value="2子">2子（下手）</option>
+        <option value="向3">向3（向3子・上手）</option>
+        <option value="3子">3子（下手）</option>
+      </select>
+      <div id="edit-teai-pair-row" style="margin-top:8px;font-size:0.88rem;color:#555;display:none">
+        <span id="edit-label-teai-pair">相手</span>の手合い：<strong id="edit-teai-pair-val"></strong>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:8px">
+      <button class="btn" id="edit-save">保存する</button>
+      <button class="btn" id="edit-cancel" style="background:#999">キャンセル</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ============================================================
 //  🔧 ここにFirebaseの設定を貼り付けてください
@@ -951,7 +997,10 @@ function matchListHTML(filtered) {
       <div class="hist-item">
         <div>${leftName} vs ${rightName} ${badgeHTML(m)}<br>
         <span class="hist-date">${m.date}</span></div>
-        <button class="del-btn" data-id="${m.id || idx}">削除</button>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="edit-btn" data-id="${m.id || idx}" style="background:#b89752;color:#fff;border:none;padding:5px 10px;border-radius:4px;font-size:0.78rem;cursor:pointer">修正</button>
+          <button class="del-btn" data-id="${m.id || idx}">削除</button>
+        </div>
       </div>`;
   }).join("");
 }
@@ -1067,6 +1116,15 @@ function renderHistory() {
       if (delIdx !== -1) state.history.splice(delIdx, 1);
       pushState();
       showToast("削除しました");
+    });
+  });
+
+  // 修正ボタンリスナー
+  el.querySelectorAll(".edit-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const editId = btn.dataset.id;
+      const idx = state.history.findIndex(m => (m.id || String(state.history.indexOf(m))) === editId);
+      if (idx !== -1) openEditModal(state.history[idx], idx);
     });
   });
 }
@@ -1313,6 +1371,139 @@ document.getElementById("sort-rate").addEventListener("click", () => {
   document.getElementById("sort-rate").classList.add("active");
   document.getElementById("sort-wins").classList.remove("active");
   renderStandings();
+});
+
+// ---------- 対局修正モーダル ----------
+let editTargetIdx = -1;
+
+function openEditModal(m, idx) {
+  editTargetIdx = idx;
+
+  // 対局者セレクトを構築
+  const playerOpts = `<option value="">指定なし</option>` +
+    state.players.map((p,i) => `<option value="${i}">${p}</option>`).join("");
+  document.getElementById("edit-winner").innerHTML = playerOpts;
+  document.getElementById("edit-loser").innerHTML  = playerOpts;
+
+  // 日付セット
+  if (m.date) {
+    const parts = m.date.split(" ")[0].split("/");
+    if (parts.length === 2) {
+      const yyyy = new Date().getFullYear();
+      const mm = String(parts[0]).padStart(2,"0");
+      const dd = String(parts[1]).padStart(2,"0");
+      document.getElementById("edit-date").value = `${yyyy}-${mm}-${dd}`;
+    }
+  }
+
+  // 結果種別セット
+  document.getElementById("edit-result").value = m.type || "";
+
+  // 対局者セット
+  const isJigo = m.type === "jigo";
+  const p1 = isJigo ? m.p1 : m.winner;
+  const p2 = isJigo ? m.p2 : m.loser;
+  const i1 = state.players.indexOf(p1);
+  const i2 = state.players.indexOf(p2);
+  document.getElementById("edit-winner").value = i1 >= 0 ? i1 : "";
+  document.getElementById("edit-loser").value  = i2 >= 0 ? i2 : "";
+
+  // 目数差
+  document.getElementById("edit-mokusuu").value = m.mokusuu || "";
+  document.getElementById("edit-moku-fg").style.display = m.type === "moku" ? "" : "none";
+
+  // 手合い
+  const tw = isJigo ? (m.teai1 || "") : (m.teai_w || "");
+  const tl = isJigo ? (m.teai2 || "") : (m.teai_l || "");
+  document.getElementById("edit-teai").value = tw;
+  if (tw) {
+    document.getElementById("edit-teai-pair-val").textContent = tl;
+    document.getElementById("edit-teai-pair-row").style.display = "";
+  } else {
+    document.getElementById("edit-teai-pair-row").style.display = "none";
+  }
+
+  // ラベル切替
+  const labelL = isJigo ? "対局者A" : "勝者 👑";
+  const labelR = isJigo ? "対局者B" : "敗者";
+  document.getElementById("edit-label-left").textContent  = labelL;
+  document.getElementById("edit-label-right").textContent = labelR;
+  document.getElementById("edit-label-teai").textContent  = isJigo ? "対局者Aの手合い" : "勝者の手合い";
+  document.getElementById("edit-label-teai-pair").textContent = isJigo ? "対局者B" : "敗者";
+
+  document.getElementById("edit-modal").style.display = "";
+}
+
+// 結果種別変更でラベル・目数差欄を切替
+document.getElementById("edit-result").addEventListener("change", function() {
+  const t = this.value;
+  const isJigo = t === "jigo";
+  document.getElementById("edit-moku-fg").style.display = t === "moku" ? "" : "none";
+  document.getElementById("edit-label-left").textContent  = isJigo ? "対局者A" : "勝者 👑";
+  document.getElementById("edit-label-right").textContent = isJigo ? "対局者B" : "敗者";
+  document.getElementById("edit-label-teai").textContent  = isJigo ? "対局者Aの手合い" : "勝者の手合い";
+  document.getElementById("edit-label-teai-pair").textContent = isJigo ? "対局者B" : "敗者";
+});
+
+// 手合い変更で相手手合いを自動表示
+document.getElementById("edit-teai").addEventListener("change", function() {
+  const val = this.value;
+  const pair = TEAI_PAIR[val] || "";
+  if (val) {
+    document.getElementById("edit-teai-pair-val").textContent = pair;
+    document.getElementById("edit-teai-pair-row").style.display = "";
+  } else {
+    document.getElementById("edit-teai-pair-row").style.display = "none";
+  }
+});
+
+// 保存
+document.getElementById("edit-save").addEventListener("click", () => {
+  if (editTargetIdx < 0) return;
+  const type = document.getElementById("edit-result").value;
+  const dateVal = document.getElementById("edit-date").value;
+  let d = state.history[editTargetIdx].date;
+  if (dateVal) {
+    const [y,mo,dy] = dateVal.split("-");
+    d = `${parseInt(mo)}/${parseInt(dy)}`;
+  }
+
+  const wv = document.getElementById("edit-winner").value;
+  const lv = document.getElementById("edit-loser").value;
+  if (!type) { showToast("結果を選択してください"); return; }
+  if (!wv || !lv) { showToast("対局者を選択してください"); return; }
+  if (wv === lv) { showToast("同じ人は選べません"); return; }
+
+  const tw = document.getElementById("edit-teai").value;
+  const tl = TEAI_PAIR[tw] || "";
+  const orig = state.history[editTargetIdx];
+
+  let updated;
+  if (type === "jigo") {
+    updated = { ...orig, type:"jigo", p1:state.players[+wv], p2:state.players[+lv],
+                teai1:tw, teai2:tl, date:d };
+    delete updated.winner; delete updated.loser; delete updated.teai_w; delete updated.teai_l; delete updated.mokusuu;
+  } else if (type === "moku") {
+    const mk = parseFloat(document.getElementById("edit-mokusuu").value);
+    if (isNaN(mk) || mk <= 0) { showToast("目数差を正しく入力してください"); return; }
+    updated = { ...orig, type:"moku", winner:state.players[+wv], loser:state.players[+lv],
+                mokusuu:mk, teai_w:tw, teai_l:tl, date:d };
+    delete updated.p1; delete updated.p2; delete updated.teai1; delete updated.teai2;
+  } else {
+    updated = { ...orig, type, winner:state.players[+wv], loser:state.players[+lv],
+                teai_w:tw, teai_l:tl, date:d };
+    delete updated.p1; delete updated.p2; delete updated.teai1; delete updated.teai2; delete updated.mokusuu;
+  }
+
+  state.history[editTargetIdx] = updated;
+  pushState();
+  document.getElementById("edit-modal").style.display = "none";
+  showToast("対局記録を修正しました");
+});
+
+// キャンセル
+document.getElementById("edit-cancel").addEventListener("click", () => {
+  document.getElementById("edit-modal").style.display = "none";
 });
 
 // ---------- 管理者メニュー開閉 ----------
