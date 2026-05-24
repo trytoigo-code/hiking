@@ -993,10 +993,20 @@ function decisionBreakdownHTML(matches, player) {
 }
 
 // 通常の対局履歴リストHTML
-function matchListHTML(filtered) {
+function matchListHTML(filtered, anchorPlayer) {
+  // anchorPlayer が指定されている場合、その人を常に左側に表示する
   const teai = (t) => t ? `<span style="font-size:0.78rem;color:#888;font-weight:normal">（${t}）</span>` : "";
   return filtered.map(({ m, idx }) => {
-    const { left, right, leftTeai, rightTeai, winner } = getMatchPlayers(m);
+    let { left, right, leftTeai, rightTeai, winner } = getMatchPlayers(m);
+
+    // アンカープレイヤーが右側にいる場合は左右を入れ替える
+    if (anchorPlayer && right === anchorPlayer) {
+      [left, right] = [right, left];
+      [leftTeai, rightTeai] = [rightTeai, leftTeai];
+      if (winner === "left") winner = "right";
+      else if (winner === "right") winner = "left";
+    }
+
     let effectiveWinner = winner;
     if (m.type === "jigo") {
       const jw = jigoWinner(m);
@@ -1092,7 +1102,7 @@ function renderHistory() {
     // 対局履歴
     html += sectionHead("対局履歴");
     if (allFiltered.length === 0) html += '<p style="color:#999">対局記録はありません。</p>';
-    else html += matchListHTML(allFiltered);
+    else html += matchListHTML(allFiltered, pA);
 
     el.innerHTML = html;
 
@@ -1116,7 +1126,7 @@ function renderHistory() {
     // 直接対局履歴
     html += sectionHead("対局履歴");
     if (allFiltered.length === 0) html += '<p style="color:#999">対局記録はありません。</p>';
-    else html += matchListHTML(allFiltered);
+    else html += matchListHTML(allFiltered, pA);
 
     el.innerHTML = html;
   }
