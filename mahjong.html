@@ -1,0 +1,789 @@
+<!--
+================================================================================
+  このアプリについて
+  麻雀成績管理アプリ「点棒」― 設計思想と共同編集の進め方
+================================================================================
+
+【アプリの目的】
+  少人数の麻雀メンバーで半荘ごとの成績を共有・管理する。
+  点数・順位・ポイントを全員がリアルタイムで確認できることを重視する。
+  現時点では4名での利用を想定しているが、今後の拡張余地を残した設計とする。
+
+【利用環境】
+  - スマホ利用を最優先とする（モバイルファースト）
+  - GitHub Pages でホスティング（現時点では単一 index.html で完結）
+  - Firebase Realtime Database によるリアルタイム同期
+
+【技術構成】
+  - バニラJS（React・Babel 不使用）
+  - Firebase Realtime Database（CDN読み込み）
+  - 外部ライブラリなし・ビルド不要・1ファイル完結
+  - 新技術の導入より、継続して利用しやすい構成を優先する
+
+【共同編集の進め方】
+  このアプリは、ユーザーと生成AIが対話しながら少しずつ育てていくものです。
+  以下は、その共同作業をうまく続けるための共通認識です。
+
+  ・このアプリの文脈と歴史を理解した上で提案する
+  ・変更の意図と影響範囲を共有しながら進める
+  ・小さな積み重ねを大切にし、一度に大きく変えない
+  ・既存の操作感や雰囲気はできるだけ引き継ぐ
+  ・読みやすく・触りやすく・壊れにくい構成を選ぶ
+  ・新しい技術より、長く使い続けられることを優先する
+  ・機能を追加・変更したら「主な機能」と「今後の改良候補」を合わせて更新する
+
+【主な機能（現時点）】
+  - 対局者設定（4名、拡張余地あり）
+  - 結果入力（各自の最終点数を入力 → 順位・ポイントを自動計算）
+  - ウマ・返し点・配給原点の設定（オカは自動計算）
+  - リアルタイムプレビュー（全員入力完了で順位とポイントを即時表示）
+  - 合計点数チェック（配給原点×人数と照合）
+  - 順位表（ポイント合計順・1位回数順の切り替え対応）
+    - 総得点・対局数・着順分布・平均着順を表示
+  - 対局履歴（半荘ごとの点数・ポイント・順位を表示）
+    - 削除・10秒以内ならUNDO可能
+  - シーズンリセット（履歴をFirebaseに保存後リセット）
+  - Firebase によるリアルタイム同期
+
+【ポイント計算方式】
+  ポイント = (最終点数 - 返し点) ÷ 1000 + 着順補正[順位]
+  着順補正はウマ・オカを合算した値を直接設定する
+  デフォルト：返し点30000・補正 +40/+10/−10/−40
+
+【今後の改良候補】
+  - 得点推移グラフ（折れ線）
+  - 着順分布の棒グラフ表示
+  - データのCSVエクスポート
+  - ダークモード対応
+================================================================================
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>麻雀成績管理「点棒」</title>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", YuGothic, sans-serif;
+      background: #fcfaf2; color: #333;
+    }
+    #app { max-width: 500px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
+
+    /* ── Header ── */
+    #header {
+      background: #2c3e50; color: #fff;
+      padding: 14px 16px 10px; text-align: center;
+    }
+    #header h1 { font-size: 1.1rem; letter-spacing: 2px; font-weight: bold; }
+    #sync-row { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 5px; }
+    #sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #2ecc71; display: inline-block; }
+    #sync-label { font-size: 0.7rem; color: #aed6f1; }
+
+    /* ── Tabs ── */
+    #nav { display: flex; background: #f1f0ea; border-bottom: 1px solid #e0dbcd; overflow-x: auto; }
+    .tab-btn {
+      flex: 1; padding: 11px 4px; border: none; background: none;
+      font-size: 0.8rem; font-weight: bold; color: #777; cursor: pointer;
+      white-space: nowrap; border-bottom: 3px solid transparent;
+    }
+    .tab-btn.active { color: #2c3e50; background: #fff; border-bottom-color: #b89752; }
+
+    /* ── Content ── */
+    #content { padding: 18px 16px; flex: 1; }
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    h3 {
+      border-left: 4px solid #b89752; padding-left: 8px;
+      margin-bottom: 14px; color: #2c3e50; font-size: 1rem;
+    }
+    .note { font-size: 0.8rem; color: #888; margin-top: -8px; margin-bottom: 14px; line-height: 1.5; }
+
+    /* ── Form ── */
+    .fg { margin-bottom: 14px; }
+    label { display: block; margin-bottom: 4px; font-weight: bold; font-size: 0.88rem; color: #444; }
+    input, select {
+      width: 100%; padding: 10px; border: 1px solid #ddd8cc;
+      border-radius: 6px; font-size: 1rem; background: #fff;
+    }
+    .btn {
+      width: 100%; padding: 13px; background: #2c3e50; color: #fff;
+      border: none; border-radius: 6px; font-size: 1rem;
+      font-weight: bold; cursor: pointer; letter-spacing: 1px;
+    }
+    .btn:active { opacity: 0.85; }
+
+    /* ── Score input grid ── */
+    .score-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+    .score-card {
+      background: #fff; border: 1px solid #ddd8cc; border-radius: 8px; padding: 10px;
+    }
+    .score-card label { font-size: 0.82rem; color: #555; margin-bottom: 5px; }
+    .score-card input { padding: 8px 10px; font-size: 1.1rem; text-align: right; font-weight: bold; }
+    .score-preview { margin-top: 5px; text-align: right; font-size: 0.82rem; font-weight: bold; min-height: 1.2em; }
+
+    /* ── Preview ── */
+    .preview-wrap {
+      background: #f9f8f4; border: 1px solid #e0dbcd;
+      border-radius: 8px; padding: 12px; margin-bottom: 14px;
+    }
+    .preview-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 0; border-bottom: 1px solid #ece8dc; font-size: 0.88rem;
+    }
+    .preview-row:last-of-type { border-bottom: none; }
+    .preview-rank { font-size: 1.1rem; width: 28px; text-align: center; flex-shrink: 0; }
+    .preview-name { flex: 1; font-weight: bold; }
+    .preview-score { color: #777; font-size: 0.82rem; min-width: 68px; text-align: right; }
+    .preview-pt { font-weight: bold; min-width: 60px; text-align: right; }
+
+    /* ── Standings ── */
+    .rank-row {
+      background: #fdfdfb; border: 1px solid #e0dbcd;
+      padding: 12px 14px; border-radius: 8px; margin-bottom: 10px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .rank-num { width: 34px; font-size: 1.3rem; text-align: center; flex-shrink: 0; }
+    .rank-info { flex: 1; min-width: 0; }
+    .rank-name { font-weight: bold; font-size: 0.95rem; }
+    .rank-sub { color: #888; font-size: 0.76rem; margin-top: 3px; }
+    .rank-pt { font-size: 1.3rem; font-weight: bold; text-align: right; flex-shrink: 0; min-width: 72px; }
+    .pt-pos { color: #27ae60; }
+    .pt-neg { color: #e74c3c; }
+    .pt-zero { color: #888; }
+
+    /* ── History ── */
+    .hist-item {
+      background: #fdfdfb; border: 1px solid #e0dbcd;
+      padding: 12px; border-radius: 8px; margin-bottom: 10px;
+    }
+    .hist-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #ece8dc;
+    }
+    .hist-no { font-size: 0.78rem; font-weight: bold; color: #b89752; }
+    .hist-date { font-size: 0.78rem; color: #999; }
+    .hist-row {
+      display: flex; align-items: center; gap: 6px;
+      padding: 4px 0; font-size: 0.85rem; border-bottom: 1px dashed #f0ece0;
+    }
+    .hist-row:last-child { border-bottom: none; }
+    .hist-rank { font-size: 1rem; width: 26px; text-align: center; flex-shrink: 0; }
+    .hist-name { flex: 1; font-weight: bold; }
+    .hist-score { color: #777; font-size: 0.82rem; min-width: 64px; text-align: right; }
+    .hist-pt { font-weight: bold; min-width: 56px; text-align: right; }
+    .del-btn {
+      background: #e74c3c; color: #fff; border: none;
+      padding: 4px 10px; border-radius: 4px; font-size: 0.75rem;
+      cursor: pointer; flex-shrink: 0;
+    }
+
+    /* ── Filter / sort buttons ── */
+    .filter-btn {
+      padding: 5px 12px; border-radius: 14px; border: 1px solid #ddd8cc;
+      background: #fff; font-size: 0.78rem; cursor: pointer; color: #555; font-weight: bold;
+    }
+    .filter-btn.active { background: #2c3e50; color: #fff; border-color: #2c3e50; }
+
+    /* ── Setup banner ── */
+    #setup-banner {
+      background: #fff3cd; border: 1px solid #ffc107; color: #856404;
+      padding: 14px 16px; border-radius: 8px; margin-bottom: 16px;
+      font-size: 0.85rem; line-height: 1.7; display: none;
+    }
+    #setup-banner code {
+      background: #f8f9fa; border: 1px solid #ddd;
+      padding: 1px 5px; border-radius: 3px; word-break: break-all;
+    }
+
+    /* ── Settings grid ── */
+    .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+    .settings-grid .fg { margin: 0; }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+      background: #2c3e50; color: #fff; padding: 10px 18px;
+      border-radius: 20px; font-size: 0.88rem; z-index: 999;
+      display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      align-items: center; gap: 12px; white-space: nowrap;
+    }
+    #toast-undo {
+      background: none; border: 1px solid #fff; color: #fff;
+      padding: 3px 10px; border-radius: 12px; font-size: 0.82rem;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Header -->
+  <div id="header">
+    <h1>🀄 麻雀成績管理「点棒」</h1>
+    <div id="sync-row">
+      <span id="sync-dot"></span>
+      <span id="sync-label">接続中...</span>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div id="nav">
+    <button class="tab-btn active" data-tab="standings">🏆順位表</button>
+    <button class="tab-btn" data-tab="input">📝結果入力</button>
+    <button class="tab-btn" data-tab="history">📜履歴</button>
+    <button class="tab-btn" data-tab="setup">⚙️設定</button>
+  </div>
+
+  <!-- Content -->
+  <div id="content">
+
+    <!-- 順位表 -->
+    <div class="panel active" id="panel-standings">
+      <h3>順位</h3>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <button class="filter-btn active" id="sort-pt">ポイント順</button>
+        <button class="filter-btn" id="sort-1st">1位回数順</button>
+      </div>
+      <div id="rank-list"></div>
+    </div>
+
+    <!-- 結果入力 -->
+    <div class="panel" id="panel-input">
+      <h3>結果入力</h3>
+      <p class="note">各プレイヤーの最終点数を入力してください。全員入力完了でポイントを自動計算します。</p>
+      <div class="fg">
+        <label>対局日</label>
+        <input type="date" id="match-date">
+      </div>
+      <div class="score-grid" id="score-inputs"></div>
+      <div id="calc-preview" style="display:none">
+        <h3>計算プレビュー</h3>
+        <div class="preview-wrap" id="preview-rows"></div>
+      </div>
+      <button class="btn" id="add-match">登録する（全員に即時反映）</button>
+    </div>
+
+    <!-- 履歴 -->
+    <div class="panel" id="panel-history">
+      <h3>対局履歴</h3>
+      <p class="note">最新の半荘が上に表示されます。削除後10秒以内は「元に戻す」が使えます。</p>
+      <div id="history-list"></div>
+    </div>
+
+    <!-- 設定 -->
+    <div class="panel" id="panel-setup">
+      <div id="setup-banner">
+        ⚙️ <strong>Firebase未設定 — ローカル動作中</strong><br>
+        全員でリアルタイム共有するには <code>index.html</code> の
+        <code>firebaseConfig</code> を書き換えてください。<br>
+        <a href="https://console.firebase.google.com" target="_blank" style="color:#856404">console.firebase.google.com</a>
+        → Realtime Database を有効化
+      </div>
+
+      <h3>ルール設定</h3>
+      <p class="note">変更を保存すると次回入力から反映されます。過去の記録は変わりません。<br>ウマ・オカを合算した値を直接設定します（3位=-2位補正、4位=-1位補正）。</p>
+      <div class="settings-grid">
+        <div class="fg"><label>1位補正</label><input type="number" id="pt1" placeholder="40"></div>
+        <div class="fg"><label>2位補正</label><input type="number" id="pt2" placeholder="10"></div>
+      </div>
+      <div class="fg"><label>返し点</label><input type="number" id="kaeshiten" placeholder="30000" step="100"></div>
+      <p class="note" id="adj-note" style="background:#f9f8f4;border:1px solid #e0dbcd;border-radius:6px;padding:8px 10px;margin-bottom:14px;color:#555"></p>
+      <button class="btn" id="save-settings" style="margin-bottom:24px">ルールを保存して同期</button>
+
+      <!-- 管理者メニュー（折りたたみ） -->
+      <div id="admin-toggle" style="cursor:pointer;padding:12px 0;display:flex;align-items:center;gap:8px;color:#2c3e50;font-weight:bold;font-size:1rem;border-bottom:1px solid #e0dbcd">
+        <span id="admin-arrow">▶</span>
+        <span>管理者の仕事</span>
+      </div>
+      <div id="admin-body" style="display:none;margin-top:16px">
+        <h3>対局者設定</h3>
+        <p class="note">名前を変更したら「保存して同期」を押すと全員の画面に即時反映されます。</p>
+        <div class="fg"><label>対局者 1</label><input id="p0" type="text"></div>
+        <div class="fg"><label>対局者 2</label><input id="p1" type="text"></div>
+        <div class="fg"><label>対局者 3</label><input id="p2" type="text"></div>
+        <div class="fg"><label>対局者 4</label><input id="p3" type="text"></div>
+        <button class="btn" id="save-players">保存して全員に同期</button>
+
+        <h3 style="margin-top:24px">シーズン管理</h3>
+        <p class="note">対局履歴をリセットします。アーカイブとしてFirebaseに保存されます。</p>
+        <div id="season-info" style="margin-bottom:12px;font-size:0.9rem;color:#2c3e50;font-weight:bold"></div>
+        <button class="btn" id="season-reset" style="background:#e74c3c">新シーズンを始める</button>
+        <div id="past-seasons" style="margin-top:16px"></div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /app -->
+
+<div id="toast" style="display:none">
+  <span id="toast-msg"></span>
+  <button id="toast-undo" style="display:none">元に戻す</button>
+</div>
+
+<script>
+// ============================================================
+//  🔧 ここにFirebaseの設定を貼り付けてください
+//     console.firebase.google.com → プロジェクト設定 → マイアプリ
+// ============================================================
+const firebaseConfig = {
+  apiKey:            "AIzaSyBSrQkPMPc-icuph244VBorNqRf2yP-U7Y",
+  authDomain:        "hiking-558a9.firebaseapp.com",
+  databaseURL:       "https://hiking-558a9-default-rtdb.firebaseio.com",
+  projectId:         "hiking-558a9",
+  storageBucket:     "hiking-558a9.firebasestorage.app",
+  messagingSenderId: "1066293850319",
+  appId:             "1:1066293850319:web:94409f01b194d5afe7c7ba"
+};
+// ============================================================
+
+// ---------- デフォルト設定 ----------
+const DEFAULT_SETTINGS = { pt1: 40, pt2: 10, kaeshiten: 30000 };
+const PLAYER_COUNT = 4;
+
+// ---------- State ----------
+let state = {
+  players: ["東家", "南家", "西家", "北家"],
+  history: [],        // { date, scores[], ranks[], points[], players[] }
+  settings: { ...DEFAULT_SETTINGS },
+  season: 1
+};
+let stateRef    = null;
+let seasonsRef  = null;
+const isConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY";
+let editingPlayers = false;  // 対局者名入力中はFirebase onValueで上書きしない
+
+// ---------- Firebase ----------
+if (isConfigured) {
+  try {
+    firebase.initializeApp(firebaseConfig);
+    stateRef   = firebase.database().ref("mahjong/state");
+    seasonsRef = firebase.database().ref("mahjong/seasons");
+    stateRef.on("value", (snap) => {
+      const data = snap.val();
+      if (data) {
+        state = {
+          players:  Array.isArray(data.players) ? data.players : state.players,
+          history:  Array.isArray(data.history) ? data.history : [],
+          settings: (data.settings && typeof data.settings === "object")
+                    ? { ...DEFAULT_SETTINGS, ...data.settings } : { ...DEFAULT_SETTINGS },
+          season:   (typeof data.season === "number") ? data.season : 1
+        };
+        if (!editingPlayers) fillPlayerInputs();
+        fillSettingInputs();
+        renderAll();
+      }
+      setSyncStatus(true);
+    }, () => setSyncStatus(false));
+  } catch(e) {
+    console.error("Firebase init failed:", e);
+    setSyncStatus(false);
+  }
+} else {
+  document.getElementById("setup-banner").style.display = "block";
+  setSyncStatus(false);
+}
+
+function pushState() {
+  if (stateRef) stateRef.set(state);
+  renderAll();
+}
+
+function setSyncStatus(online) {
+  const dot = document.getElementById("sync-dot");
+  const lbl = document.getElementById("sync-label");
+  if (!isConfigured) {
+    dot.style.background = "#e67e22";
+    lbl.textContent = "ローカルモード（Firebase未設定）";
+    return;
+  }
+  if (online) {
+    dot.style.background = "#2ecc71";
+    const now = new Date();
+    lbl.textContent = `リアルタイム同期中 · ${now.getHours()}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  } else {
+    dot.style.background = "#e74c3c";
+    lbl.textContent = "オフライン";
+  }
+}
+
+function pad(n) { return String(n).padStart(2, "0"); }
+
+// ---------- Tabs ----------
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById("panel-" + btn.dataset.tab).classList.add("active");
+  });
+});
+
+// ---------- ポイント計算 ----------
+// ポイント = (最終点数 - 返し点) / 1000 + 着順補正[順位]
+// 着順補正はウマ・オカを合算した値を直接設定（対称: 3位=-pt2, 4位=-pt1）
+function calcPoints(scores, s) {
+  const adj = [s.pt1, s.pt2, -s.pt2, -s.pt1];
+
+  // スコア降順でソート（同点は入力順が上位）
+  const indexed = scores.map((v, i) => ({ v, i }));
+  indexed.sort((a, b) => b.v - a.v);
+
+  const ranks  = new Array(scores.length);
+  const points = new Array(scores.length);
+  indexed.forEach(({ v, i }, rankIdx) => {
+    ranks[i]  = rankIdx + 1;
+    const norm = (v - s.kaeshiten) / 1000;
+    points[i]  = Math.round((norm + adj[rankIdx]) * 10) / 10;
+  });
+  return { ranks, points };
+}
+
+function fmtPt(pt) {
+  if (pt > 0) return `+${pt.toFixed(1)}`;
+  if (pt < 0) return pt.toFixed(1);
+  return "±0.0";
+}
+function ptClass(pt) {
+  return pt > 0 ? "pt-pos" : pt < 0 ? "pt-neg" : "pt-zero";
+}
+const RANK_EMOJI = ["👑","🥈","🥉","4位"];
+function rankEmoji(r) { return RANK_EMOJI[r - 1] || `${r}位`; }
+
+// ---------- 結果入力：スコアグリッド構築 ----------
+// ※ FirebaseのonValueが発火してもスコア入力中の値を消さないよう、
+//    buildScoreInputs はプレイヤー名変更時のみ呼ぶ。
+// ----------
+function buildScoreInputs() {
+  const grid = document.getElementById("score-inputs");
+  grid.innerHTML = state.players.map((name, i) => `
+    <div class="score-card">
+      <label>${name}</label>
+      <input type="number" id="score-${i}" placeholder="30000" step="100" inputmode="numeric"
+             oninput="updatePreview()">
+      <div class="score-preview" id="score-prev-${i}"></div>
+    </div>
+  `).join("");
+}
+
+function updatePreview() {
+  const scores = state.players.map((_, i) => {
+    const v = parseInt(document.getElementById(`score-${i}`).value);
+    return isNaN(v) ? null : v;
+  });
+  const allFilled = scores.every(s => s !== null);
+  const preview   = document.getElementById("calc-preview");
+
+  if (!allFilled) {
+    preview.style.display = "none";
+    state.players.forEach((_, i) => { document.getElementById(`score-prev-${i}`).textContent = ""; });
+    return;
+  }
+
+  const { ranks, points } = calcPoints(scores, state.settings);
+
+  // 順位順に並べてプレビュー表示
+  const rows = state.players.map((name, i) => ({ name, score: scores[i], rank: ranks[i], pt: points[i] }));
+  rows.sort((a, b) => a.rank - b.rank);
+
+  document.getElementById("preview-rows").innerHTML = rows.map(r => `
+    <div class="preview-row">
+      <span class="preview-rank">${rankEmoji(r.rank)}</span>
+      <span class="preview-name">${r.name}</span>
+      <span class="preview-score">${r.score.toLocaleString()}点</span>
+      <span class="preview-pt ${ptClass(r.pt)}">${fmtPt(r.pt)}</span>
+    </div>
+  `).join("");
+
+  preview.style.display = "";
+
+  // 各カードにも個別ポイントを表示
+  state.players.forEach((_, i) => {
+    const el = document.getElementById(`score-prev-${i}`);
+    el.innerHTML = `<span class="${ptClass(points[i])}">${fmtPt(points[i])}</span>`;
+  });
+}
+
+// 対局日を今日で初期化
+(function() {
+  const today = new Date();
+  document.getElementById("match-date").value =
+    `${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
+})();
+
+document.getElementById("add-match").addEventListener("click", () => {
+  const scores = state.players.map((_, i) => {
+    const v = parseInt(document.getElementById(`score-${i}`).value);
+    return isNaN(v) ? null : v;
+  });
+  if (scores.some(s => s === null)) { showToast("全員の点数を入力してください"); return; }
+
+  const dateVal = document.getElementById("match-date").value;
+  let d;
+  if (dateVal) {
+    const [, mo, dy] = dateVal.split("-");
+    d = `${parseInt(mo)}/${parseInt(dy)}`;
+  } else {
+    const now = new Date();
+    d = `${now.getMonth()+1}/${now.getDate()}`;
+  }
+
+  const { ranks, points } = calcPoints(scores, state.settings);
+  state.history.push({ date: d, scores, ranks, points, players: [...state.players] });
+  pushState();
+
+  // 入力欄リセット（プレビューも閉じる）
+  state.players.forEach((_, i) => {
+    document.getElementById(`score-${i}`).value = "";
+    document.getElementById(`score-prev-${i}`).textContent = "";
+  });
+  document.getElementById("calc-preview").style.display = "none";
+  showToast("結果を登録しました！");
+});
+
+// ---------- 順位表 ----------
+let sortMode = "pt";
+
+function renderStandings() {
+  const totals = {}, gameCnt = {}, rankCnt = { 1:{}, 2:{}, 3:{}, 4:{} };
+
+  state.players.forEach(p => {
+    totals[p]  = 0; gameCnt[p] = 0;
+    [1,2,3,4].forEach(r => rankCnt[r][p] = 0);
+  });
+
+  state.history.forEach(m => {
+    const ps = m.players || state.players;
+    ps.forEach((p, i) => {
+      if (!(p in totals)) { totals[p] = 0; gameCnt[p] = 0; [1,2,3,4].forEach(r => { rankCnt[r][p] = rankCnt[r][p] || 0; }); }
+      totals[p]         = Math.round((totals[p] + m.points[i]) * 10) / 10;
+      gameCnt[p]++;
+      rankCnt[m.ranks[i]][p] = (rankCnt[m.ranks[i]][p] || 0) + 1;
+    });
+  });
+
+  const allPlayers = [...new Set([...state.players, ...Object.keys(totals)])];
+  const data = allPlayers.map(p => ({
+    name: p,
+    total: totals[p] || 0,
+    games: gameCnt[p] || 0,
+    c: [0, rankCnt[1][p]||0, rankCnt[2][p]||0, rankCnt[3][p]||0, rankCnt[4][p]||0]
+  }));
+
+  if (sortMode === "pt")  data.sort((a, b) => b.total - a.total);
+  else                    data.sort((a, b) => b.c[1] - a.c[1] || b.total - a.total);
+
+  const MEDALS = ["🥇","🥈","🥉","4"];
+  document.getElementById("rank-list").innerHTML = data.map((p, i) => {
+    const avgRank = p.games > 0
+      ? ((p.c[1]*1 + p.c[2]*2 + p.c[3]*3 + p.c[4]*4) / p.games).toFixed(2)
+      : "-";
+    return `
+      <div class="rank-row">
+        <div class="rank-num">${MEDALS[i] || i+1}</div>
+        <div class="rank-info">
+          <div class="rank-name">${p.name}</div>
+          <div class="rank-sub">
+            ${p.games}半荘 ／ 👑${p.c[1]} 🥈${p.c[2]} 🥉${p.c[3]} 4位:${p.c[4]}
+            ／ 平均${avgRank}着
+          </div>
+        </div>
+        <div class="rank-pt ${ptClass(p.total)}">${fmtPt(p.total)}</div>
+      </div>`;
+  }).join("") || `<p style="color:#999;font-size:0.9rem">まだ対局がありません。</p>`;
+}
+
+document.getElementById("sort-pt").addEventListener("click", () => {
+  sortMode = "pt";
+  document.getElementById("sort-pt").classList.add("active");
+  document.getElementById("sort-1st").classList.remove("active");
+  renderStandings();
+});
+document.getElementById("sort-1st").addEventListener("click", () => {
+  sortMode = "1st";
+  document.getElementById("sort-pt").classList.remove("active");
+  document.getElementById("sort-1st").classList.add("active");
+  renderStandings();
+});
+
+// ---------- 対局履歴 ----------
+function renderHistory() {
+  const list = document.getElementById("history-list");
+  if (state.history.length === 0) {
+    list.innerHTML = `<p style="color:#999;font-size:0.9rem">まだ対局がありません。</p>`;
+    return;
+  }
+  list.innerHTML = [...state.history].reverse().map((m, revIdx) => {
+    const origIdx = state.history.length - 1 - revIdx;
+    const ps      = m.players || state.players;
+    const rows    = ps.map((name, i) => ({ name, score: m.scores[i], rank: m.ranks[i], pt: m.points[i] }));
+    rows.sort((a, b) => a.rank - b.rank);
+
+    return `
+      <div class="hist-item">
+        <div class="hist-header">
+          <span class="hist-no">第${origIdx+1}半荘</span>
+          <span class="hist-date">${m.date}</span>
+          <button class="del-btn" onclick="deleteMatch(${origIdx})">削除</button>
+        </div>
+        ${rows.map(r => `
+          <div class="hist-row">
+            <span class="hist-rank">${rankEmoji(r.rank)}</span>
+            <span class="hist-name">${r.name}</span>
+            <span class="hist-score">${r.score.toLocaleString()}点</span>
+            <span class="hist-pt ${ptClass(r.pt)}">${fmtPt(r.pt)}</span>
+          </div>`).join("")}
+      </div>`;
+  }).join("");
+}
+
+// ---------- 削除 & Undo ----------
+let toastTimer = null;
+let undoTimer  = null;
+let pendingDelete = null; // { idx, record }
+
+function deleteMatch(idx) {
+  pendingDelete = { idx, record: state.history[idx] };
+  state.history.splice(idx, 1);
+  renderAll();
+
+  const el = document.getElementById("toast");
+  document.getElementById("toast-msg").textContent = "削除しました";
+  document.getElementById("toast-undo").style.display = "inline-block";
+  el.style.display = "flex";
+
+  if (toastTimer) clearTimeout(toastTimer);
+  if (undoTimer)  clearTimeout(undoTimer);
+
+  // 10秒後にFirebaseへ反映（確定）
+  undoTimer = setTimeout(() => {
+    el.style.display = "none";
+    if (pendingDelete) { pushState(); pendingDelete = null; }
+  }, 10000);
+}
+
+document.getElementById("toast-undo").addEventListener("click", () => {
+  if (pendingDelete) {
+    state.history.splice(pendingDelete.idx, 0, pendingDelete.record);
+    pendingDelete = null;
+    if (undoTimer) clearTimeout(undoTimer);
+    renderAll();
+    showToast("元に戻しました");
+  }
+});
+
+function showToast(msg) {
+  const el = document.getElementById("toast");
+  document.getElementById("toast-msg").textContent = msg;
+  document.getElementById("toast-undo").style.display = "none";
+  el.style.display = "flex";
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.style.display = "none"; }, 2500);
+}
+
+// ---------- 設定 ----------
+function fillSettingInputs() {
+  const s = state.settings;
+  document.getElementById("pt1").value       = s.pt1;
+  document.getElementById("pt2").value       = s.pt2;
+  document.getElementById("kaeshiten").value = s.kaeshiten;
+  updateAdjNote();
+}
+
+function updateAdjNote() {
+  const pt1 = parseInt(document.getElementById("pt1").value) || 0;
+  const pt2 = parseInt(document.getElementById("pt2").value) || 0;
+  document.getElementById("adj-note").textContent =
+    `着順補正: +${pt1} / +${pt2} / −${pt2} / −${pt1}`;
+}
+
+["pt1","pt2","kaeshiten"].forEach(id =>
+  document.getElementById(id).addEventListener("input", updateAdjNote)
+);
+
+document.getElementById("save-settings").addEventListener("click", () => {
+  state.settings = {
+    pt1:       parseInt(document.getElementById("pt1").value)       || DEFAULT_SETTINGS.pt1,
+    pt2:       parseInt(document.getElementById("pt2").value)       || DEFAULT_SETTINGS.pt2,
+    kaeshiten: parseInt(document.getElementById("kaeshiten").value) || DEFAULT_SETTINGS.kaeshiten,
+  };
+  pushState();
+  showToast("ルール設定を保存しました");
+});
+
+// ---------- 対局者設定 ----------
+function fillPlayerInputs() {
+  state.players.forEach((name, i) => {
+    const el = document.getElementById("p" + i);
+    if (el) el.value = name;
+  });
+}
+
+[0,1,2,3].forEach(i => {
+  const el = document.getElementById("p" + i);
+  if (!el) return;
+  el.addEventListener("focus", () => editingPlayers = true);
+  el.addEventListener("blur",  () => editingPlayers = false);
+});
+
+document.getElementById("save-players").addEventListener("click", () => {
+  state.players = [0,1,2,3].map(i => {
+    const v = document.getElementById("p" + i).value.trim();
+    return v || `対局者${i+1}`;
+  });
+  buildScoreInputs();  // 名前変更時のみグリッドを再構築
+  pushState();
+  showToast("対局者名を全員に同期しました！");
+});
+
+// ---------- 管理者メニュー開閉 ----------
+document.getElementById("admin-toggle").addEventListener("click", () => {
+  const body  = document.getElementById("admin-body");
+  const arrow = document.getElementById("admin-arrow");
+  const isOpen = body.style.display !== "none";
+  body.style.display = isOpen ? "none" : "";
+  arrow.textContent  = isOpen ? "▶" : "▼";
+});
+
+// ---------- シーズン管理 ----------
+document.getElementById("season-reset").addEventListener("click", () => {
+  if (!confirm(`シーズン${state.season}の記録をアーカイブして新シーズンを開始しますか？`)) return;
+  if (seasonsRef) {
+    seasonsRef.child(`season${state.season}`).set({
+      season:  state.season,
+      endDate: new Date().toLocaleDateString("ja-JP"),
+      players: state.players,
+      history: state.history
+    });
+  }
+  state.history = [];
+  state.season++;
+  pushState();
+  showToast(`シーズン${state.season-1}終了。シーズン${state.season}を開始します。`);
+  renderSeasonInfo();
+});
+
+function renderSeasonInfo() {
+  document.getElementById("season-info").textContent =
+    `現在：シーズン${state.season}（${state.history.length}半荘終了）`;
+}
+
+// ---------- Render All ----------
+function renderAll() {
+  renderStandings();
+  renderHistory();
+  renderSeasonInfo();
+}
+
+// ---------- 初期化 ----------
+fillPlayerInputs();
+fillSettingInputs();
+buildScoreInputs();
+renderAll();
+</script>
+</body>
+</html>
