@@ -444,16 +444,16 @@ function calcPoints(scores, s) {
 
   const points = new Array(scores.length);
   indexed.forEach(({ i }, rankIdx) => {
-    points[i] = Math.round((norms[i] + adj[rankIdx] + (rankIdx === 0 ? oka : 0)) * 10) / 10;
+    points[i] = Math.round(norms[i] + adj[rankIdx] + (rankIdx === 0 ? oka : 0));
   });
 
   return { ranks, points };
 }
 
 function fmtPt(pt) {
-  if (pt > 0) return `+${pt.toFixed(1)}`;
-  if (pt < 0) return pt.toFixed(1);
-  return "±0.0";
+  if (pt > 0) return `+${pt}`;
+  if (pt < 0) return `${pt}`;
+  return "±0";
 }
 function ptClass(pt) {
   return pt > 0 ? "pt-pos" : pt < 0 ? "pt-neg" : "pt-zero";
@@ -474,7 +474,7 @@ function buildRankInputs() {
     const ptField = r === 0
       ? `<span class="ri-pt-auto" id="ri-pt-0">—</span>`
       : `<input type="number" class="ri-pt-input" id="ri-pt-${r}"
-             step="0.1" placeholder="0.0" inputmode="decimal" oninput="updateRankCalc()">`;
+             step="1" placeholder="0" inputmode="numeric" oninput="updateRankCalc()">`;
     return `
       <div class="rank-input-row">
         <span class="ri-label">${label}</span>
@@ -490,7 +490,7 @@ function updateRankCalc() {
   const pt4 = parseFloat(document.getElementById("ri-pt-3").value);
   const el   = document.getElementById("ri-pt-0");
   if (!isNaN(pt2) && !isNaN(pt3) && !isNaN(pt4)) {
-    const pt1 = Math.round(-(pt2 + pt3 + pt4) * 10) / 10;
+    const pt1 = Math.round(-(pt2 + pt3 + pt4));
     el.textContent = fmtPt(pt1);
     el.className   = "ri-pt-auto " + ptClass(pt1);
   } else {
@@ -518,7 +518,7 @@ document.getElementById("add-match").addEventListener("click", () => {
   if (rawPts.some(isNaN)) { showToast("2〜4位のポイントを入力してください"); return; }
 
   // 1位ポイント自動計算
-  const pt1 = Math.round(-(rawPts[0] + rawPts[1] + rawPts[2]) * 10) / 10;
+  const pt1 = Math.round(-(rawPts[0] + rawPts[1] + rawPts[2]));
   const rankPts = [pt1, ...rawPts]; // 順位順のポイント配列
 
   // プレイヤー別に ranks / points を構築
@@ -564,7 +564,7 @@ function renderStandings() {
     const ps = m.players || state.players;
     ps.forEach((p, i) => {
       if (!(p in totals)) { totals[p] = 0; gameCnt[p] = 0; [1,2,3,4].forEach(r => { rankCnt[r][p] = rankCnt[r][p] || 0; }); }
-      totals[p]         = Math.round((totals[p] + m.points[i]) * 10) / 10;
+      totals[p]         = Math.round(totals[p] + m.points[i]);
       gameCnt[p]++;
       rankCnt[m.ranks[i]][p] = (rankCnt[m.ranks[i]][p] || 0) + 1;
     });
