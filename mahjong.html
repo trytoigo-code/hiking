@@ -75,10 +75,6 @@
     .ri-input-box {
       display: flex; width: 100%; gap: 3px; align-items: center;
     }
-
-    .ri-pt-auto, .ri-chip-auto {
-      width: 100%; text-align: right; font-weight: bold; font-size: 0.95rem; color: #bbb; display: inline-block; padding: 6px 4px;
-    }
     .ri-pt-input, .ri-chip-input {
       flex: 1; width: 100%; padding: 6px 4px; text-align: right; font-size: 0.95rem; font-weight: bold; min-width: 0;
     }
@@ -132,7 +128,6 @@
       padding: 4px 1px; display: flex; flex-direction: column; gap: 1px; min-width: 0;
       transition: all 0.2s ease;
     }
-    /* ハイライト対象のスタイル定義 */
     .hist-player-box.highlighted {
       background: #fff9e6; border-color: #f39c12; box-shadow: 0 0 4px rgba(243, 156, 18, 0.3);
     }
@@ -169,10 +164,6 @@
       font-size: 0.85rem; line-height: 1.7; display: none;
     }
     #setup-banner code { background: #f8f9fa; border: 1px solid #ddd; padding: 1px 5px; border-radius: 3px; word-break: break-all; }
-
-    /* ── Settings grid ── */
-    .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
-    .settings-grid .fg { margin: 0; }
 
     /* ── Toast ── */
     #toast {
@@ -220,7 +211,7 @@
 
     <div class="panel" id="panel-input">
       <h3>結果入力</h3>
-      <p class="note">2〜4位のポイント・チップを入力すると、1位が自動計算されます。</p>
+      <p class="note">各着順の雀士を選択し、確定したポイントとチップを入力してください。</p>
       <div class="fg">
         <label>対局日</label>
         <input type="date" id="match-date">
@@ -245,35 +236,19 @@
         → Realtime Database を有効化
       </div>
 
-      <h3>ルール設定</h3>
-      <p class="note">変更を保存すると次回入力から反映されます。過去の記録は変わりません。<br>ウマ・オカを合算した値を直接設定します（3位=-2位補正、4位=-1位補正）。</p>
-      <div class="settings-grid">
-        <div class="fg"><label>1位補正</label><input type="number" id="pt1" placeholder="10"></div>
-        <div class="fg"><label>2位補正</label><input type="number" id="pt2" placeholder="5"></div>
-      </div>
-      <div class="fg"><label>返し点</label><input type="number" id="kaeshiten" placeholder="30000" step="100"></div>
-      <p class="note" id="adj-note" style="background:#f9f8f4;border:1px solid #e0dbcd;border-radius:6px;padding:8px 10px;margin-bottom:14px;color:#555"></p>
-      <button class="btn" id="save-settings" style="margin-bottom:24px">ルールを保存して同期</button>
+      <h3>雀士設定</h3>
+      <p class="note">雀士の名前を設定してください。変更すると全員の画面に即時反映されます。</p>
+      <div class="fg"><label>雀士 1</label><input id="p0" type="text"></div>
+      <div class="fg"><label>雀士 2</label><input id="p1" type="text"></div>
+      <div class="fg"><label>雀士 3</label><input id="p2" type="text"></div>
+      <div class="fg"><label>雀士 4</label><input id="p3" type="text"></div>
+      <button class="btn" id="save-players">保存して全員に同期</button>
 
-      <div id="admin-toggle" style="cursor:pointer;padding:12px 0;display:flex;align-items:center;gap:8px;color:#2c3e50;font-weight:bold;font-size:1rem;border-bottom:1px solid #e0dbcd">
-        <span id="admin-arrow">▶</span>
-        <span>管理者の仕事</span>
-      </div>
-      <div id="admin-body" style="display:none;margin-top:16px">
-        <h3>雀士設定</h3>
-        <p class="note">雀士の名前を設定してください。変更すると全員の画面に即時反映されます。</p>
-        <div class="fg"><label>雀士 1</label><input id="p0" type="text"></div>
-        <div class="fg"><label>雀士 2</label><input id="p1" type="text"></div>
-        <div class="fg"><label>雀士 3</label><input id="p2" type="text"></div>
-        <div class="fg"><label>雀士 4</label><input id="p3" type="text"></div>
-        <button class="btn" id="save-players">保存して全員に同期</button>
-
-        <h3 style="margin-top:24px">シーズン管理</h3>
-        <p class="note">対局履歴をリセットします。アーカイブとしてFirebaseに保存されます。</p>
-        <div id="season-info" style="margin-bottom:12px;font-size:0.9rem;color:#2c3e50;font-weight:bold"></div>
-        <button class="btn" id="season-reset" style="background:#e74c3c">新シーズンを始める</button>
-        <div id="past-seasons" style="margin-top:16px"></div>
-      </div>
+      <h3 style="margin-top:24px">シーズン管理</h3>
+      <p class="note">対局履歴をリセットします。アーカイブとしてFirebaseに保存されます。</p>
+      <div id="season-info" style="margin-bottom:12px;font-size:0.9rem;color:#2c3e50;font-weight:bold"></div>
+      <button class="btn" id="season-reset" style="background:#e74c3c">新シーズンを始める</button>
+      <div id="past-seasons" style="margin-top:16px"></div>
     </div>
 
   </div></div><div id="toast" style="display:none">
@@ -296,23 +271,18 @@ const firebaseConfig = {
 };
 // ============================================================
 
-// ---------- デフォルト設定 ----------
-const DEFAULT_SETTINGS = { pt1: 10, pt2: 5, kaeshiten: 30000 };
 const PLAYER_COUNT = 4;
 
 // ---------- State ----------
 let state = {
   players: ["雀士1", "雀士2", "雀士3", "雀士4"],
   history: [],
-  settings: { ...DEFAULT_SETTINGS },
   season: 1
 };
 let stateRef    = null;
 let seasonsRef  = null;
 const isConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY";
 let editingPlayers = false;
-
-// ハイライト選択中のプレイヤー名を保持する状態変数 (null のときは全員通常)
 let selectedHighlightPlayer = null;
 
 // ---------- Firebase ----------
@@ -327,12 +297,9 @@ if (isConfigured) {
         state = {
           players:  Array.isArray(data.players) ? data.players : state.players,
           history:  Array.isArray(data.history) ? data.history : [],
-          settings: (data.settings && typeof data.settings === "object")
-                    ? { ...DEFAULT_SETTINGS, ...data.settings } : { ...DEFAULT_SETTINGS },
           season:   (typeof data.season === "number") ? data.season : 1
         };
         if (!editingPlayers) fillPlayerInputs();
-        fillSettingInputs();
         renderAll();
       }
       setSyncStatus(true);
@@ -403,48 +370,26 @@ function buildRankInputs() {
       `<option value="${name}"${pi === r ? " selected" : ""}>${name}</option>`
     ).join("");
 
-    let ptField, chipField;
-
-    if (r === 0) {
-      ptField = `
-        <div class="ri-val-wrap">
-          <span class="ri-val-title">ポイント</span>
-          <div class="ri-input-box">
-            <span class="ri-pt-auto" id="ri-pt-0">—</span>
-          </div>
-        </div>`;
-      chipField = `
-        <div class="ri-val-wrap">
-          <span class="ri-val-title">チップ</span>
-          <div class="ri-input-box">
-            <span class="ri-chip-auto" id="ri-chip-0">—</span>
-          </div>
-        </div>`;
-    } else {
-      ptField = `
-        <div class="ri-val-wrap">
-          <span class="ri-val-title">ポイント</span>
-          <div class="ri-input-box">
-            <input type="text" inputmode="numeric" pattern="[0-9]*" class="ri-pt-input" id="ri-pt-${r}" placeholder="0" oninput="updateRankCalc()">
-            <button class="sign-toggle-btn" onclick="toggleSign('ri-pt-${r}')">±</button>
-          </div>
-        </div>`;
-      chipField = `
-        <div class="ri-val-wrap">
-          <span class="ri-val-title">チップ</span>
-          <div class="ri-input-box">
-            <input type="text" inputmode="numeric" pattern="[0-9]*" class="ri-chip-input" id="ri-chip-${r}" placeholder="0" oninput="updateRankCalc()">
-            <button class="sign-toggle-btn" onclick="toggleSign('ri-chip-${r}')">±</button>
-          </div>
-        </div>`;
-    }
-
     return `
       <div class="rank-input-row">
         <span class="ri-label">${label}</span>
-        <select class="ri-select" id="ri-player-${r}" onchange="updateRankCalc()">${options}</select>
-        ${ptField}
-        ${chipField}
+        <select class="ri-select" id="ri-player-${r}">${options}</select>
+        
+        <div class="ri-val-wrap">
+          <span class="ri-val-title">ポイント</span>
+          <div class="ri-input-box">
+            <input type="text" inputmode="numeric" pattern="[0-9]*" class="ri-pt-input" id="ri-pt-${r}" placeholder="0">
+            <button class="sign-toggle-btn" onclick="toggleSign('ri-pt-${r}')">±</button>
+          </div>
+        </div>
+
+        <div class="ri-val-wrap">
+          <span class="ri-val-title">チップ</span>
+          <div class="ri-input-box">
+            <input type="text" inputmode="numeric" pattern="[0-9]*" class="ri-chip-input" id="ri-chip-${r}" placeholder="0">
+            <button class="sign-toggle-btn" onclick="toggleSign('ri-chip-${r}')">±</button>
+          </div>
+        </div>
       </div>`;
   }).join("");
 }
@@ -452,7 +397,6 @@ function buildRankInputs() {
 function toggleSign(id) {
   const el = document.getElementById(id);
   if (!el) return;
-  
   let valStr = el.value.trim();
   if (valStr.startsWith("-")) {
     el.value = valStr.substring(1);
@@ -460,33 +404,6 @@ function toggleSign(id) {
     el.value = "-" + valStr;
   } else {
     el.value = "-";
-  }
-  updateRankCalc();
-}
-
-function updateRankCalc() {
-  const pt2 = parseFloat(document.getElementById("ri-pt-1").value);
-  const pt3 = parseFloat(document.getElementById("ri-pt-2").value);
-  const pt4 = parseFloat(document.getElementById("ri-pt-3").value);
-  const elPt = document.getElementById("ri-pt-0");
-  if (!isNaN(pt2) && !isNaN(pt3) && !isNaN(pt4)) {
-    const pt1 = Math.round(-(pt2 + pt3 + pt4));
-    elPt.textContent = fmtPt(pt1);
-    elPt.className   = "ri-pt-auto " + ptClass(pt1);
-  } else {
-    elPt.textContent = "—"; elPt.className = "ri-pt-auto";
-  }
-
-  const cp2 = parseFloat(document.getElementById("ri-chip-1").value);
-  const cp3 = parseFloat(document.getElementById("ri-chip-2").value);
-  const cp4 = parseFloat(document.getElementById("ri-chip-3").value);
-  const elCp = document.getElementById("ri-chip-0");
-  if (!isNaN(cp2) && !isNaN(cp3) && !isNaN(cp4)) {
-    const cp1 = Math.round(-(cp2 + cp3 + cp4));
-    elCp.textContent = cp1 > 0 ? `+${cp1}` : cp1;
-    elCp.className   = "ri-chip-auto " + chipClass(cp1);
-  } else {
-    elCp.textContent = "—"; elCp.className = "ri-chip-auto";
   }
 }
 
@@ -502,16 +419,22 @@ document.getElementById("add-match").addEventListener("click", () => {
     showToast("同じ対局者が複数の順位に設定されています"); return;
   }
 
-  const rawPts = [1,2,3].map(r => parseFloat(document.getElementById(`ri-pt-${r}`).value));
-  const rawCps = [1,2,3].map(r => parseFloat(document.getElementById(`ri-chip-${r}`).value));
-  if (rawPts.some(isNaN)) { showToast("2〜4位のポイントを入力してください"); return; }
-  if (rawCps.some(isNaN)) { showToast("2〜4位のチップ枚数を入力してください"); return; }
+  const rankPts = [0,1,2,3].map(r => parseFloat(document.getElementById(`ri-pt-${r}`).value));
+  const rankCps = [0,1,2,3].map(r => parseFloat(document.getElementById(`ri-chip-${r}`).value));
+  
+  if (rankPts.some(isNaN) || rankCps.some(isNaN)) {
+    showToast("全員のポイントとチップを入力してください"); return;
+  }
 
-  const pt1 = Math.round(-(rawPts[0] + rawPts[1] + rawPts[2]));
-  const rankPts = [pt1, ...rawPts];
-
-  const cp1 = Math.round(-(rawCps[0] + rawCps[1] + rawCps[2]));
-  const rankCps = [cp1, ...rawCps];
+  // 安全チェック: 合計値のバリデーション
+  const ptSum = rankPts.reduce((sum, v) => sum + v, 0);
+  if (Math.round(ptSum) !== 0) {
+    showToast(`ポイントの合計が ±0 になっていません（現在: ${fmtPt(Math.round(ptSum))}）`); return;
+  }
+  const cpSum = rankCps.reduce((sum, v) => sum + v, 0);
+  if (Math.round(cpSum) !== 0) {
+    showToast(`チップの合計が 0 枚になっていません（現在: ${cpSum > 0 ? '+' : ''}${Math.round(cpSum)}枚）`); return;
+  }
 
   const ranks  = new Array(PLAYER_COUNT);
   const points = new Array(PLAYER_COUNT);
@@ -538,14 +461,10 @@ document.getElementById("add-match").addEventListener("click", () => {
   state.history.push({ date: d, ranks, points, chips, players: [...state.players] });
   pushState();
 
-  [1,2,3].forEach(r => {
+  [0,1,2,3].forEach(r => {
     document.getElementById(`ri-pt-${r}`).value = "";
     document.getElementById(`ri-chip-${r}`).value = "";
   });
-  document.getElementById("ri-pt-0").textContent = "—";
-  document.getElementById("ri-pt-0").className   = "ri-pt-auto";
-  document.getElementById("ri-chip-0").textContent = "—";
-  document.getElementById("ri-chip-0").className   = "ri-chip-auto";
   showToast("結果を登録しました！");
 });
 
@@ -618,10 +537,10 @@ document.getElementById("sort-1st").addEventListener("click", () => {
   renderStandings();
 });
 
-// ---------- 対局履歴 (ハイライト制御つき) ----------
+// ---------- 对局履歴 ----------
 function setHistoryHighlight(playerName) {
   if (selectedHighlightPlayer === playerName) {
-    selectedHighlightPlayer = null; // すでに選択されている名前をもう一度押したら解除
+    selectedHighlightPlayer = null;
   } else {
     selectedHighlightPlayer = playerName;
   }
@@ -632,15 +551,11 @@ function setHistoryHighlight(playerName) {
 function renderHistoryButtons() {
   const container = document.getElementById("history-highlighter-container");
   if (!container) return;
-
-  // 履歴データに含まれる全ての雀士（過去の名前変更も考慮）または現在の雀士一覧を取得
   const allHistoryPlayers = new Set(state.players);
   state.history.forEach(m => {
     if (m.players) m.players.forEach(p => allHistoryPlayers.add(p));
   });
-
   const playerList = Array.from(allHistoryPlayers);
-
   container.innerHTML = playerList.map(name => {
     const isActive = selectedHighlightPlayer === name;
     return `<button class="filter-btn ${isActive ? 'active' : ''}" onclick="setHistoryHighlight('${name}')">${name}</button>`;
@@ -672,7 +587,6 @@ function renderHistory() {
         </div>
         <div class="hist-grid">
           ${rows.map(r => {
-            // ハイライト状態のクラス判定
             let modifierClass = "";
             if (selectedHighlightPlayer !== null) {
               modifierClass = (r.name === selectedHighlightPlayer) ? "highlighted" : "dimmed";
@@ -734,36 +648,6 @@ function showToast(msg) {
   toastTimer = setTimeout(() => { el.style.display = "none"; }, 2500);
 }
 
-// ---------- 設定 ----------
-function fillSettingInputs() {
-  const s = state.settings;
-  document.getElementById("pt1").value       = s.pt1;
-  document.getElementById("pt2").value       = s.pt2;
-  document.getElementById("kaeshiten").value = s.kaeshiten;
-  updateAdjNote();
-}
-
-function updateAdjNote() {
-  const pt1 = parseInt(document.getElementById("pt1").value) || 0;
-  const pt2 = parseInt(document.getElementById("pt2").value) || 0;
-  document.getElementById("adj-note").textContent =
-    `着順補正: +${pt1} / +${pt2} / −${pt2} / −${pt1}`;
-}
-
-["pt1","pt2","kaeshiten"].forEach(id =>
-  document.getElementById(id).addEventListener("input", updateAdjNote)
-);
-
-document.getElementById("save-settings").addEventListener("click", () => {
-  state.settings = {
-    pt1:       parseInt(document.getElementById("pt1").value)       || DEFAULT_SETTINGS.pt1,
-    pt2:       parseInt(document.getElementById("pt2").value)       || DEFAULT_SETTINGS.pt2,
-    kaeshiten: parseInt(document.getElementById("kaeshiten").value) || DEFAULT_SETTINGS.kaeshiten,
-  };
-  pushState();
-  showToast("ルール設定を保存しました");
-});
-
 // ---------- 雀士設定 ----------
 function fillPlayerInputs() {
   state.players.forEach((name, i) => {
@@ -787,15 +671,6 @@ document.getElementById("save-players").addEventListener("click", () => {
   buildRankInputs();
   pushState();
   showToast("対局者名を全員に同期しました！");
-});
-
-// ---------- 管理者メニュー開閉 ----------
-document.getElementById("admin-toggle").addEventListener("click", () => {
-  const body  = document.getElementById("admin-body");
-  const arrow = document.getElementById("admin-arrow");
-  const isOpen = body.style.display !== "none";
-  body.style.display = isOpen ? "none" : "";
-  arrow.textContent  = isOpen ? "▶" : "▼";
 });
 
 // ---------- シーズン管理 ----------
@@ -827,7 +702,8 @@ function renderAll() {
   renderHistoryButtons();
   renderHistory();
   renderSeasonInfo();
-  const hasInput = [1,2,3].some(r => {
+  // 入力途中で同期が入ってもフォームが壊れないよう、すべての入力欄が空の時のみ初期構築する
+  const hasInput = [0,1,2,3].some(r => {
     const el = document.getElementById(`ri-pt-${r}`);
     return el && el.value !== "";
   });
@@ -836,7 +712,6 @@ function renderAll() {
 
 // ---------- 初期化 ----------
 fillPlayerInputs();
-fillSettingInputs();
 buildRankInputs();
 renderAll();
 </script>
