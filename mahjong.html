@@ -33,7 +33,7 @@
   ・機能を追加・変更したら「主な機能」と「今後の改良候補」を合わせて更新する
 
 【主な機能（現時点）】
-  - 対局者設定（4名、拡張余地あり）
+  - 参加者設定（4名、拡張余地あり）
   - 結果入力（各自の最終点数を入力 → 順位・ポイントを自動計算）
   - ウマ・返し点・配給原点の設定（オカは自動計算）
   - リアルタイムプレビュー（全員入力完了で順位とポイントを即時表示）
@@ -290,12 +290,12 @@
         <span>管理者の仕事</span>
       </div>
       <div id="admin-body" style="display:none;margin-top:16px">
-        <h3>対局者設定</h3>
-        <p class="note">名前を変更したら「保存して同期」を押すと全員の画面に即時反映されます。</p>
-        <div class="fg"><label>対局者 1</label><input id="p0" type="text"></div>
-        <div class="fg"><label>対局者 2</label><input id="p1" type="text"></div>
-        <div class="fg"><label>対局者 3</label><input id="p2" type="text"></div>
-        <div class="fg"><label>対局者 4</label><input id="p3" type="text"></div>
+        <h3>参加者設定</h3>
+        <p class="note">参加者の名前を設定してください。変更すると全員の画面に即時反映されます。</p>
+        <div class="fg"><label>参加者 1</label><input id="p0" type="text"></div>
+        <div class="fg"><label>参加者 2</label><input id="p1" type="text"></div>
+        <div class="fg"><label>参加者 3</label><input id="p2" type="text"></div>
+        <div class="fg"><label>参加者 4</label><input id="p3" type="text"></div>
         <button class="btn" id="save-players">保存して全員に同期</button>
 
         <h3 style="margin-top:24px">シーズン管理</h3>
@@ -336,7 +336,7 @@ const PLAYER_COUNT = 4;
 
 // ---------- State ----------
 let state = {
-  players: ["東家", "南家", "西家", "北家"],
+  players: ["雀士1", "雀士2", "雀士3", "雀士4"],
   history: [],        // { date, scores[], ranks[], points[], players[] }
   settings: { ...DEFAULT_SETTINGS },
   season: 1
@@ -718,7 +718,7 @@ document.getElementById("save-settings").addEventListener("click", () => {
   showToast("ルール設定を保存しました");
 });
 
-// ---------- 対局者設定 ----------
+// ---------- 参加者設定 ----------
 function fillPlayerInputs() {
   state.players.forEach((name, i) => {
     const el = document.getElementById("p" + i);
@@ -736,7 +736,7 @@ function fillPlayerInputs() {
 document.getElementById("save-players").addEventListener("click", () => {
   state.players = [0,1,2,3].map(i => {
     const v = document.getElementById("p" + i).value.trim();
-    return v || `対局者${i+1}`;
+    return v || `雀士${i+1}`;
   });
   buildRankInputs();   // 名前変更時のみグリッドを再構築
   pushState();
