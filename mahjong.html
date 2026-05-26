@@ -98,9 +98,10 @@
     .rank-name { font-weight: bold; font-size: 0.95rem; }
     .rank-sub { color: #888; font-size: 0.76rem; margin-top: 4px; }
     
-    .rank-right-score { text-align: right; flex-shrink: 0; min-width: 75px; }
+    .rank-right-score { text-align: right; flex-shrink: 0; min-width: 95px; }
     .rank-pt { font-size: 1.2rem; font-weight: bold; }
-    .rank-chip-total { font-size: 0.75rem; font-weight: bold; margin-top: 2px; }
+    .rank-chip-total { font-size: 0.75rem; font-weight: bold; margin-top: 2px; color: #666; }
+    .rank-breakdown { font-size: 0.65rem; color: #999; margin-top: 1px; font-weight: normal; }
 
     .pt-pos, .chip-pos { color: #27ae60; }
     .pt-neg, .chip-neg { color: #e74c3c; }
@@ -203,7 +204,7 @@
     <div class="panel active" id="panel-standings">
       <h3>順位</h3>
       <div style="display:flex;gap:8px;margin-bottom:12px">
-        <button class="filter-btn active" id="sort-pt">ポイント順</button>
+        <button class="filter-btn active" id="sort-pt">総合ポイント順</button>
         <button class="filter-btn" id="sort-1st">1位回数順</button>
       </div>
       <div id="rank-list"></div>
@@ -222,7 +223,7 @@
 
     <div class="panel" id="panel-history">
       <h3>対局履歴</h3>
-      <p class="note">最新の半荘が上に表示されます。名前を選ぶとその雀士の位置が目立ちます。</p>
+      <p class="note">最新の記録が上に表示されます。名前を選ぶとその雀士の位置が目立ちます。</p>
       <div style="display:flex; gap:6px; margin-bottom:14px; overflow-x:auto; padding-bottom:4px;" id="history-highlighter-container"></div>
       <div id="history-list"></div>
     </div>
@@ -236,13 +237,22 @@
         → Realtime Database を有効化
       </div>
 
+      <h3>ルール設定</h3>
+      <p class="note">チップ1枚を何ポイントとして総合順位に合算するか設定します。</p>
+      <div class="fg" style="display:flex; align-items:center; gap:8px; margin-bottom:20px;">
+        <span style="font-size:0.9rem; font-weight:bold; color:#444;">チップ 1枚 ＝</span>
+        <input id="chip-rate" type="number" step="any" style="width:80px; text-align:center; padding:6px;" value="1">
+        <span style="font-size:0.9rem; font-weight:bold; color:#444;">ポイント (pt)</span>
+      </div>
+
       <h3>雀士設定</h3>
       <p class="note">雀士の名前を設定してください。変更すると全員の画面に即時反映されます。</p>
       <div class="fg"><label>雀士 1</label><input id="p0" type="text"></div>
       <div class="fg"><label>雀士 2</label><input id="p1" type="text"></div>
       <div class="fg"><label>雀士 3</label><input id="p2" type="text"></div>
       <div class="fg"><label>雀士 4</label><input id="p3" type="text"></div>
-      <button class="btn" id="save-players">保存して全員に同期</button>
+      
+      <button class="btn" id="save-settings">設定を保存して全員に同期</button>
 
       <h3 style="margin-top:24px">シーズン管理</h3>
       <p class="note">対局履歴をリセットします。アーカイブとしてFirebaseに保存されます。</p>
@@ -277,12 +287,13 @@ const PLAYER_COUNT = 4;
 let state = {
   players: ["雀士1", "雀士2", "雀士3", "雀士4"],
   history: [],
-  season: 1
+  season: 1,
+  chipRate: 1 // チップ1枚あたりのポイント換算比率（デフォルト: 1pt）
 };
 let stateRef    = null;
 let seasonsRef  = null;
 const isConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY";
-let editingPlayers = false;
+let editingSettings = false;
 let selectedHighlightPlayer = null;
 
 // ---------- Firebase ----------
@@ -297,9 +308,10 @@ if (isConfigured) {
         state = {
           players:  Array.isArray(data.players) ? data.players : state.players,
           history:  Array.isArray(data.history) ? data.history : [],
-          season:   (typeof data.season === "number") ? data.season : 1
+          season:   (typeof data.season === "number") ? data.season : 1,
+          chipRate: (typeof data.chipRate === "number") ? data.chipRate : 1
         };
-        if (!editingPlayers) fillPlayerInputs();
+        if (!editingSettings) fillSettingsInputs();
         renderAll();
       }
       setSyncStatus(true);
@@ -365,6 +377,7 @@ const RANK_LABELS = ["👑 1位", "🥈 2位", "🥉 3位", "4位"];
 
 function buildRankInputs() {
   const container = document.getElementById("rank-inputs");
+  if (!container) return;
   container.innerHTML = RANK_LABELS.map((label, r) => {
     const options = state.players.map((name, pi) =>
       `<option value="${name}"${pi === r ? " selected" : ""}>${name}</option>`
@@ -493,16 +506,24 @@ function renderStandings() {
   });
 
   const allPlayers = [...new Set([...state.players, ...Object.keys(totals)])];
-  const data = allPlayers.map(p => ({
-    name: p,
-    total: totals[p] || 0,
-    chipTotal: chipTotals[p] || 0,
-    games: gameCnt[p] || 0,
-    c: [0, rankCnt[1][p]||0, rankCnt[2][p]||0, rankCnt[3][p]||0, rankCnt[4][p]||0]
-  }));
+  const data = allPlayers.map(p => {
+    const purePt = totals[p] || 0;
+    const chips  = chipTotals[p] || 0;
+    // 総合ポイント ＝ 純粋なポイント ＋ (チップ枚数 × 換算レート)
+    const overallScore = Math.round(purePt + (chips * state.chipRate));
+    return {
+      name: p,
+      total: purePt,
+      chipTotal: chips,
+      overall: overallScore,
+      games: gameCnt[p] || 0,
+      c: [0, rankCnt[1][p]||0, rankCnt[2][p]||0, rankCnt[3][p]||0, rankCnt[4][p]||0]
+    };
+  });
 
-  if (sortMode === "pt")  data.sort((a, b) => b.total - a.total);
-  else                    data.sort((a, b) => b.c[1] - a.c[1] || b.total - a.total);
+  // ソート処理
+  if (sortMode === "pt")  data.sort((a, b) => b.overall - a.overall);
+  else                    data.sort((a, b) => b.c[1] - a.c[1] || b.overall - a.overall);
 
   const MEDALS = ["🥇","🥈","🥉","4"];
   document.getElementById("rank-list").innerHTML = data.map((p, i) => {
@@ -512,12 +533,13 @@ function renderStandings() {
         <div class="rank-info">
           <div class="rank-name">${p.name}</div>
           <div class="rank-sub">
-            ${p.games}半荘 ／ 👑${p.c[1]} 🥈${p.c[2]} 🥉${p.c[3]} 4位:${p.c[4]}
+            ${p.games}回 ／ 👑${p.c[1]} 🥈${p.c[2]} 🥉${p.c[3]} 4位:${p.c[4]}
           </div>
         </div>
         <div class="rank-right-score">
-          <div class="rank-pt ${ptClass(p.total)}">${fmtPt(p.total)}</div>
+          <div class="rank-pt ${ptClass(p.overall)}">${fmtPt(p.overall)}</div>
           <div class="rank-chip-total ${chipClass(p.chipTotal)}">🪙 ${p.chipTotal > 0 ? '+' : ''}${p.chipTotal}枚</div>
+          <div class="rank-breakdown">(素点:${fmtPt(p.total)})</div>
         </div>
       </div>`;
   }).join("") || `<p style="color:#999;font-size:0.9rem">まだ対局がありません。</p>`;
@@ -647,29 +669,46 @@ function showToast(msg) {
   toastTimer = setTimeout(() => { el.style.display = "none"; }, 2500);
 }
 
-// ---------- 雀士設定 ----------
-function fillPlayerInputs() {
+// ---------- 設定画面の入力制御 ----------
+function fillSettingsInputs() {
+  // 雀士名
   state.players.forEach((name, i) => {
     const el = document.getElementById("p" + i);
     if (el) el.value = name;
   });
+  // チップ換算レート
+  const rateEl = document.getElementById("chip-rate");
+  if (rateEl) rateEl.value = state.chipRate;
 }
 
+// ユーザー入力中の自動同期上書きを防ぐフラグ制御
 [0,1,2,3].forEach(i => {
   const el = document.getElementById("p" + i);
-  if (!el) return;
-  el.addEventListener("focus", () => editingPlayers = true);
-  el.addEventListener("blur",  () => editingPlayers = false);
+  if (el) {
+    el.addEventListener("focus", () => editingSettings = true);
+    el.addEventListener("blur",  () => editingSettings = false);
+  }
 });
+const chipRateInput = document.getElementById("chip-rate");
+if (chipRateInput) {
+  chipRateInput.addEventListener("focus", () => editingSettings = true);
+  chipRateInput.addEventListener("blur",  () => editingSettings = false);
+}
 
-document.getElementById("save-players").addEventListener("click", () => {
+document.getElementById("save-settings").addEventListener("click", () => {
+  // レートの読み込み
+  const rateVal = parseFloat(document.getElementById("chip-rate").value);
+  state.chipRate = isNaN(rateVal) ? 1 : rateVal;
+
+  // プレイヤー名の読み込み
   state.players = [0,1,2,3].map(i => {
     const v = document.getElementById("p" + i).value.trim();
     return v || `対局者${i+1}`;
   });
+
   buildRankInputs();
   pushState();
-  showToast("対局者名を全員に同期しました！");
+  showToast("設定を保存し、全員に同期しました！");
 });
 
 // ---------- シーズン管理 ----------
@@ -680,7 +719,8 @@ document.getElementById("season-reset").addEventListener("click", () => {
       season:  state.season,
       endDate: new Date().toLocaleDateString("ja-JP"),
       players: state.players,
-      history: state.history
+      history: state.history,
+      chipRate: state.chipRate
     });
   }
   state.history = [];
@@ -692,7 +732,7 @@ document.getElementById("season-reset").addEventListener("click", () => {
 
 function renderSeasonInfo() {
   document.getElementById("season-info").textContent =
-    `現在：シーズン${state.season}（${state.history.length}半荘終了）`;
+    `現在：シーズン${state.season}（${state.history.length}回終了）`;
 }
 
 // ---------- Render All ----------
@@ -709,7 +749,7 @@ function renderAll() {
 }
 
 // ---------- 初期化 ----------
-fillPlayerInputs();
+fillSettingsInputs();
 buildRankInputs();
 renderAll();
 </script>
