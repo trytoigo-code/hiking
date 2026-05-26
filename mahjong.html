@@ -100,7 +100,7 @@
     .rank-num { width: 34px; font-size: 1.3rem; text-align: center; flex-shrink: 0; }
     .rank-info { flex: 1; min-width: 0; }
     .rank-name { font-weight: bold; font-size: 0.95rem; }
-    .rank-sub { color: #888; font-size: 0.76rem; margin-top: 3px; }
+    .rank-sub { color: #888; font-size: 0.76rem; margin-top: 4px; }
     
     .rank-right-score { text-align: right; flex-shrink: 0; min-width: 75px; }
     .rank-pt { font-size: 1.2rem; font-weight: bold; }
@@ -381,7 +381,7 @@ function chipClass(cp) { return cp > 0 ? "chip-pos" : cp < 0 ? "chip-neg" : "chi
 const RANK_EMOJI = ["👑","🥈","🥉","4位"];
 function rankEmoji(r) { return RANK_EMOJI[r - 1] || `${r}位`; }
 
-// ---------- 結果入力 (inputmode="numeric"の強制適用) ----------
+// ---------- 結果入力 ----------
 const RANK_LABELS = ["👑 1位", "🥈 2位", "🥉 3位", "4位"];
 
 function buildRankInputs() {
@@ -409,8 +409,6 @@ function buildRankInputs() {
           </div>
         </div>`;
     } else {
-      // type="text" にした上で inputmode="numeric" と pattern="[0-9]*" を指定
-      // これによりiOS/Androidともに記号のないクリーンな数字テンキーが立ち上がります
       ptField = `
         <div class="ri-val-wrap">
           <span class="ri-val-title">ポイント</span>
@@ -443,7 +441,6 @@ function toggleSign(id) {
   const el = document.getElementById(id);
   if (!el) return;
   
-  // 文字列ベースでマイナス記号を制御
   let valStr = el.value.trim();
   if (valStr.startsWith("-")) {
     el.value = valStr.substring(1);
@@ -540,7 +537,7 @@ document.getElementById("add-match").addEventListener("click", () => {
   showToast("結果を登録しました！");
 });
 
-// ---------- 順位表 ----------
+// ---------- 順位表 (平均着順の削除とレイアウトの微調整) ----------
 let sortMode = "pt";
 
 function renderStandings() {
@@ -579,9 +576,6 @@ function renderStandings() {
 
   const MEDALS = ["🥇","🥈","🥉","4"];
   document.getElementById("rank-list").innerHTML = data.map((p, i) => {
-    const avgRank = p.games > 0
-      ? ((p.c[1]*1 + p.c[2]*2 + p.c[3]*3 + p.c[4]*4) / p.games).toFixed(2)
-      : "-";
     return `
       <div class="rank-row">
         <div class="rank-num">${MEDALS[i] || i+1}</div>
@@ -589,7 +583,6 @@ function renderStandings() {
           <div class="rank-name">${p.name}</div>
           <div class="rank-sub">
             ${p.games}半荘 ／ 👑${p.c[1]} 🥈${p.c[2]} 🥉${p.c[3]} 4位:${p.c[4]}
-            ／ 平均${avgRank}着
           </div>
         </div>
         <div class="rank-right-score">
@@ -613,7 +606,7 @@ document.getElementById("sort-1st").addEventListener("click", () => {
   renderStandings();
 });
 
-// ---------- 对局履歴 ----------
+// ---------- 対局履歴 ----------
 function renderHistory() {
   const list = document.getElementById("history-list");
   if (state.history.length === 0) {
