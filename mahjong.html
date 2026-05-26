@@ -426,7 +426,6 @@ document.getElementById("add-match").addEventListener("click", () => {
     showToast("全員のポイントとチップを入力してください"); return;
   }
 
-  // 安全チェック: 合計値のバリデーション
   const ptSum = rankPts.reduce((sum, v) => sum + v, 0);
   if (Math.round(ptSum) !== 0) {
     showToast(`ポイントの合計が ±0 になっていません（現在: ${fmtPt(Math.round(ptSum))}）`); return;
@@ -537,7 +536,7 @@ document.getElementById("sort-1st").addEventListener("click", () => {
   renderStandings();
 });
 
-// ---------- 对局履歴 ----------
+// ---------- 対局履歴 ----------
 function setHistoryHighlight(playerName) {
   if (selectedHighlightPlayer === playerName) {
     selectedHighlightPlayer = null;
@@ -702,7 +701,6 @@ function renderAll() {
   renderHistoryButtons();
   renderHistory();
   renderSeasonInfo();
-  // 入力途中で同期が入ってもフォームが壊れないよう、すべての入力欄が空の時のみ初期構築する
   const hasInput = [0,1,2,3].some(r => {
     const el = document.getElementById(`ri-pt-${r}`);
     return el && el.value !== "";
