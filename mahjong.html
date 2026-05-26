@@ -288,8 +288,8 @@
       <h3>ルール設定</h3>
       <p class="note">変更を保存すると次回入力から反映されます。過去の記録は変わりません。<br>ウマ・オカを合算した値を直接設定します（3位=-2位補正、4位=-1位補正）。</p>
       <div class="settings-grid">
-        <div class="fg"><label>1位補正</label><input type="number" id="pt1" placeholder="40"></div>
-        <div class="fg"><label>2位補正</label><input type="number" id="pt2" placeholder="10"></div>
+        <div class="fg"><label>1位補正</label><input type="number" id="pt1" placeholder="10"></div>
+        <div class="fg"><label>2位補正</label><input type="number" id="pt2" placeholder="5"></div>
       </div>
       <div class="fg"><label>返し点</label><input type="number" id="kaeshiten" placeholder="30000" step="100"></div>
       <p class="note" id="adj-note" style="background:#f9f8f4;border:1px solid #e0dbcd;border-radius:6px;padding:8px 10px;margin-bottom:14px;color:#555"></p>
@@ -342,7 +342,7 @@ const firebaseConfig = {
 // ============================================================
 
 // ---------- デフォルト設定 ----------
-const DEFAULT_SETTINGS = { pt1: 40, pt2: 10, kaeshiten: 30000 };
+const DEFAULT_SETTINGS = { pt1: 10, pt2: 5, kaeshiten: 30000 };
 const PLAYER_COUNT = 4;
 
 // ---------- State ----------
@@ -425,7 +425,14 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
 
 // ---------- ポイント計算 ----------
 // ポイント = (最終点数 - 返し点) / 1000 + 着順補正[順位]
-// 着順補正はウマ・オカを合算した値を直接設定（対称: 3位=-pt2, 4位=-pt1）
+// 2〜4位の点数は五捨六入（百の位が5以下→切捨・6以上→切上）で1000点単位に丸める
+// オカ = 丸め後の素点合計の符号反転 → 1位に自動加算（合計が常に±0になる）
+
+function goshaRokunyuu(score) {
+  const rem = score % 1000;
+  return rem <= 500 ? score - rem : score + (1000 - rem);
+}
+
 function calcPoints(scores, s) {
   const adj = [s.pt1, s.pt2, -s.pt2, -s.pt1];
 
@@ -433,13 +440,24 @@ function calcPoints(scores, s) {
   const indexed = scores.map((v, i) => ({ v, i }));
   indexed.sort((a, b) => b.v - a.v);
 
-  const ranks  = new Array(scores.length);
-  const points = new Array(scores.length);
+  const ranks = new Array(scores.length);
+  const norms = new Array(scores.length);
+
   indexed.forEach(({ v, i }, rankIdx) => {
-    ranks[i]  = rankIdx + 1;
-    const norm = (v - s.kaeshiten) / 1000;
-    points[i]  = Math.round((norm + adj[rankIdx]) * 10) / 10;
+    ranks[i] = rankIdx + 1;
+    // 1位は生点のまま・2〜4位は五捨六入
+    const effective = rankIdx === 0 ? v : goshaRokunyuu(v);
+    norms[i] = (effective - s.kaeshiten) / 1000;
   });
+
+  // オカ：1位が端数を吸収して合計ゼロを保証
+  const oka = -norms.reduce((a, b) => a + b, 0);
+
+  const points = new Array(scores.length);
+  indexed.forEach(({ i }, rankIdx) => {
+    points[i] = Math.round((norms[i] + adj[rankIdx] + (rankIdx === 0 ? oka : 0)) * 10) / 10;
+  });
+
   return { ranks, points };
 }
 
