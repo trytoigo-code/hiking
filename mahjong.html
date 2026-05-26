@@ -97,19 +97,44 @@
     }
     .hist-header {
       display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #ece8dc;
+      margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid #ece8dc;
     }
     .hist-no { font-size: 0.78rem; font-weight: bold; color: #b89752; }
     .hist-date { font-size: 0.78rem; color: #999; }
-    .hist-row {
-      display: flex; align-items: center; gap: 6px;
-      padding: 4px 0; font-size: 0.85rem; border-bottom: 1px dashed #f0ece0;
+    
+    /* 雀士の横並びグリッドスタイル */
+    .hist-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr); /* 4分割の横並び */
+      gap: 6px;
+      text-align: center;
     }
-    .hist-row:last-child { border-bottom: none; }
-    .hist-rank { font-size: 1rem; width: 26px; text-align: center; flex-shrink: 0; }
-    .hist-name { flex: 1; font-weight: bold; }
-    .hist-score { color: #777; font-size: 0.82rem; min-width: 64px; text-align: right; }
-    .hist-pt { font-weight: bold; min-width: 56px; text-align: right; }
+    .hist-player-box {
+      background: #fdfdfd;
+      border: 1px solid #f0ece0;
+      border-radius: 6px;
+      padding: 6px 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .hist-rank-badge {
+      font-size: 0.75rem;
+      color: #777;
+    }
+    .hist-name-cell {
+      font-weight: bold;
+      font-size: 0.8rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis; /* 名前が長い場合は三点リーダー */
+      color: #333;
+    }
+    .hist-pt-cell {
+      font-weight: bold;
+      font-size: 0.9rem;
+    }
+
     .del-btn {
       background: #e74c3c; color: #fff; border: none;
       padding: 4px 10px; border-radius: 4px; font-size: 0.75rem;
@@ -274,7 +299,7 @@ let state = {
 let stateRef    = null;
 let seasonsRef  = null;
 const isConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY";
-let editingPlayers = false;  // 対局者名入力中はFirebase onValueで上書きしない
+let editingPlayers = false;  // 对局者名入力中はFirebase onValueで上書きしない
 
 // ---------- Firebase ----------
 if (isConfigured) {
@@ -343,10 +368,6 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
 });
 
 // ---------- ポイント計算 ----------
-// ポイント = (最終点数 - 返し点) / 1000 + 着順補正[順位]
-// 2〜4位の点数は五捨六入（百の位が5以下→切捨・6以上→切上）で1000点単位に丸める
-// オカ = 丸め後の素点合計の符号反転 → 1位に自動加算（合計が常に±0になる）
-
 function goshaRokunyuu(score) {
   const rem = score % 1000;
   return rem <= 500 ? score - rem : score + (1000 - rem);
@@ -354,8 +375,6 @@ function goshaRokunyuu(score) {
 
 function calcPoints(scores, s) {
   const adj = [s.pt1, s.pt2, -s.pt2, -s.pt1];
-
-  // スコア降順でソート（同点は入力順が上位）
   const indexed = scores.map((v, i) => ({ v, i }));
   indexed.sort((a, b) => b.v - a.v);
 
@@ -364,12 +383,10 @@ function calcPoints(scores, s) {
 
   indexed.forEach(({ v, i }, rankIdx) => {
     ranks[i] = rankIdx + 1;
-    // 1位は生点のまま・2〜4位は五捨六入
     const effective = rankIdx === 0 ? v : goshaRokunyuu(v);
     norms[i] = (effective - s.kaeshiten) / 1000;
   });
 
-  // オカ：1位が端数を吸収して合計ゼロを保証
   const oka = -norms.reduce((a, b) => a + b, 0);
 
   const points = new Array(scores.length);
@@ -392,7 +409,6 @@ const RANK_EMOJI = ["👑","🥈","🥉","4位"];
 function rankEmoji(r) { return RANK_EMOJI[r - 1] || `${r}位`; }
 
 // ---------- 結果入力：順位・ポイント入力グリッド構築 ----------
-// FirebaseのonValueで名前が変わったときのみ再構築する（入力中の値を消さないよう）
 const RANK_LABELS = ["👑 1位", "🥈 2位", "🥉 3位", "4位"];
 
 function buildRankInputs() {
@@ -404,7 +420,7 @@ function buildRankInputs() {
     const ptField = r === 0
       ? `<span class="ri-pt-auto" id="ri-pt-0">—</span>`
       : `<input type="number" class="ri-pt-input" id="ri-pt-${r}"
-             step="1" placeholder="0" oninput="updateRankCalc()">`; // inputmode="numeric" を削除
+             step="1" placeholder="0" oninput="updateRankCalc()">`;
     return `
       <div class="rank-input-row">
         <span class="ri-label">${label}</span>
@@ -437,21 +453,17 @@ function updateRankCalc() {
 })();
 
 document.getElementById("add-match").addEventListener("click", () => {
-  // プレイヤー重複チェック
   const playerNames = [0,1,2,3].map(r => document.getElementById(`ri-player-${r}`).value);
   if (new Set(playerNames).size !== PLAYER_COUNT) {
     showToast("同じ対局者が複数の順位に設定されています"); return;
   }
 
-  // 2〜4位のポイントを取得
   const rawPts = [1,2,3].map(r => parseFloat(document.getElementById(`ri-pt-${r}`).value));
   if (rawPts.some(isNaN)) { showToast("2〜4位のポイントを入力してください"); return; }
 
-  // 1位ポイント自動計算
   const pt1 = Math.round(-(rawPts[0] + rawPts[1] + rawPts[2]));
-  const rankPts = [pt1, ...rawPts]; // 順位順のポイント配列
+  const rankPts = [pt1, ...rawPts];
 
-  // プレイヤー別に ranks / points を構築
   const ranks  = new Array(PLAYER_COUNT);
   const points = new Array(PLAYER_COUNT);
   playerNames.forEach((name, rankIdx) => {
@@ -472,7 +484,6 @@ document.getElementById("add-match").addEventListener("click", () => {
   state.history.push({ date: d, ranks, points, players: [...state.players] });
   pushState();
 
-  // 入力リセット
   [1,2,3].forEach(r => { document.getElementById(`ri-pt-${r}`).value = ""; });
   document.getElementById("ri-pt-0").textContent = "—";
   document.getElementById("ri-pt-0").className   = "ri-pt-auto";
@@ -544,7 +555,7 @@ document.getElementById("sort-1st").addEventListener("click", () => {
   renderStandings();
 });
 
-// ---------- 对局履歴 ----------
+// ---------- 对局履歴 (横並びグリッド表示にアップデート) ----------
 function renderHistory() {
   const list = document.getElementById("history-list");
   if (state.history.length === 0) {
@@ -555,7 +566,7 @@ function renderHistory() {
     const origIdx = state.history.length - 1 - revIdx;
     const ps      = m.players || state.players;
     const rows    = ps.map((name, i) => ({ name, rank: m.ranks[i], pt: m.points[i] }));
-    rows.sort((a, b) => a.rank - b.rank);
+    rows.sort((a, b) => a.rank - b.rank); // 順位順にソート
 
     return `
       <div class="hist-item">
@@ -564,12 +575,14 @@ function renderHistory() {
           <span class="hist-date">${m.date}</span>
           <button class="del-btn" onclick="deleteMatch(${origIdx})">削除</button>
         </div>
-        ${rows.map(r => `
-          <div class="hist-row">
-            <span class="hist-rank">${rankEmoji(r.rank)}</span>
-            <span class="hist-name">${r.name}</span>
-            <span class="hist-pt ${ptClass(r.pt)}">${fmtPt(r.pt)}</span>
-          </div>`).join("")}
+        <div class="hist-grid">
+          ${rows.map(r => `
+            <div class="hist-player-box">
+              <span class="hist-rank-badge">${rankEmoji(r.rank)}</span>
+              <span class="hist-name-cell" title="${r.name}">${r.name}</span>
+              <span class="hist-pt-cell ${ptClass(r.pt)}">${fmtPt(r.pt)}</span>
+            </div>`).join("")}
+        </div>
       </div>`;
   }).join("");
 }
@@ -577,7 +590,7 @@ function renderHistory() {
 // ---------- 削除 & Undo ----------
 let toastTimer = null;
 let undoTimer  = null;
-let pendingDelete = null; // { idx, record }
+let pendingDelete = null;
 
 function deleteMatch(idx) {
   pendingDelete = { idx, record: state.history[idx] };
@@ -592,7 +605,6 @@ function deleteMatch(idx) {
   if (toastTimer) clearTimeout(toastTimer);
   if (undoTimer)  clearTimeout(undoTimer);
 
-  // 10秒後にFirebaseへ反映（確定）
   undoTimer = setTimeout(() => {
     el.style.display = "none";
     if (pendingDelete) { pushState(); pendingDelete = null; }
@@ -666,9 +678,9 @@ function fillPlayerInputs() {
 document.getElementById("save-players").addEventListener("click", () => {
   state.players = [0,1,2,3].map(i => {
     const v = document.getElementById("p" + i).value.trim();
-    return v || `雀士${i+1}`;
+    return v || `対局者${i+1}`;
   });
-  buildRankInputs();   // 名前変更時のみグリッドを再構築
+  buildRankInputs();
   pushState();
   showToast("対局者名を全員に同期しました！");
 });
@@ -710,7 +722,6 @@ function renderAll() {
   renderStandings();
   renderHistory();
   renderSeasonInfo();
-  // ポイント未入力の間は雀士選択肢を最新の設定に合わせて更新する
   const hasInput = [1,2,3].some(r => {
     const el = document.getElementById(`ri-pt-${r}`);
     return el && el.value !== "";
