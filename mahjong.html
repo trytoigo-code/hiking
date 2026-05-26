@@ -58,7 +58,7 @@
     }
     .btn:active { opacity: 0.85; }
 
-    /* ── Rank input rows (ポイント・チップの並列・符号反転対応) ── */
+    /* ── Rank input rows ── */
     .rank-input-row {
       display: flex; align-items: center; gap: 6px;
       background: #fff; border: 1px solid #ddd8cc;
@@ -72,7 +72,6 @@
     }
     .ri-val-title { font-size: 0.6rem; color: #999; margin-bottom: 2px; padding-right: 4px; }
     
-    /* 入力欄と反転ボタンを横に並べる枠 */
     .ri-input-box {
       display: flex; width: 100%; gap: 3px; align-items: center;
     }
@@ -84,7 +83,6 @@
       flex: 1; width: 100%; padding: 6px 4px; text-align: right; font-size: 0.95rem; font-weight: bold; min-width: 0;
     }
     
-    /* 符号反転用のコンパクトなボタン */
     .sign-toggle-btn {
       width: 24px; height: 28px; background: #f0ede4; color: #555;
       border: 1px solid #d0cbd4; border-radius: 4px; font-size: 0.65rem;
@@ -383,7 +381,7 @@ function chipClass(cp) { return cp > 0 ? "chip-pos" : cp < 0 ? "chip-neg" : "chi
 const RANK_EMOJI = ["👑","🥈","🥉","4位"];
 function rankEmoji(r) { return RANK_EMOJI[r - 1] || `${r}位`; }
 
-// ---------- 結果入力 (符号反転ボタン追加) ----------
+// ---------- 結果入力 (inputmode="numeric"の強制適用) ----------
 const RANK_LABELS = ["👑 1位", "🥈 2位", "🥉 3位", "4位"];
 
 function buildRankInputs() {
@@ -411,11 +409,13 @@ function buildRankInputs() {
           </div>
         </div>`;
     } else {
+      // type="text" にした上で inputmode="numeric" と pattern="[0-9]*" を指定
+      // これによりiOS/Androidともに記号のないクリーンな数字テンキーが立ち上がります
       ptField = `
         <div class="ri-val-wrap">
           <span class="ri-val-title">ポイント</span>
           <div class="ri-input-box">
-            <input type="number" class="ri-pt-input" id="ri-pt-${r}" step="1" placeholder="0" oninput="updateRankCalc()">
+            <input type="text" inputmode="numeric" pattern="[0-9]*" class="ri-pt-input" id="ri-pt-${r}" placeholder="0" oninput="updateRankCalc()">
             <button class="sign-toggle-btn" onclick="toggleSign('ri-pt-${r}')">±</button>
           </div>
         </div>`;
@@ -423,7 +423,7 @@ function buildRankInputs() {
         <div class="ri-val-wrap">
           <span class="ri-val-title">チップ</span>
           <div class="ri-input-box">
-            <input type="number" class="ri-chip-input" id="ri-chip-${r}" step="1" placeholder="0" oninput="updateRankCalc()">
+            <input type="text" inputmode="numeric" pattern="[0-9]*" class="ri-chip-input" id="ri-chip-${r}" placeholder="0" oninput="updateRankCalc()">
             <button class="sign-toggle-btn" onclick="toggleSign('ri-chip-${r}')">±</button>
           </div>
         </div>`;
@@ -439,21 +439,23 @@ function buildRankInputs() {
   }).join("");
 }
 
-// 符号を反転させる補助関数
 function toggleSign(id) {
   const el = document.getElementById(id);
   if (!el) return;
-  const val = parseFloat(el.value);
-  if (!isNaN(val) && val !== 0) {
-    el.value = -val;
-  } else if (el.value === "") {
-    el.value = "-"; // 空白時に押されたらマイナス記号を先頭に配置
+  
+  // 文字列ベースでマイナス記号を制御
+  let valStr = el.value.trim();
+  if (valStr.startsWith("-")) {
+    el.value = valStr.substring(1);
+  } else if (valStr !== "") {
+    el.value = "-" + valStr;
+  } else {
+    el.value = "-";
   }
   updateRankCalc();
 }
 
 function updateRankCalc() {
-  // ポイント自動計算
   const pt2 = parseFloat(document.getElementById("ri-pt-1").value);
   const pt3 = parseFloat(document.getElementById("ri-pt-2").value);
   const pt4 = parseFloat(document.getElementById("ri-pt-3").value);
@@ -466,7 +468,6 @@ function updateRankCalc() {
     elPt.textContent = "—"; elPt.className = "ri-pt-auto";
   }
 
-  // チップ自動計算
   const cp2 = parseFloat(document.getElementById("ri-chip-1").value);
   const cp3 = parseFloat(document.getElementById("ri-chip-2").value);
   const cp4 = parseFloat(document.getElementById("ri-chip-3").value);
@@ -612,7 +613,7 @@ document.getElementById("sort-1st").addEventListener("click", () => {
   renderStandings();
 });
 
-// ---------- 対局履歴 ----------
+// ---------- 对局履歴 ----------
 function renderHistory() {
   const list = document.getElementById("history-list");
   if (state.history.length === 0) {
