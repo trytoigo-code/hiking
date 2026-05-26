@@ -58,26 +58,40 @@
     }
     .btn:active { opacity: 0.85; }
 
-    /* ── Rank input rows (ポイント・チップの並列対応) ── */
+    /* ── Rank input rows (ポイント・チップの並列・符号反転対応) ── */
     .rank-input-row {
-      display: flex; align-items: center; gap: 8px;
+      display: flex; align-items: center; gap: 6px;
       background: #fff; border: 1px solid #ddd8cc;
-      border-radius: 8px; padding: 10px 8px; margin-bottom: 8px;
+      border-radius: 8px; padding: 10px 6px; margin-bottom: 8px;
     }
     .ri-label { width: 44px; font-weight: bold; font-size: 0.85rem; flex-shrink: 0; text-align: center; }
-    .ri-select { flex: 1; padding: 8px 4px; font-size: 0.85rem; min-width: 0; }
+    .ri-select { flex: 1; padding: 8px 2px; font-size: 0.82rem; min-width: 0; }
     
     .ri-val-wrap {
-      display: flex; flex-direction: column; align-items: flex-end; width: 68px; flex-shrink: 0;
+      display: flex; flex-direction: column; align-items: flex-end; width: 92px; flex-shrink: 0;
     }
-    .ri-val-title { font-size: 0.6rem; color: #999; margin-bottom: 2px; }
+    .ri-val-title { font-size: 0.6rem; color: #999; margin-bottom: 2px; padding-right: 4px; }
+    
+    /* 入力欄と反転ボタンを横に並べる枠 */
+    .ri-input-box {
+      display: flex; width: 100%; gap: 3px; align-items: center;
+    }
 
     .ri-pt-auto, .ri-chip-auto {
-      width: 68px; text-align: right; font-weight: bold; font-size: 0.95rem; color: #bbb; display: inline-block;
+      width: 100%; text-align: right; font-weight: bold; font-size: 0.95rem; color: #bbb; display: inline-block; padding: 6px 4px;
     }
     .ri-pt-input, .ri-chip-input {
-      width: 68px; padding: 6px 4px; text-align: right; font-size: 0.95rem; font-weight: bold;
+      flex: 1; width: 100%; padding: 6px 4px; text-align: right; font-size: 0.95rem; font-weight: bold; min-width: 0;
     }
+    
+    /* 符号反転用のコンパクトなボタン */
+    .sign-toggle-btn {
+      width: 24px; height: 28px; background: #f0ede4; color: #555;
+      border: 1px solid #d0cbd4; border-radius: 4px; font-size: 0.65rem;
+      font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; -webkit-user-select: none; user-select: none;
+    }
+    .sign-toggle-btn:active { background: #e0dbcd; }
 
     /* ── Standings ── */
     .rank-row {
@@ -98,7 +112,7 @@
     .pt-neg, .chip-neg { color: #e74c3c; }
     .pt-zero, .chip-zero { color: #888; }
 
-    /* ── History (左端日付・横一列・チップ対応) ── */
+    /* ── History ── */
     .hist-item {
       background: #fdfdfb; border: 1px solid #e0dbcd;
       padding: 10px 6px; border-radius: 8px; margin-bottom: 10px;
@@ -282,7 +296,7 @@ const PLAYER_COUNT = 4;
 // ---------- State ----------
 let state = {
   players: ["雀士1", "雀士2", "雀士3", "雀士4"],
-  history: [], // 各要素: { date, ranks[], points[], chips[], players[] }
+  history: [],
   settings: { ...DEFAULT_SETTINGS },
   season: 1
 };
@@ -363,18 +377,13 @@ function fmtPt(pt) {
   if (pt < 0) return `${pt}`;
   return "±0";
 }
-function fmtChip(cp) {
-  if (cp > 0) return `+${cp}枚`;
-  if (cp < 0) return `${cp}枚`;
-  return "±0枚";
-}
 function ptClass(pt) { return pt > 0 ? "pt-pos" : pt < 0 ? "pt-neg" : "pt-zero"; }
 function chipClass(cp) { return cp > 0 ? "chip-pos" : cp < 0 ? "chip-neg" : "chip-zero"; }
 
 const RANK_EMOJI = ["👑","🥈","🥉","4位"];
 function rankEmoji(r) { return RANK_EMOJI[r - 1] || `${r}位`; }
 
-// ---------- 結果入力 (ポイント・チップ並列表示) ----------
+// ---------- 結果入力 (符号反転ボタン追加) ----------
 const RANK_LABELS = ["👑 1位", "🥈 2位", "🥉 3位", "4位"];
 
 function buildRankInputs() {
@@ -384,13 +393,41 @@ function buildRankInputs() {
       `<option value="${name}"${pi === r ? " selected" : ""}>${name}</option>`
     ).join("");
 
-    const ptField = r === 0
-      ? `<div class="ri-val-wrap"><span class="ri-val-title">ポイント</span><span class="ri-pt-auto" id="ri-pt-0">—</span></div>`
-      : `<div class="ri-val-wrap"><span class="ri-val-title">ポイント</span><input type="number" class="ri-pt-input" id="ri-pt-${r}" step="1" placeholder="0" oninput="updateRankCalc()"></div>`;
+    let ptField, chipField;
 
-    const chipField = r === 0
-      ? `<div class="ri-val-wrap"><span class="ri-val-title">チップ</span><span class="ri-chip-auto" id="ri-chip-0">—</span></div>`
-      : `<div class="ri-val-wrap"><span class="ri-val-title">チップ</span><input type="number" class="ri-chip-input" id="ri-chip-${r}" step="1" placeholder="0" oninput="updateRankCalc()"></div>`;
+    if (r === 0) {
+      ptField = `
+        <div class="ri-val-wrap">
+          <span class="ri-val-title">ポイント</span>
+          <div class="ri-input-box">
+            <span class="ri-pt-auto" id="ri-pt-0">—</span>
+          </div>
+        </div>`;
+      chipField = `
+        <div class="ri-val-wrap">
+          <span class="ri-val-title">チップ</span>
+          <div class="ri-input-box">
+            <span class="ri-chip-auto" id="ri-chip-0">—</span>
+          </div>
+        </div>`;
+    } else {
+      ptField = `
+        <div class="ri-val-wrap">
+          <span class="ri-val-title">ポイント</span>
+          <div class="ri-input-box">
+            <input type="number" class="ri-pt-input" id="ri-pt-${r}" step="1" placeholder="0" oninput="updateRankCalc()">
+            <button class="sign-toggle-btn" onclick="toggleSign('ri-pt-${r}')">±</button>
+          </div>
+        </div>`;
+      chipField = `
+        <div class="ri-val-wrap">
+          <span class="ri-val-title">チップ</span>
+          <div class="ri-input-box">
+            <input type="number" class="ri-chip-input" id="ri-chip-${r}" step="1" placeholder="0" oninput="updateRankCalc()">
+            <button class="sign-toggle-btn" onclick="toggleSign('ri-chip-${r}')">±</button>
+          </div>
+        </div>`;
+    }
 
     return `
       <div class="rank-input-row">
@@ -400,6 +437,19 @@ function buildRankInputs() {
         ${chipField}
       </div>`;
   }).join("");
+}
+
+// 符号を反転させる補助関数
+function toggleSign(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const val = parseFloat(el.value);
+  if (!isNaN(val) && val !== 0) {
+    el.value = -val;
+  } else if (el.value === "") {
+    el.value = "-"; // 空白時に押されたらマイナス記号を先頭に配置
+  }
+  updateRankCalc();
 }
 
 function updateRankCalc() {
@@ -489,7 +539,7 @@ document.getElementById("add-match").addEventListener("click", () => {
   showToast("結果を登録しました！");
 });
 
-// ---------- 順位表 (累積チップ表示対応) ----------
+// ---------- 順位表 ----------
 let sortMode = "pt";
 
 function renderStandings() {
@@ -562,7 +612,7 @@ document.getElementById("sort-1st").addEventListener("click", () => {
   renderStandings();
 });
 
-// ---------- 対局履歴 (左端日付・横並び・ポイントとチップを表示) ----------
+// ---------- 対局履歴 ----------
 function renderHistory() {
   const list = document.getElementById("history-list");
   if (state.history.length === 0) {
