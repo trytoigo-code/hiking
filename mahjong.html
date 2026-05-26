@@ -64,6 +64,9 @@
       background: #fff; border: 1px solid #ddd8cc;
       border-radius: 8px; padding: 10px 6px; margin-bottom: 8px;
     }
+    .rank-input-row.top-auto-row {
+      background: #f4f9f4; border-color: #a3d1a3;
+    }
     .ri-label { width: 44px; font-weight: bold; font-size: 0.85rem; flex-shrink: 0; text-align: center; }
     .ri-select { flex: 1; padding: 8px 2px; font-size: 0.82rem; min-width: 0; }
     
@@ -78,6 +81,9 @@
     .ri-pt-input, .ri-chip-input {
       flex: 1; width: 100%; padding: 6px 4px; text-align: right; font-size: 0.95rem; font-weight: bold; min-width: 0;
     }
+    .ri-pt-input:read-only, .ri-chip-input:read-only {
+      background: #eaf2ea; color: #27ae60; border-color: #c2e0c2;
+    }
     
     .sign-toggle-btn {
       width: 24px; height: 28px; background: #f0ede4; color: #555;
@@ -86,6 +92,7 @@
       flex-shrink: 0; -webkit-user-select: none; user-select: none;
     }
     .sign-toggle-btn:active { background: #e0dbcd; }
+    .sign-toggle-btn.hidden { visibility: hidden; width: 0; padding: 0; border: none; margin: 0; }
 
     /* ── Standings ── */
     .rank-row {
@@ -212,7 +219,7 @@
 
     <div class="panel" id="panel-input">
       <h3>結果入力</h3>
-      <p class="note">各着順の雀士を選択し、確定したポイントとチップを入力してください。</p>
+      <p class="note">2位〜4位のスコアを入力すると、👑1位(トップ)のスコアが自動計算されます。</p>
       <div class="fg">
         <label>対局日</label>
         <input type="date" id="match-date">
@@ -383,28 +390,33 @@ function buildRankInputs() {
       `<option value="${name}"${pi === r ? " selected" : ""}>${name}</option>`
     ).join("");
 
+    const isTop = (r === 0);
+
     return `
-      <div class="rank-input-row">
+      <div class="rank-input-row ${isTop ? 'top-auto-row' : ''}">
         <span class="ri-label">${label}</span>
         <select class="ri-select" id="ri-player-${r}">${options}</select>
         
         <div class="ri-val-wrap">
           <span class="ri-val-title">ポイント</span>
           <div class="ri-input-box">
-            <input type="text" inputmode="numeric" pattern="[0-9]*" class="ri-pt-input" id="ri-pt-${r}" placeholder="0">
-            <button class="sign-toggle-btn" onclick="toggleSign('ri-pt-${r}')">±</button>
+            <input type="text" inputmode="numeric" pattern="[0-9-.]*" class="ri-pt-input" id="ri-pt-${r}" 
+              placeholder="0" ${isTop ? 'readonly' : 'oninput="recalcTopScore()"'}>
+            <button class="sign-toggle-btn ${isTop ? 'hidden' : ''}" onclick="toggleSign('ri-pt-${r}')">±</button>
           </div>
         </div>
 
         <div class="ri-val-wrap">
           <span class="ri-val-title">チップ</span>
           <div class="ri-input-box">
-            <input type="text" inputmode="numeric" pattern="[0-9]*" class="ri-chip-input" id="ri-chip-${r}" placeholder="0">
-            <button class="sign-toggle-btn" onclick="toggleSign('ri-chip-${r}')">±</button>
+            <input type="text" inputmode="numeric" pattern="[0-9-]*" class="ri-chip-input" id="ri-chip-${r}" 
+              placeholder="0" ${isTop ? 'readonly' : 'oninput="recalcTopScore()"'}>
+            <button class="sign-toggle-btn ${isTop ? 'hidden' : ''}" onclick="toggleSign('ri-chip-${r}')">±</button>
           </div>
         </div>
       </div>`;
   }).join("");
+  recalcTopScore();
 }
 
 function toggleSign(id) {
@@ -413,11 +425,31 @@ function toggleSign(id) {
   let valStr = el.value.trim();
   if (valStr.startsWith("-")) {
     el.value = valStr.substring(1);
-  } else if (valStr !== "") {
+  } else if (valStr !== "" && valStr !== "0") {
     el.value = "-" + valStr;
   } else {
     el.value = "-";
   }
+  recalcTopScore();
+}
+
+// 2位〜4位の入力値から1位（トップ）の数値をリアルタイム自動計算
+function recalcTopScore() {
+  const pt1 = document.getElementById("ri-pt-1"); if (!pt1) return; // 描画前ガード
+  
+  const p2 = parseInputVal(document.getElementById("ri-pt-1").value);
+  const p3 = parseInputVal(document.getElementById("ri-pt-2").value);
+  const p4 = parseInputVal(document.getElementById("ri-pt-3").value);
+  
+  const c2 = parseInputVal(document.getElementById("ri-chip-1").value);
+  const c3 = parseInputVal(document.getElementById("ri-chip-2").value);
+  const c4 = parseInputVal(document.getElementById("ri-chip-3").value);
+
+  const topPt = Number((-(p2 + p3 + p4)).toFixed(2));
+  const topCp = Number((-(c2 + c3 + c4)).toFixed(2));
+
+  document.getElementById("ri-pt-0").value = topPt === 0 ? "" : topPt;
+  document.getElementById("ri-chip-0").value = topCp === 0 ? "" : topCp;
 }
 
 (function() {
@@ -426,27 +458,29 @@ function toggleSign(id) {
     `${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
 })();
 
+// 数値パースの安全化
+function parseInputVal(str) {
+  const trimmed = str.trim();
+  if (trimmed === "" || trimmed === "-") return 0;
+  const parsed = parseFloat(trimmed);
+  return isNaN(parsed) ? 0 : parsed;
+}
+
 document.getElementById("add-match").addEventListener("click", () => {
   const playerNames = [0,1,2,3].map(r => document.getElementById(`ri-player-${r}`).value);
   if (new Set(playerNames).size !== PLAYER_COUNT) {
     showToast("同じ対局者が複数の順位に設定されています"); return;
   }
 
-  const rankPts = [0,1,2,3].map(r => parseFloat(document.getElementById(`ri-pt-${r}`).value));
-  const rankCps = [0,1,2,3].map(r => parseFloat(document.getElementById(`ri-chip-${r}`).value));
-  
-  if (rankPts.some(isNaN) || rankCps.some(isNaN)) {
-    showToast("全員のポイントとチップを入力してください"); return;
+  const ptsRaw = [1,2,3].map(r => document.getElementById(`ri-pt-${r}`).value.trim());
+  const cpsRaw = [1,2,3].map(r => document.getElementById(`ri-chip-${r}`).value.trim());
+
+  if (ptsRaw.some(v => v === "-") || cpsRaw.some(v => v === "-")) {
+    showToast("ポイントまたはチップの入力が不完全です（マイナス符号のみの欄があります）"); return;
   }
 
-  const ptSum = rankPts.reduce((sum, v) => sum + v, 0);
-  if (Math.round(ptSum) !== 0) {
-    showToast(`ポイントの合計が ±0 になっていません（現在: ${fmtPt(Math.round(ptSum))}）`); return;
-  }
-  const cpSum = rankCps.reduce((sum, v) => sum + v, 0);
-  if (Math.round(cpSum) !== 0) {
-    showToast(`チップの合計が 0 枚になっていません（現在: ${cpSum > 0 ? '+' : ''}${Math.round(cpSum)}枚）`); return;
-  }
+  const rankPts = [0,1,2,3].map(r => parseInputVal(document.getElementById(`ri-pt-${r}`).value));
+  const rankCps = [0,1,2,3].map(r => parseInputVal(document.getElementById(`ri-chip-${r}`).value));
 
   const ranks  = new Array(PLAYER_COUNT);
   const points = new Array(PLAYER_COUNT);
@@ -473,10 +507,12 @@ document.getElementById("add-match").addEventListener("click", () => {
   state.history.push({ date: d, ranks, points, chips, players: [...state.players] });
   pushState();
 
-  [0,1,2,3].forEach(r => {
+  [1,2,3].forEach(r => {
     document.getElementById(`ri-pt-${r}`).value = "";
     document.getElementById(`ri-chip-${r}`).value = "";
   });
+  recalcTopScore();
+  
   showToast("結果を登録しました！");
 });
 
@@ -498,8 +534,8 @@ function renderStandings() {
         totals[p] = 0; chipTotals[p] = 0; gameCnt[p] = 0;
         [1,2,3,4].forEach(r => { rankCnt[r][p] = rankCnt[r][p] || 0; });
       }
-      totals[p]     = Math.round(totals[p] + m.points[i]);
-      chipTotals[p] = Math.round(chipTotals[p] + (m.chips ? m.chips[i] : 0));
+      totals[p]     = totals[p] + m.points[i];
+      chipTotals[p] = chipTotals[p] + (m.chips ? m.chips[i] : 0);
       gameCnt[p]++;
       rankCnt[m.ranks[i]][p] = (rankCnt[m.ranks[i]][p] || 0) + 1;
     });
@@ -507,10 +543,10 @@ function renderStandings() {
 
   const allPlayers = [...new Set([...state.players, ...Object.keys(totals)])];
   const data = allPlayers.map(p => {
-    const purePt = totals[p] || 0;
-    const chips  = chipTotals[p] || 0;
-    // 総合ポイント ＝ 純粋なポイント ＋ (チップ枚数 × 換算レート)
-    const overallScore = Math.round(purePt + (chips * state.chipRate));
+    const purePt = Number((totals[p] || 0).toFixed(4));
+    const chips  = Number((chipTotals[p] || 0).toFixed(4));
+    const overallScore = Number((purePt + (chips * state.chipRate)).toFixed(2));
+    
     return {
       name: p,
       total: purePt,
@@ -521,7 +557,6 @@ function renderStandings() {
     };
   });
 
-  // ソート処理
   if (sortMode === "pt")  data.sort((a, b) => b.overall - a.overall);
   else                    data.sort((a, b) => b.c[1] - a.c[1] || b.overall - a.overall);
 
@@ -539,7 +574,7 @@ function renderStandings() {
         <div class="rank-right-score">
           <div class="rank-pt ${ptClass(p.overall)}">${fmtPt(p.overall)}</div>
           <div class="rank-chip-total ${chipClass(p.chipTotal)}">🪙 ${p.chipTotal > 0 ? '+' : ''}${p.chipTotal}枚</div>
-          <div class="rank-breakdown">(素点:${fmtPt(p.total)})</div>
+          <div class="rank-breakdown">(ポイント:${fmtPt(p.total)})</div>
         </div>
       </div>`;
   }).join("") || `<p style="color:#999;font-size:0.9rem">まだ対局がありません。</p>`;
@@ -558,7 +593,7 @@ document.getElementById("sort-1st").addEventListener("click", () => {
   renderStandings();
 });
 
-// ---------- 対局履歴 ----------
+// ---------- 对局履歴 ----------
 function setHistoryHighlight(playerName) {
   if (selectedHighlightPlayer === playerName) {
     selectedHighlightPlayer = null;
@@ -671,17 +706,14 @@ function showToast(msg) {
 
 // ---------- 設定画面の入力制御 ----------
 function fillSettingsInputs() {
-  // 雀士名
   state.players.forEach((name, i) => {
     const el = document.getElementById("p" + i);
     if (el) el.value = name;
   });
-  // チップ換算レート
   const rateEl = document.getElementById("chip-rate");
   if (rateEl) rateEl.value = state.chipRate;
 }
 
-// ユーザー入力中の自動同期上書きを防ぐフラグ制御
 [0,1,2,3].forEach(i => {
   const el = document.getElementById("p" + i);
   if (el) {
@@ -696,11 +728,9 @@ if (chipRateInput) {
 }
 
 document.getElementById("save-settings").addEventListener("click", () => {
-  // レートの読み込み
   const rateVal = parseFloat(document.getElementById("chip-rate").value);
   state.chipRate = isNaN(rateVal) ? 1 : rateVal;
 
-  // プレイヤー名の読み込み
   state.players = [0,1,2,3].map(i => {
     const v = document.getElementById("p" + i).value.trim();
     return v || `対局者${i+1}`;
@@ -741,9 +771,10 @@ function renderAll() {
   renderHistoryButtons();
   renderHistory();
   renderSeasonInfo();
-  const hasInput = [0,1,2,3].some(r => {
-    const el = document.getElementById(`ri-pt-${r}`);
-    return el && el.value !== "";
+  const hasInput = [1,2,3].some(r => {
+    const elPt = document.getElementById(`ri-pt-${r}`);
+    const elCp = document.getElementById(`ri-chip-${r}`);
+    return (elPt && elPt.value !== "") || (elCp && elCp.value !== "");
   });
   if (!hasInput) buildRankInputs();
 }
