@@ -780,6 +780,12 @@ function renderAll() {
   renderStandings();
   renderHistory();
   renderSeasonInfo();
+  // ポイント未入力の間は雀士選択肢を最新の設定に合わせて更新する
+  const hasInput = [1,2,3].some(r => {
+    const el = document.getElementById(`ri-pt-${r}`);
+    return el && el.value !== "";
+  });
+  if (!hasInput) buildRankInputs();
 }
 
 // ---------- 初期化 ----------
