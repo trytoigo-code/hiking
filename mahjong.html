@@ -58,21 +58,25 @@
     }
     .btn:active { opacity: 0.85; }
 
-    /* ── Rank input rows ── */
+    /* ── Rank input rows (ポイント・チップの並列対応) ── */
     .rank-input-row {
-      display: flex; align-items: center; gap: 10px;
+      display: flex; align-items: center; gap: 8px;
       background: #fff; border: 1px solid #ddd8cc;
-      border-radius: 8px; padding: 10px 12px; margin-bottom: 8px;
+      border-radius: 8px; padding: 10px 8px; margin-bottom: 8px;
     }
-    .ri-label { width: 56px; font-weight: bold; font-size: 0.88rem; flex-shrink: 0; }
-    .ri-select { flex: 1; padding: 8px; font-size: 0.9rem; min-width: 0; }
-    .ri-pt-auto {
-      width: 76px; text-align: right; font-weight: bold;
-      font-size: 1.05rem; flex-shrink: 0; color: #bbb;
+    .ri-label { width: 44px; font-weight: bold; font-size: 0.85rem; flex-shrink: 0; text-align: center; }
+    .ri-select { flex: 1; padding: 8px 4px; font-size: 0.85rem; min-width: 0; }
+    
+    .ri-val-wrap {
+      display: flex; flex-direction: column; align-items: flex-end; width: 68px; flex-shrink: 0;
     }
-    .ri-pt-input {
-      width: 82px; padding: 8px 6px; text-align: right;
-      font-size: 1.05rem; font-weight: bold; flex-shrink: 0;
+    .ri-val-title { font-size: 0.6rem; color: #999; margin-bottom: 2px; }
+
+    .ri-pt-auto, .ri-chip-auto {
+      width: 68px; text-align: right; font-weight: bold; font-size: 0.95rem; color: #bbb; display: inline-block;
+    }
+    .ri-pt-input, .ri-chip-input {
+      width: 68px; padding: 6px 4px; text-align: right; font-size: 0.95rem; font-weight: bold;
     }
 
     /* ── Standings ── */
@@ -85,61 +89,51 @@
     .rank-info { flex: 1; min-width: 0; }
     .rank-name { font-weight: bold; font-size: 0.95rem; }
     .rank-sub { color: #888; font-size: 0.76rem; margin-top: 3px; }
-    .rank-pt { font-size: 1.3rem; font-weight: bold; text-align: right; flex-shrink: 0; min-width: 72px; }
-    .pt-pos { color: #27ae60; }
-    .pt-neg { color: #e74c3c; }
-    .pt-zero { color: #888; }
+    
+    .rank-right-score { text-align: right; flex-shrink: 0; min-width: 75px; }
+    .rank-pt { font-size: 1.2rem; font-weight: bold; }
+    .rank-chip-total { font-size: 0.75rem; font-weight: bold; margin-top: 2px; }
 
-    /* ── History ── */
+    .pt-pos, .chip-pos { color: #27ae60; }
+    .pt-neg, .chip-neg { color: #e74c3c; }
+    .pt-zero, .chip-zero { color: #888; }
+
+    /* ── History (左端日付・横一列・チップ対応) ── */
     .hist-item {
       background: #fdfdfb; border: 1px solid #e0dbcd;
-      padding: 12px; border-radius: 8px; margin-bottom: 10px;
+      padding: 10px 6px; border-radius: 8px; margin-bottom: 10px;
+      display: flex; align-items: center; gap: 4px; position: relative;
     }
-    .hist-header {
-      display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid #ece8dc;
+    .hist-meta-box {
+      width: 48px; display: flex; flex-direction: column; justify-content: center;
+      align-items: center; flex-shrink: 0; border-right: 1px dashed #ece8dc; padding-right: 2px;
     }
-    .hist-no { font-size: 0.78rem; font-weight: bold; color: #b89752; }
-    .hist-date { font-size: 0.78rem; color: #999; }
-    
-    /* 雀士の横並びグリッドスタイル */
+    .hist-date-label { font-size: 0.7rem; color: #888; font-weight: bold; }
+    .hist-no-label { font-size: 0.65rem; color: #b89752; font-weight: bold; margin-top: 2px; }
+
     .hist-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr); /* 4分割の横並び */
-      gap: 6px;
-      text-align: center;
+      flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px;
+      text-align: center; min-width: 0; padding-right: 24px;
     }
     .hist-player-box {
-      background: #fdfdfd;
-      border: 1px solid #f0ece0;
-      border-radius: 6px;
-      padding: 6px 2px;
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
+      background: #fff; border: 1px solid #f2eee2; border-radius: 5px;
+      padding: 4px 1px; display: flex; flex-direction: column; gap: 1px; min-width: 0;
     }
-    .hist-rank-badge {
-      font-size: 0.75rem;
-      color: #777;
-    }
+    .hist-rank-badge { font-size: 0.7rem; }
     .hist-name-cell {
-      font-weight: bold;
-      font-size: 0.8rem;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis; /* 名前が長い場合は三点リーダー */
-      color: #333;
+      font-weight: bold; font-size: 0.75rem; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis; color: #444;
     }
-    .hist-pt-cell {
-      font-weight: bold;
-      font-size: 0.9rem;
-    }
+    .hist-pt-cell { font-weight: bold; font-size: 0.85rem; }
+    .hist-chip-cell { font-size: 0.68rem; font-weight: bold; margin-top: 1px; color: #666; }
 
     .del-btn {
-      background: #e74c3c; color: #fff; border: none;
-      padding: 4px 10px; border-radius: 4px; font-size: 0.75rem;
-      cursor: pointer; flex-shrink: 0;
+      position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+      background: #fcebe9; color: #e74c3c; border: 1px solid #f5c6cb;
+      width: 22px; height: 22px; border-radius: 4px; font-size: 0.65rem;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold;
     }
+    .del-btn:active { background: #f8d7da; }
 
     /* ── Filter / sort buttons ── */
     .filter-btn {
@@ -154,10 +148,7 @@
       padding: 14px 16px; border-radius: 8px; margin-bottom: 16px;
       font-size: 0.85rem; line-height: 1.7; display: none;
     }
-    #setup-banner code {
-      background: #f8f9fa; border: 1px solid #ddd;
-      padding: 1px 5px; border-radius: 3px; word-break: break-all;
-    }
+    #setup-banner code { background: #f8f9fa; border: 1px solid #ddd; padding: 1px 5px; border-radius: 3px; word-break: break-all; }
 
     /* ── Settings grid ── */
     .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
@@ -209,7 +200,7 @@
 
     <div class="panel" id="panel-input">
       <h3>結果入力</h3>
-      <p class="note">2〜4位のポイントを入力すると、1位が自動計算されます。</p>
+      <p class="note">2〜4位のポイント・チップを入力すると、1位が自動計算されます。</p>
       <div class="fg">
         <label>対局日</label>
         <input type="date" id="match-date">
@@ -220,7 +211,7 @@
 
     <div class="panel" id="panel-history">
       <h3>対局履歴</h3>
-      <p class="note">最新の半荘が上に表示されます。削除後10秒以内は「元に戻す」が使えます。</p>
+      <p class="note">最新の半荘が上に表示されます。右端の「×」で削除後10秒以内は戻せます。</p>
       <div id="history-list"></div>
     </div>
 
@@ -272,7 +263,6 @@
 <script>
 // ============================================================
 //  🔧 ここにFirebaseの設定を貼り付けてください
-//     console.firebase.google.com → プロジェクト設定 → マイアプリ
 // ============================================================
 const firebaseConfig = {
   apiKey:            "AIzaSyBSrQkPMPc-icuph244VBorNqRf2yP-U7Y",
@@ -292,14 +282,14 @@ const PLAYER_COUNT = 4;
 // ---------- State ----------
 let state = {
   players: ["雀士1", "雀士2", "雀士3", "雀士4"],
-  history: [],        // { date, scores[], ranks[], points[], players[] }
+  history: [], // 各要素: { date, ranks[], points[], chips[], players[] }
   settings: { ...DEFAULT_SETTINGS },
   season: 1
 };
 let stateRef    = null;
 let seasonsRef  = null;
 const isConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY";
-let editingPlayers = false;  // 对局者名入力中はFirebase onValueで上書きしない
+let editingPlayers = false;
 
 // ---------- Firebase ----------
 if (isConfigured) {
@@ -367,48 +357,24 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
   });
 });
 
-// ---------- ポイント計算 ----------
-function goshaRokunyuu(score) {
-  const rem = score % 1000;
-  return rem <= 500 ? score - rem : score + (1000 - rem);
-}
-
-function calcPoints(scores, s) {
-  const adj = [s.pt1, s.pt2, -s.pt2, -s.pt1];
-  const indexed = scores.map((v, i) => ({ v, i }));
-  indexed.sort((a, b) => b.v - a.v);
-
-  const ranks = new Array(scores.length);
-  const norms = new Array(scores.length);
-
-  indexed.forEach(({ v, i }, rankIdx) => {
-    ranks[i] = rankIdx + 1;
-    const effective = rankIdx === 0 ? v : goshaRokunyuu(v);
-    norms[i] = (effective - s.kaeshiten) / 1000;
-  });
-
-  const oka = -norms.reduce((a, b) => a + b, 0);
-
-  const points = new Array(scores.length);
-  indexed.forEach(({ i }, rankIdx) => {
-    points[i] = Math.round(norms[i] + adj[rankIdx] + (rankIdx === 0 ? oka : 0));
-  });
-
-  return { ranks, points };
-}
-
+// ---------- フォーマット関数群 ----------
 function fmtPt(pt) {
   if (pt > 0) return `+${pt}`;
   if (pt < 0) return `${pt}`;
   return "±0";
 }
-function ptClass(pt) {
-  return pt > 0 ? "pt-pos" : pt < 0 ? "pt-neg" : "pt-zero";
+function fmtChip(cp) {
+  if (cp > 0) return `+${cp}枚`;
+  if (cp < 0) return `${cp}枚`;
+  return "±0枚";
 }
+function ptClass(pt) { return pt > 0 ? "pt-pos" : pt < 0 ? "pt-neg" : "pt-zero"; }
+function chipClass(cp) { return cp > 0 ? "chip-pos" : cp < 0 ? "chip-neg" : "chip-zero"; }
+
 const RANK_EMOJI = ["👑","🥈","🥉","4位"];
 function rankEmoji(r) { return RANK_EMOJI[r - 1] || `${r}位`; }
 
-// ---------- 結果入力：順位・ポイント入力グリッド構築 ----------
+// ---------- 結果入力 (ポイント・チップ並列表示) ----------
 const RANK_LABELS = ["👑 1位", "🥈 2位", "🥉 3位", "4位"];
 
 function buildRankInputs() {
@@ -417,35 +383,53 @@ function buildRankInputs() {
     const options = state.players.map((name, pi) =>
       `<option value="${name}"${pi === r ? " selected" : ""}>${name}</option>`
     ).join("");
+
     const ptField = r === 0
-      ? `<span class="ri-pt-auto" id="ri-pt-0">—</span>`
-      : `<input type="number" class="ri-pt-input" id="ri-pt-${r}"
-             step="1" placeholder="0" oninput="updateRankCalc()">`;
+      ? `<div class="ri-val-wrap"><span class="ri-val-title">ポイント</span><span class="ri-pt-auto" id="ri-pt-0">—</span></div>`
+      : `<div class="ri-val-wrap"><span class="ri-val-title">ポイント</span><input type="number" class="ri-pt-input" id="ri-pt-${r}" step="1" placeholder="0" oninput="updateRankCalc()"></div>`;
+
+    const chipField = r === 0
+      ? `<div class="ri-val-wrap"><span class="ri-val-title">チップ</span><span class="ri-chip-auto" id="ri-chip-0">—</span></div>`
+      : `<div class="ri-val-wrap"><span class="ri-val-title">チップ</span><input type="number" class="ri-chip-input" id="ri-chip-${r}" step="1" placeholder="0" oninput="updateRankCalc()"></div>`;
+
     return `
       <div class="rank-input-row">
         <span class="ri-label">${label}</span>
         <select class="ri-select" id="ri-player-${r}" onchange="updateRankCalc()">${options}</select>
         ${ptField}
+        ${chipField}
       </div>`;
   }).join("");
 }
 
 function updateRankCalc() {
+  // ポイント自動計算
   const pt2 = parseFloat(document.getElementById("ri-pt-1").value);
   const pt3 = parseFloat(document.getElementById("ri-pt-2").value);
   const pt4 = parseFloat(document.getElementById("ri-pt-3").value);
-  const el   = document.getElementById("ri-pt-0");
+  const elPt = document.getElementById("ri-pt-0");
   if (!isNaN(pt2) && !isNaN(pt3) && !isNaN(pt4)) {
     const pt1 = Math.round(-(pt2 + pt3 + pt4));
-    el.textContent = fmtPt(pt1);
-    el.className   = "ri-pt-auto " + ptClass(pt1);
+    elPt.textContent = fmtPt(pt1);
+    elPt.className   = "ri-pt-auto " + ptClass(pt1);
   } else {
-    el.textContent = "—";
-    el.className   = "ri-pt-auto";
+    elPt.textContent = "—"; elPt.className = "ri-pt-auto";
+  }
+
+  // チップ自動計算
+  const cp2 = parseFloat(document.getElementById("ri-chip-1").value);
+  const cp3 = parseFloat(document.getElementById("ri-chip-2").value);
+  const cp4 = parseFloat(document.getElementById("ri-chip-3").value);
+  const elCp = document.getElementById("ri-chip-0");
+  if (!isNaN(cp2) && !isNaN(cp3) && !isNaN(cp4)) {
+    const cp1 = Math.round(-(cp2 + cp3 + cp4));
+    elCp.textContent = cp1 > 0 ? `+${cp1}` : cp1;
+    elCp.className   = "ri-chip-auto " + chipClass(cp1);
+  } else {
+    elCp.textContent = "—"; elCp.className = "ri-chip-auto";
   }
 }
 
-// 対局日を今日で初期化
 (function() {
   const today = new Date();
   document.getElementById("match-date").value =
@@ -459,16 +443,27 @@ document.getElementById("add-match").addEventListener("click", () => {
   }
 
   const rawPts = [1,2,3].map(r => parseFloat(document.getElementById(`ri-pt-${r}`).value));
+  const rawCps = [1,2,3].map(r => parseFloat(document.getElementById(`ri-chip-${r}`).value));
   if (rawPts.some(isNaN)) { showToast("2〜4位のポイントを入力してください"); return; }
+  if (rawCps.some(isNaN)) { showToast("2〜4位のチップ枚数を入力してください"); return; }
 
   const pt1 = Math.round(-(rawPts[0] + rawPts[1] + rawPts[2]));
   const rankPts = [pt1, ...rawPts];
 
+  const cp1 = Math.round(-(rawCps[0] + rawCps[1] + rawCps[2]));
+  const rankCps = [cp1, ...rawCps];
+
   const ranks  = new Array(PLAYER_COUNT);
   const points = new Array(PLAYER_COUNT);
+  const chips  = new Array(PLAYER_COUNT);
+
   playerNames.forEach((name, rankIdx) => {
     const pi = state.players.indexOf(name);
-    if (pi >= 0) { ranks[pi] = rankIdx + 1; points[pi] = rankPts[rankIdx]; }
+    if (pi >= 0) {
+      ranks[pi]  = rankIdx + 1;
+      points[pi] = rankPts[rankIdx];
+      chips[pi]  = rankCps[rankIdx];
+    }
   });
 
   const dateVal = document.getElementById("match-date").value;
@@ -477,35 +472,43 @@ document.getElementById("add-match").addEventListener("click", () => {
     const [, mo, dy] = dateVal.split("-");
     d = `${parseInt(mo)}/${parseInt(dy)}`;
   } else {
-    const now = new Date();
-    d = `${now.getMonth()+1}/${now.getDate()}`;
+    const now = new Date(); d = `${now.getMonth()+1}/${now.getDate()}`;
   }
 
-  state.history.push({ date: d, ranks, points, players: [...state.players] });
+  state.history.push({ date: d, ranks, points, chips, players: [...state.players] });
   pushState();
 
-  [1,2,3].forEach(r => { document.getElementById(`ri-pt-${r}`).value = ""; });
+  [1,2,3].forEach(r => {
+    document.getElementById(`ri-pt-${r}`).value = "";
+    document.getElementById(`ri-chip-${r}`).value = "";
+  });
   document.getElementById("ri-pt-0").textContent = "—";
   document.getElementById("ri-pt-0").className   = "ri-pt-auto";
+  document.getElementById("ri-chip-0").textContent = "—";
+  document.getElementById("ri-chip-0").className   = "ri-chip-auto";
   showToast("結果を登録しました！");
 });
 
-// ---------- 順位表 ----------
+// ---------- 順位表 (累積チップ表示対応) ----------
 let sortMode = "pt";
 
 function renderStandings() {
-  const totals = {}, gameCnt = {}, rankCnt = { 1:{}, 2:{}, 3:{}, 4:{} };
+  const totals = {}, chipTotals = {}, gameCnt = {}, rankCnt = { 1:{}, 2:{}, 3:{}, 4:{} };
 
   state.players.forEach(p => {
-    totals[p]  = 0; gameCnt[p] = 0;
+    totals[p]  = 0; chipTotals[p] = 0; gameCnt[p] = 0;
     [1,2,3,4].forEach(r => rankCnt[r][p] = 0);
   });
 
   state.history.forEach(m => {
     const ps = m.players || state.players;
     ps.forEach((p, i) => {
-      if (!(p in totals)) { totals[p] = 0; gameCnt[p] = 0; [1,2,3,4].forEach(r => { rankCnt[r][p] = rankCnt[r][p] || 0; }); }
-      totals[p]         = Math.round(totals[p] + m.points[i]);
+      if (!(p in totals)) {
+        totals[p] = 0; chipTotals[p] = 0; gameCnt[p] = 0;
+        [1,2,3,4].forEach(r => { rankCnt[r][p] = rankCnt[r][p] || 0; });
+      }
+      totals[p]     = Math.round(totals[p] + m.points[i]);
+      chipTotals[p] = Math.round(chipTotals[p] + (m.chips ? m.chips[i] : 0));
       gameCnt[p]++;
       rankCnt[m.ranks[i]][p] = (rankCnt[m.ranks[i]][p] || 0) + 1;
     });
@@ -515,6 +518,7 @@ function renderStandings() {
   const data = allPlayers.map(p => ({
     name: p,
     total: totals[p] || 0,
+    chipTotal: chipTotals[p] || 0,
     games: gameCnt[p] || 0,
     c: [0, rankCnt[1][p]||0, rankCnt[2][p]||0, rankCnt[3][p]||0, rankCnt[4][p]||0]
   }));
@@ -537,7 +541,10 @@ function renderStandings() {
             ／ 平均${avgRank}着
           </div>
         </div>
-        <div class="rank-pt ${ptClass(p.total)}">${fmtPt(p.total)}</div>
+        <div class="rank-right-score">
+          <div class="rank-pt ${ptClass(p.total)}">${fmtPt(p.total)}</div>
+          <div class="rank-chip-total ${chipClass(p.chipTotal)}">🪙 ${p.chipTotal > 0 ? '+' : ''}${p.chipTotal}枚</div>
+        </div>
       </div>`;
   }).join("") || `<p style="color:#999;font-size:0.9rem">まだ対局がありません。</p>`;
 }
@@ -555,7 +562,7 @@ document.getElementById("sort-1st").addEventListener("click", () => {
   renderStandings();
 });
 
-// ---------- 对局履歴 (横並びグリッド表示にアップデート) ----------
+// ---------- 対局履歴 (左端日付・横並び・ポイントとチップを表示) ----------
 function renderHistory() {
   const list = document.getElementById("history-list");
   if (state.history.length === 0) {
@@ -565,15 +572,19 @@ function renderHistory() {
   list.innerHTML = [...state.history].reverse().map((m, revIdx) => {
     const origIdx = state.history.length - 1 - revIdx;
     const ps      = m.players || state.players;
-    const rows    = ps.map((name, i) => ({ name, rank: m.ranks[i], pt: m.points[i] }));
-    rows.sort((a, b) => a.rank - b.rank); // 順位順にソート
+    const rows    = ps.map((name, i) => ({
+      name,
+      rank: m.ranks[i],
+      pt: m.points[i],
+      chip: m.chips ? m.chips[i] : 0
+    }));
+    rows.sort((a, b) => a.rank - b.rank);
 
     return `
       <div class="hist-item">
-        <div class="hist-header">
-          <span class="hist-no">第${origIdx+1}半荘</span>
-          <span class="hist-date">${m.date}</span>
-          <button class="del-btn" onclick="deleteMatch(${origIdx})">削除</button>
+        <div class="hist-meta-box">
+          <span class="hist-date-label">${m.date}</span>
+          <span class="hist-no-label">#${origIdx+1}</span>
         </div>
         <div class="hist-grid">
           ${rows.map(r => `
@@ -581,8 +592,10 @@ function renderHistory() {
               <span class="hist-rank-badge">${rankEmoji(r.rank)}</span>
               <span class="hist-name-cell" title="${r.name}">${r.name}</span>
               <span class="hist-pt-cell ${ptClass(r.pt)}">${fmtPt(r.pt)}</span>
+              <span class="hist-chip-cell ${chipClass(r.chip)}">${r.chip > 0 ? '+' : ''}${r.chip}</span>
             </div>`).join("")}
         </div>
+        <button class="del-btn" onclick="deleteMatch(${origIdx})">×</button>
       </div>`;
   }).join("");
 }
