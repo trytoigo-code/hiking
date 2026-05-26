@@ -33,7 +33,7 @@
   ・機能を追加・変更したら「主な機能」と「今後の改良候補」を合わせて更新する
 
 【主な機能（現時点）】
-  - 参加者設定（4名、拡張余地あり）
+  - 雀士設定（4名、拡張余地あり）
   - 結果入力（各自の最終点数を入力 → 順位・ポイントを自動計算）
   - ウマ・返し点・配給原点の設定（オカは自動計算）
   - リアルタイムプレビュー（全員入力完了で順位とポイントを即時表示）
@@ -290,12 +290,12 @@
         <span>管理者の仕事</span>
       </div>
       <div id="admin-body" style="display:none;margin-top:16px">
-        <h3>参加者設定</h3>
-        <p class="note">参加者の名前を設定してください。変更すると全員の画面に即時反映されます。</p>
-        <div class="fg"><label>参加者 1</label><input id="p0" type="text"></div>
-        <div class="fg"><label>参加者 2</label><input id="p1" type="text"></div>
-        <div class="fg"><label>参加者 3</label><input id="p2" type="text"></div>
-        <div class="fg"><label>参加者 4</label><input id="p3" type="text"></div>
+        <h3>雀士設定</h3>
+        <p class="note">雀士の名前を設定してください。変更すると全員の画面に即時反映されます。</p>
+        <div class="fg"><label>雀士 1</label><input id="p0" type="text"></div>
+        <div class="fg"><label>雀士 2</label><input id="p1" type="text"></div>
+        <div class="fg"><label>雀士 3</label><input id="p2" type="text"></div>
+        <div class="fg"><label>雀士 4</label><input id="p3" type="text"></div>
         <button class="btn" id="save-players">保存して全員に同期</button>
 
         <h3 style="margin-top:24px">シーズン管理</h3>
@@ -718,7 +718,7 @@ document.getElementById("save-settings").addEventListener("click", () => {
   showToast("ルール設定を保存しました");
 });
 
-// ---------- 参加者設定 ----------
+// ---------- 雀士設定 ----------
 function fillPlayerInputs() {
   state.players.forEach((name, i) => {
     const el = document.getElementById("p" + i);
