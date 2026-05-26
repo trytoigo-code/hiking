@@ -130,6 +130,14 @@
     .hist-player-box {
       background: #fff; border: 1px solid #f2eee2; border-radius: 5px;
       padding: 4px 1px; display: flex; flex-direction: column; gap: 1px; min-width: 0;
+      transition: all 0.2s ease;
+    }
+    /* ハイライト対象のスタイル定義 */
+    .hist-player-box.highlighted {
+      background: #fff9e6; border-color: #f39c12; box-shadow: 0 0 4px rgba(243, 156, 18, 0.3);
+    }
+    .hist-player-box.dimmed {
+      opacity: 0.55;
     }
     .hist-rank-badge { font-size: 0.7rem; }
     .hist-name-cell {
@@ -223,7 +231,8 @@
 
     <div class="panel" id="panel-history">
       <h3>対局履歴</h3>
-      <p class="note">最新の半荘が上に表示されます。右端の「×」で削除後10秒以内は戻せます。</p>
+      <p class="note">最新の半荘が上に表示されます。名前を選ぶとその雀士の位置が目立ちます。</p>
+      <div style="display:flex; gap:6px; margin-bottom:14px; overflow-x:auto; padding-bottom:4px;" id="history-highlighter-container"></div>
       <div id="history-list"></div>
     </div>
 
@@ -302,6 +311,9 @@ let stateRef    = null;
 let seasonsRef  = null;
 const isConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY";
 let editingPlayers = false;
+
+// ハイライト選択中のプレイヤー名を保持する状態変数 (null のときは全員通常)
+let selectedHighlightPlayer = null;
 
 // ---------- Firebase ----------
 if (isConfigured) {
@@ -537,7 +549,7 @@ document.getElementById("add-match").addEventListener("click", () => {
   showToast("結果を登録しました！");
 });
 
-// ---------- 順位表 (平均着順の削除とレイアウトの微調整) ----------
+// ---------- 順位表 ----------
 let sortMode = "pt";
 
 function renderStandings() {
@@ -606,7 +618,35 @@ document.getElementById("sort-1st").addEventListener("click", () => {
   renderStandings();
 });
 
-// ---------- 対局履歴 ----------
+// ---------- 対局履歴 (ハイライト制御つき) ----------
+function setHistoryHighlight(playerName) {
+  if (selectedHighlightPlayer === playerName) {
+    selectedHighlightPlayer = null; // すでに選択されている名前をもう一度押したら解除
+  } else {
+    selectedHighlightPlayer = playerName;
+  }
+  renderHistoryButtons();
+  renderHistory();
+}
+
+function renderHistoryButtons() {
+  const container = document.getElementById("history-highlighter-container");
+  if (!container) return;
+
+  // 履歴データに含まれる全ての雀士（過去の名前変更も考慮）または現在の雀士一覧を取得
+  const allHistoryPlayers = new Set(state.players);
+  state.history.forEach(m => {
+    if (m.players) m.players.forEach(p => allHistoryPlayers.add(p));
+  });
+
+  const playerList = Array.from(allHistoryPlayers);
+
+  container.innerHTML = playerList.map(name => {
+    const isActive = selectedHighlightPlayer === name;
+    return `<button class="filter-btn ${isActive ? 'active' : ''}" onclick="setHistoryHighlight('${name}')">${name}</button>`;
+  }).join("");
+}
+
 function renderHistory() {
   const list = document.getElementById("history-list");
   if (state.history.length === 0) {
@@ -631,13 +671,20 @@ function renderHistory() {
           <span class="hist-no-label">#${origIdx+1}</span>
         </div>
         <div class="hist-grid">
-          ${rows.map(r => `
-            <div class="hist-player-box">
-              <span class="hist-rank-badge">${rankEmoji(r.rank)}</span>
-              <span class="hist-name-cell" title="${r.name}">${r.name}</span>
-              <span class="hist-pt-cell ${ptClass(r.pt)}">${fmtPt(r.pt)}</span>
-              <span class="hist-chip-cell ${chipClass(r.chip)}">${r.chip > 0 ? '+' : ''}${r.chip}</span>
-            </div>`).join("")}
+          ${rows.map(r => {
+            // ハイライト状態のクラス判定
+            let modifierClass = "";
+            if (selectedHighlightPlayer !== null) {
+              modifierClass = (r.name === selectedHighlightPlayer) ? "highlighted" : "dimmed";
+            }
+            return `
+              <div class="hist-player-box ${modifierClass}">
+                <span class="hist-rank-badge">${rankEmoji(r.rank)}</span>
+                <span class="hist-name-cell" title="${r.name}">${r.name}</span>
+                <span class="hist-pt-cell ${ptClass(r.pt)}">${fmtPt(r.pt)}</span>
+                <span class="hist-chip-cell ${chipClass(r.chip)}">${r.chip > 0 ? '+' : ''}${r.chip}</span>
+              </div>`;
+          }).join("")}
         </div>
         <button class="del-btn" onclick="deleteMatch(${origIdx})">×</button>
       </div>`;
@@ -777,6 +824,7 @@ function renderSeasonInfo() {
 // ---------- Render All ----------
 function renderAll() {
   renderStandings();
+  renderHistoryButtons();
   renderHistory();
   renderSeasonInfo();
   const hasInput = [1,2,3].some(r => {
