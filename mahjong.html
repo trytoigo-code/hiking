@@ -117,29 +117,22 @@
     }
     .btn:active { opacity: 0.85; }
 
-    /* ── Score input grid ── */
-    .score-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
-    .score-card {
-      background: #fff; border: 1px solid #ddd8cc; border-radius: 8px; padding: 10px;
+    /* ── Rank input rows ── */
+    .rank-input-row {
+      display: flex; align-items: center; gap: 10px;
+      background: #fff; border: 1px solid #ddd8cc;
+      border-radius: 8px; padding: 10px 12px; margin-bottom: 8px;
     }
-    .score-card label { font-size: 0.82rem; color: #555; margin-bottom: 5px; }
-    .score-card input { padding: 8px 10px; font-size: 1.1rem; text-align: right; font-weight: bold; }
-    .score-preview { margin-top: 5px; text-align: right; font-size: 0.82rem; font-weight: bold; min-height: 1.2em; }
-
-    /* ── Preview ── */
-    .preview-wrap {
-      background: #f9f8f4; border: 1px solid #e0dbcd;
-      border-radius: 8px; padding: 12px; margin-bottom: 14px;
+    .ri-label { width: 56px; font-weight: bold; font-size: 0.88rem; flex-shrink: 0; }
+    .ri-select { flex: 1; padding: 8px; font-size: 0.9rem; min-width: 0; }
+    .ri-pt-auto {
+      width: 76px; text-align: right; font-weight: bold;
+      font-size: 1.05rem; flex-shrink: 0; color: #bbb;
     }
-    .preview-row {
-      display: flex; align-items: center; gap: 8px;
-      padding: 6px 0; border-bottom: 1px solid #ece8dc; font-size: 0.88rem;
+    .ri-pt-input {
+      width: 82px; padding: 8px 6px; text-align: right;
+      font-size: 1.05rem; font-weight: bold; flex-shrink: 0;
     }
-    .preview-row:last-of-type { border-bottom: none; }
-    .preview-rank { font-size: 1.1rem; width: 28px; text-align: center; flex-shrink: 0; }
-    .preview-name { flex: 1; font-weight: bold; }
-    .preview-score { color: #777; font-size: 0.82rem; min-width: 68px; text-align: right; }
-    .preview-pt { font-weight: bold; min-width: 60px; text-align: right; }
 
     /* ── Standings ── */
     .rank-row {
@@ -255,16 +248,12 @@
     <!-- 結果入力 -->
     <div class="panel" id="panel-input">
       <h3>結果入力</h3>
-      <p class="note">各プレイヤーの最終点数を入力してください。全員入力完了でポイントを自動計算します。</p>
+      <p class="note">2〜4位のポイントを入力すると、1位が自動計算されます。</p>
       <div class="fg">
         <label>対局日</label>
         <input type="date" id="match-date">
       </div>
-      <div class="score-grid" id="score-inputs"></div>
-      <div id="calc-preview" style="display:none">
-        <h3>計算プレビュー</h3>
-        <div class="preview-wrap" id="preview-rows"></div>
-      </div>
+      <div id="rank-inputs"></div>
       <button class="btn" id="add-match">登録する（全員に即時反映）</button>
     </div>
 
@@ -472,58 +461,42 @@ function ptClass(pt) {
 const RANK_EMOJI = ["👑","🥈","🥉","4位"];
 function rankEmoji(r) { return RANK_EMOJI[r - 1] || `${r}位`; }
 
-// ---------- 結果入力：スコアグリッド構築 ----------
-// ※ FirebaseのonValueが発火してもスコア入力中の値を消さないよう、
-//    buildScoreInputs はプレイヤー名変更時のみ呼ぶ。
-// ----------
-function buildScoreInputs() {
-  const grid = document.getElementById("score-inputs");
-  grid.innerHTML = state.players.map((name, i) => `
-    <div class="score-card">
-      <label>${name}</label>
-      <input type="number" id="score-${i}" placeholder="30000" step="100" inputmode="numeric"
-             oninput="updatePreview()">
-      <div class="score-preview" id="score-prev-${i}"></div>
-    </div>
-  `).join("");
+// ---------- 結果入力：順位・ポイント入力グリッド構築 ----------
+// FirebaseのonValueで名前が変わったときのみ再構築する（入力中の値を消さないよう）
+const RANK_LABELS = ["👑 1位", "🥈 2位", "🥉 3位", "4位"];
+
+function buildRankInputs() {
+  const container = document.getElementById("rank-inputs");
+  container.innerHTML = RANK_LABELS.map((label, r) => {
+    const options = state.players.map((name, pi) =>
+      `<option value="${name}"${pi === r ? " selected" : ""}>${name}</option>`
+    ).join("");
+    const ptField = r === 0
+      ? `<span class="ri-pt-auto" id="ri-pt-0">—</span>`
+      : `<input type="number" class="ri-pt-input" id="ri-pt-${r}"
+             step="0.1" placeholder="0.0" inputmode="decimal" oninput="updateRankCalc()">`;
+    return `
+      <div class="rank-input-row">
+        <span class="ri-label">${label}</span>
+        <select class="ri-select" id="ri-player-${r}" onchange="updateRankCalc()">${options}</select>
+        ${ptField}
+      </div>`;
+  }).join("");
 }
 
-function updatePreview() {
-  const scores = state.players.map((_, i) => {
-    const v = parseInt(document.getElementById(`score-${i}`).value);
-    return isNaN(v) ? null : v;
-  });
-  const allFilled = scores.every(s => s !== null);
-  const preview   = document.getElementById("calc-preview");
-
-  if (!allFilled) {
-    preview.style.display = "none";
-    state.players.forEach((_, i) => { document.getElementById(`score-prev-${i}`).textContent = ""; });
-    return;
+function updateRankCalc() {
+  const pt2 = parseFloat(document.getElementById("ri-pt-1").value);
+  const pt3 = parseFloat(document.getElementById("ri-pt-2").value);
+  const pt4 = parseFloat(document.getElementById("ri-pt-3").value);
+  const el   = document.getElementById("ri-pt-0");
+  if (!isNaN(pt2) && !isNaN(pt3) && !isNaN(pt4)) {
+    const pt1 = Math.round(-(pt2 + pt3 + pt4) * 10) / 10;
+    el.textContent = fmtPt(pt1);
+    el.className   = "ri-pt-auto " + ptClass(pt1);
+  } else {
+    el.textContent = "—";
+    el.className   = "ri-pt-auto";
   }
-
-  const { ranks, points } = calcPoints(scores, state.settings);
-
-  // 順位順に並べてプレビュー表示
-  const rows = state.players.map((name, i) => ({ name, score: scores[i], rank: ranks[i], pt: points[i] }));
-  rows.sort((a, b) => a.rank - b.rank);
-
-  document.getElementById("preview-rows").innerHTML = rows.map(r => `
-    <div class="preview-row">
-      <span class="preview-rank">${rankEmoji(r.rank)}</span>
-      <span class="preview-name">${r.name}</span>
-      <span class="preview-score">${r.score.toLocaleString()}点</span>
-      <span class="preview-pt ${ptClass(r.pt)}">${fmtPt(r.pt)}</span>
-    </div>
-  `).join("");
-
-  preview.style.display = "";
-
-  // 各カードにも個別ポイントを表示
-  state.players.forEach((_, i) => {
-    const el = document.getElementById(`score-prev-${i}`);
-    el.innerHTML = `<span class="${ptClass(points[i])}">${fmtPt(points[i])}</span>`;
-  });
 }
 
 // 対局日を今日で初期化
@@ -534,11 +507,27 @@ function updatePreview() {
 })();
 
 document.getElementById("add-match").addEventListener("click", () => {
-  const scores = state.players.map((_, i) => {
-    const v = parseInt(document.getElementById(`score-${i}`).value);
-    return isNaN(v) ? null : v;
+  // プレイヤー重複チェック
+  const playerNames = [0,1,2,3].map(r => document.getElementById(`ri-player-${r}`).value);
+  if (new Set(playerNames).size !== PLAYER_COUNT) {
+    showToast("同じ対局者が複数の順位に設定されています"); return;
+  }
+
+  // 2〜4位のポイントを取得
+  const rawPts = [1,2,3].map(r => parseFloat(document.getElementById(`ri-pt-${r}`).value));
+  if (rawPts.some(isNaN)) { showToast("2〜4位のポイントを入力してください"); return; }
+
+  // 1位ポイント自動計算
+  const pt1 = Math.round(-(rawPts[0] + rawPts[1] + rawPts[2]) * 10) / 10;
+  const rankPts = [pt1, ...rawPts]; // 順位順のポイント配列
+
+  // プレイヤー別に ranks / points を構築
+  const ranks  = new Array(PLAYER_COUNT);
+  const points = new Array(PLAYER_COUNT);
+  playerNames.forEach((name, rankIdx) => {
+    const pi = state.players.indexOf(name);
+    if (pi >= 0) { ranks[pi] = rankIdx + 1; points[pi] = rankPts[rankIdx]; }
   });
-  if (scores.some(s => s === null)) { showToast("全員の点数を入力してください"); return; }
 
   const dateVal = document.getElementById("match-date").value;
   let d;
@@ -550,16 +539,13 @@ document.getElementById("add-match").addEventListener("click", () => {
     d = `${now.getMonth()+1}/${now.getDate()}`;
   }
 
-  const { ranks, points } = calcPoints(scores, state.settings);
-  state.history.push({ date: d, scores, ranks, points, players: [...state.players] });
+  state.history.push({ date: d, ranks, points, players: [...state.players] });
   pushState();
 
-  // 入力欄リセット（プレビューも閉じる）
-  state.players.forEach((_, i) => {
-    document.getElementById(`score-${i}`).value = "";
-    document.getElementById(`score-prev-${i}`).textContent = "";
-  });
-  document.getElementById("calc-preview").style.display = "none";
+  // 入力リセット
+  [1,2,3].forEach(r => { document.getElementById(`ri-pt-${r}`).value = ""; });
+  document.getElementById("ri-pt-0").textContent = "—";
+  document.getElementById("ri-pt-0").className   = "ri-pt-auto";
   showToast("結果を登録しました！");
 });
 
@@ -638,7 +624,7 @@ function renderHistory() {
   list.innerHTML = [...state.history].reverse().map((m, revIdx) => {
     const origIdx = state.history.length - 1 - revIdx;
     const ps      = m.players || state.players;
-    const rows    = ps.map((name, i) => ({ name, score: m.scores[i], rank: m.ranks[i], pt: m.points[i] }));
+    const rows    = ps.map((name, i) => ({ name, rank: m.ranks[i], pt: m.points[i] }));
     rows.sort((a, b) => a.rank - b.rank);
 
     return `
@@ -652,7 +638,6 @@ function renderHistory() {
           <div class="hist-row">
             <span class="hist-rank">${rankEmoji(r.rank)}</span>
             <span class="hist-name">${r.name}</span>
-            <span class="hist-score">${r.score.toLocaleString()}点</span>
             <span class="hist-pt ${ptClass(r.pt)}">${fmtPt(r.pt)}</span>
           </div>`).join("")}
       </div>`;
@@ -753,7 +738,7 @@ document.getElementById("save-players").addEventListener("click", () => {
     const v = document.getElementById("p" + i).value.trim();
     return v || `対局者${i+1}`;
   });
-  buildScoreInputs();  // 名前変更時のみグリッドを再構築
+  buildRankInputs();   // 名前変更時のみグリッドを再構築
   pushState();
   showToast("対局者名を全員に同期しました！");
 });
@@ -800,7 +785,7 @@ function renderAll() {
 // ---------- 初期化 ----------
 fillPlayerInputs();
 fillSettingInputs();
-buildScoreInputs();
+buildRankInputs();
 renderAll();
 </script>
 </body>
