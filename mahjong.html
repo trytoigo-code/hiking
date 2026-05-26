@@ -1,62 +1,3 @@
-<!--
-================================================================================
-  このアプリについて
-  麻雀成績管理アプリ「点棒」― 設計思想と共同編集の進め方
-================================================================================
-
-【アプリの目的】
-  少人数の麻雀メンバーで半荘ごとの成績を共有・管理する。
-  点数・順位・ポイントを全員がリアルタイムで確認できることを重視する。
-  現時点では4名での利用を想定しているが、今後の拡張余地を残した設計とする。
-
-【利用環境】
-  - スマホ利用を最優先とする（モバイルファースト）
-  - GitHub Pages でホスティング（現時点では単一 index.html で完結）
-  - Firebase Realtime Database によるリアルタイム同期
-
-【技術構成】
-  - バニラJS（React・Babel 不使用）
-  - Firebase Realtime Database（CDN読み込み）
-  - 外部ライブラリなし・ビルド不要・1ファイル完結
-  - 新技術の導入より、継続して利用しやすい構成を優先する
-
-【共同編集の進め方】
-  このアプリは、ユーザーと生成AIが対話しながら少しずつ育てていくものです。
-  以下は、その共同作業をうまく続けるための共通認識です。
-
-  ・このアプリの文脈と歴史を理解した上で提案する
-  ・変更の意図と影響範囲を共有しながら進める
-  ・小さな積み重ねを大切にし、一度に大きく変えない
-  ・既存の操作感や雰囲気はできるだけ引き継ぐ
-  ・読みやすく・触りやすく・壊れにくい構成を選ぶ
-  ・新しい技術より、長く使い続けられることを優先する
-  ・機能を追加・変更したら「主な機能」と「今後の改良候補」を合わせて更新する
-
-【主な機能（現時点）】
-  - 雀士設定（4名、拡張余地あり）
-  - 結果入力（各自の最終点数を入力 → 順位・ポイントを自動計算）
-  - ウマ・返し点・配給原点の設定（オカは自動計算）
-  - リアルタイムプレビュー（全員入力完了で順位とポイントを即時表示）
-  - 合計点数チェック（配給原点×人数と照合）
-  - 順位表（ポイント合計順・1位回数順の切り替え対応）
-    - 総得点・対局数・着順分布・平均着順を表示
-  - 対局履歴（半荘ごとの点数・ポイント・順位を表示）
-    - 削除・10秒以内ならUNDO可能
-  - シーズンリセット（履歴をFirebaseに保存後リセット）
-  - Firebase によるリアルタイム同期
-
-【ポイント計算方式】
-  ポイント = (最終点数 - 返し点) ÷ 1000 + 着順補正[順位]
-  着順補正はウマ・オカを合算した値を直接設定する
-  デフォルト：返し点30000・補正 +40/+10/−10/−40
-
-【今後の改良候補】
-  - 得点推移グラフ（折れ線）
-  - 着順分布の棒グラフ表示
-  - データのCSVエクスポート
-  - ダークモード対応
-================================================================================
--->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -215,7 +156,6 @@
 <body>
 <div id="app">
 
-  <!-- Header -->
   <div id="header">
     <h1>🀄 麻雀成績管理「点棒」</h1>
     <div id="sync-row">
@@ -224,7 +164,6 @@
     </div>
   </div>
 
-  <!-- Tabs -->
   <div id="nav">
     <button class="tab-btn active" data-tab="standings">🏆順位表</button>
     <button class="tab-btn" data-tab="input">📝結果入力</button>
@@ -232,10 +171,8 @@
     <button class="tab-btn" data-tab="setup">⚙️設定</button>
   </div>
 
-  <!-- Content -->
   <div id="content">
 
-    <!-- 順位表 -->
     <div class="panel active" id="panel-standings">
       <h3>順位</h3>
       <div style="display:flex;gap:8px;margin-bottom:12px">
@@ -245,7 +182,6 @@
       <div id="rank-list"></div>
     </div>
 
-    <!-- 結果入力 -->
     <div class="panel" id="panel-input">
       <h3>結果入力</h3>
       <p class="note">2〜4位のポイントを入力すると、1位が自動計算されます。</p>
@@ -257,14 +193,12 @@
       <button class="btn" id="add-match">登録する（全員に即時反映）</button>
     </div>
 
-    <!-- 履歴 -->
     <div class="panel" id="panel-history">
       <h3>対局履歴</h3>
       <p class="note">最新の半荘が上に表示されます。削除後10秒以内は「元に戻す」が使えます。</p>
       <div id="history-list"></div>
     </div>
 
-    <!-- 設定 -->
     <div class="panel" id="panel-setup">
       <div id="setup-banner">
         ⚙️ <strong>Firebase未設定 — ローカル動作中</strong><br>
@@ -284,7 +218,6 @@
       <p class="note" id="adj-note" style="background:#f9f8f4;border:1px solid #e0dbcd;border-radius:6px;padding:8px 10px;margin-bottom:14px;color:#555"></p>
       <button class="btn" id="save-settings" style="margin-bottom:24px">ルールを保存して同期</button>
 
-      <!-- 管理者メニュー（折りたたみ） -->
       <div id="admin-toggle" style="cursor:pointer;padding:12px 0;display:flex;align-items:center;gap:8px;color:#2c3e50;font-weight:bold;font-size:1rem;border-bottom:1px solid #e0dbcd">
         <span id="admin-arrow">▶</span>
         <span>管理者の仕事</span>
@@ -306,10 +239,7 @@
       </div>
     </div>
 
-  </div><!-- /content -->
-</div><!-- /app -->
-
-<div id="toast" style="display:none">
+  </div></div><div id="toast" style="display:none">
   <span id="toast-msg"></span>
   <button id="toast-undo" style="display:none">元に戻す</button>
 </div>
@@ -474,7 +404,7 @@ function buildRankInputs() {
     const ptField = r === 0
       ? `<span class="ri-pt-auto" id="ri-pt-0">—</span>`
       : `<input type="number" class="ri-pt-input" id="ri-pt-${r}"
-             step="1" placeholder="0" inputmode="numeric" oninput="updateRankCalc()">`;
+             step="1" placeholder="0" oninput="updateRankCalc()">`; // inputmode="numeric" を削除
     return `
       <div class="rank-input-row">
         <span class="ri-label">${label}</span>
@@ -614,7 +544,7 @@ document.getElementById("sort-1st").addEventListener("click", () => {
   renderStandings();
 });
 
-// ---------- 対局履歴 ----------
+// ---------- 对局履歴 ----------
 function renderHistory() {
   const list = document.getElementById("history-list");
   if (state.history.length === 0) {
