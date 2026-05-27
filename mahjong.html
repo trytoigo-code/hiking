@@ -327,6 +327,10 @@
         <button class="btn" id="season-reset" style="background:#e74c3c">新シーズンを始める</button>
         <div id="past-seasons" style="margin-top:16px"></div>
 
+        <h3 style="margin-top:24px">完全リセット</h3>
+        <p class="note">テスト中など、すべてをやり直したいときに使います。履歴・アーカイブ・シーズン番号をすべて消去してシーズン1に戻します。</p>
+        <button class="btn" id="full-reset" style="background:#888">シーズン1からやり直す</button>
+
       </div>
     </div>
 
@@ -841,7 +845,16 @@ document.getElementById("season-reset").addEventListener("click", () => {
   renderSeasonInfo();
 });
 
-function renderSeasonInfo() {
+// ---------- 完全リセット ----------
+document.getElementById("full-reset").addEventListener("click", () => {
+  if (!confirm("履歴・アーカイブ・シーズン番号をすべて消去してシーズン1に戻します。\nこの操作は取り消せません。本当によいですか？")) return;
+  if (seasonsRef) seasonsRef.remove();
+  state.history = [];
+  state.season  = 1;
+  pushState();
+  showToast("完全リセットしました。シーズン1から始めます。");
+  renderSeasonInfo();
+});
   document.getElementById("season-info").textContent =
     `現在：シーズン${state.season}（${state.history.length}回終了）`;
 }
