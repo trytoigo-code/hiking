@@ -1,3 +1,56 @@
+<!--
+================================================================================
+  このアプリについて
+  麻雀成績管理アプリ「点棒」― 設計思想と共同編集の進め方
+================================================================================
+
+【アプリの目的】
+  少人数の麻雀グループの成績を、全員がリアルタイムで確認・共有できるようにする。
+  ポイントとチップを合算した総合順位を軸に、シーズン単位で成績を管理する。
+  現時点では4名での利用を想定している。
+
+【利用環境】
+  - スマホ利用を最優先とする（モバイルファースト）
+  - GitHub Pages でホスティング（単一 index.html で完結）
+  - Firebase Realtime Database によるリアルタイム同期
+
+【技術構成】
+  - バニラJS（React・Babel 不使用）
+  - Firebase Realtime Database（CDN読み込み）
+  - 外部ライブラリなし・ビルド不要・1ファイル完結
+  - 新技術の導入より、継続して利用しやすい構成を優先する
+
+【共同編集の進め方】
+  このアプリは、ユーザーと生成AIが対話しながら少しずつ育てていくものです。
+  以下は、その共同作業をうまく続けるための共通認識です。
+
+  ・このアプリの文脈と歴史を理解した上で提案する
+  ・変更の意図と影響範囲を共有しながら進める
+  ・小さな積み重ねを大切にし、一度に大きく変えない
+  ・既存の操作感や雰囲気はできるだけ引き継ぐ
+  ・読みやすく・触りやすく・壊れにくい構成を選ぶ
+  ・新しい技術より、長く使い続けられることを優先する
+  ・機能を追加・変更したら「主な機能」と「今後の改良候補」を合わせて更新する
+
+【主な機能（現時点）】
+  - 雀士設定（4名）
+  - 結果入力（2〜4位のスコアを入力すると1位が自動計算）
+  - チップ入力（枚数を入力、設定レートでポイント換算）
+  - 順位表（総合ポイント順 / 1位回数順の切り替え）
+      総合ポイント = 対局ポイント + チップ換算ポイント
+      内訳を「対局pt / 🪙チップ換算pt」形式で表示
+  - 対局履歴（雀士別ハイライト表示・削除＋10秒Undo機能付き）
+  - シーズン管理（履歴をFirebaseにアーカイブ後リセット）
+  - 過去シーズンのアーカイブ表示
+  - 管理者メニュー（設定タブ内・折りたたみ式）
+      雀士設定・チップレート設定・シーズン管理を収録
+  - Firebase によるリアルタイム同期
+
+【今後の改良候補】
+  - データのエクスポート（CSV等）
+  - ダークモード対応
+================================================================================
+-->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -236,6 +289,7 @@
     </div>
 
     <div class="panel" id="panel-setup">
+
       <div id="setup-banner">
         ⚙️ <strong>Firebase未設定 — ローカル動作中</strong><br>
         全員でリアルタイム共有するには <code>index.html</code> の
@@ -244,28 +298,36 @@
         → Realtime Database を有効化
       </div>
 
-      <h3>ルール設定</h3>
-      <p class="note">チップ1枚を何ポイントとして総合順位に合算するか設定します。</p>
-      <div class="fg" style="display:flex; align-items:center; gap:8px; margin-bottom:20px;">
-        <span style="font-size:0.9rem; font-weight:bold; color:#444;">チップ 1枚 ＝</span>
-        <input id="chip-rate" type="number" step="any" style="width:80px; text-align:center; padding:6px;" value="1">
-        <span style="font-size:0.9rem; font-weight:bold; color:#444;">ポイント (pt)</span>
+      <div id="admin-toggle" style="cursor:pointer;padding:12px 0;display:flex;align-items:center;gap:8px;color:#2c3e50;font-weight:bold;font-size:1rem;border-bottom:1px solid #e0dbcd">
+        <span id="admin-arrow">▶</span>
+        <span>管理者の仕事</span>
       </div>
+      <div id="admin-body" style="display:none;margin-top:16px">
 
-      <h3>雀士設定</h3>
-      <p class="note">雀士の名前を設定してください。変更すると全員の画面に即時反映されます。</p>
-      <div class="fg"><label>雀士 1</label><input id="p0" type="text"></div>
-      <div class="fg"><label>雀士 2</label><input id="p1" type="text"></div>
-      <div class="fg"><label>雀士 3</label><input id="p2" type="text"></div>
-      <div class="fg"><label>雀士 4</label><input id="p3" type="text"></div>
-      
-      <button class="btn" id="save-settings">設定を保存して全員に同期</button>
+        <h3>ルール設定</h3>
+        <p class="note">チップ1枚を何ポイントとして総合順位に合算するか設定します。</p>
+        <div class="fg" style="display:flex; align-items:center; gap:8px; margin-bottom:20px;">
+          <span style="font-size:0.9rem; font-weight:bold; color:#444;">チップ 1枚 ＝</span>
+          <input id="chip-rate" type="number" step="any" style="width:80px; text-align:center; padding:6px;" value="1">
+          <span style="font-size:0.9rem; font-weight:bold; color:#444;">ポイント (pt)</span>
+        </div>
 
-      <h3 style="margin-top:24px">シーズン管理</h3>
-      <p class="note">対局履歴をリセットします。アーカイブとしてFirebaseに保存されます。</p>
-      <div id="season-info" style="margin-bottom:12px;font-size:0.9rem;color:#2c3e50;font-weight:bold"></div>
-      <button class="btn" id="season-reset" style="background:#e74c3c">新シーズンを始める</button>
-      <div id="past-seasons" style="margin-top:16px"></div>
+        <h3>雀士設定</h3>
+        <p class="note">雀士の名前を設定してください。変更すると全員の画面に即時反映されます。</p>
+        <div class="fg"><label>雀士 1</label><input id="p0" type="text"></div>
+        <div class="fg"><label>雀士 2</label><input id="p1" type="text"></div>
+        <div class="fg"><label>雀士 3</label><input id="p2" type="text"></div>
+        <div class="fg"><label>雀士 4</label><input id="p3" type="text"></div>
+
+        <button class="btn" id="save-settings">設定を保存して全員に同期</button>
+
+        <h3 style="margin-top:24px">シーズン管理</h3>
+        <p class="note">対局履歴をリセットします。アーカイブとしてFirebaseに保存されます。</p>
+        <div id="season-info" style="margin-bottom:12px;font-size:0.9rem;color:#2c3e50;font-weight:bold"></div>
+        <button class="btn" id="season-reset" style="background:#e74c3c">新シーズンを始める</button>
+        <div id="past-seasons" style="margin-top:16px"></div>
+
+      </div>
     </div>
 
   </div></div><div id="toast" style="display:none">
@@ -329,6 +391,8 @@ if (isConfigured) {
   }
 } else {
   document.getElementById("setup-banner").style.display = "block";
+  document.getElementById("admin-body").style.display = "";
+  document.getElementById("admin-arrow").textContent = "▼";
   setSyncStatus(false);
 }
 
@@ -711,6 +775,15 @@ function showToast(msg) {
   if (toastTimer) clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { el.style.display = "none"; }, 2500);
 }
+
+// ---------- 管理者メニュー開閉 ----------
+document.getElementById("admin-toggle").addEventListener("click", () => {
+  const body  = document.getElementById("admin-body");
+  const arrow = document.getElementById("admin-arrow");
+  const isOpen = body.style.display !== "none";
+  body.style.display = isOpen ? "none" : "";
+  arrow.textContent  = isOpen ? "▶" : "▼";
+});
 
 // ---------- 設定画面の入力制御 ----------
 function fillSettingsInputs() {
