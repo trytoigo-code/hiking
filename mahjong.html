@@ -565,24 +565,23 @@ function renderStandings() {
 
   const MEDALS = ["🥇","🥈","🥉","4"];
   document.getElementById("rank-list").innerHTML = data.map((p, i) => {
+    const chipPt = Number((p.chipTotal * state.chipRate).toFixed(2));
     return `
       <div class="rank-row">
         <div class="rank-num">${MEDALS[i] || i+1}</div>
         <div class="rank-info">
           <div class="rank-name">${p.name}</div>
           <div class="rank-sub">
-            ${p.games}回 ／ 👑${p.c[1]} 🥈${p.c[2]} 🥉${p.c[3]} 4位:${p.c[4]}
+            ${p.games}回 ／ 👑${p.c[1]} 🥈${p.c[2]} 🥉${p.c[3]} <span style="opacity:0.7">4位:${p.c[4]}</span>
           </div>
         </div>
         <div class="rank-right-score">
           <div class="rank-pt ${ptClass(p.overall)}">${fmtPt(p.overall)}</div>
-          <div style="font-size:0.6rem;color:#aaa;text-align:right;margin-bottom:3px">総合ポイント</div>
-          <div class="rank-breakdown" style="margin-top:1px">
-            <span style="color:#555">対局</span> <span class="${ptClass(p.total)}">${fmtPt(p.total)}</span>
-            <span style="color:#bbb;margin:0 2px">＋</span>
-            <span style="color:#555">🪙</span> <span class="${chipClass(p.chipTotal)}">${p.chipTotal > 0 ? '+' : ''}${p.chipTotal}枚</span>
-            <span style="color:#bbb;margin:0 2px">=</span>
-            <span class="${chipClass(Number((p.chipTotal * state.chipRate).toFixed(2)))}">${fmtPt(Number((p.chipTotal * state.chipRate).toFixed(2)))}pt</span>
+          <div style="font-size:0.6rem;color:#aaa;text-align:right;margin-bottom:4px">総合ポイント</div>
+          <div class="rank-breakdown">
+            <span style="color:#888">対局</span><span class="${ptClass(p.total)}" style="margin-left:3px">${fmtPt(p.total)}</span>
+            <span style="color:#ccc;margin:0 3px">/</span>
+            <span style="color:#888">🪙</span><span class="${chipClass(chipPt)}" style="margin-left:2px">${fmtPt(chipPt)}pt</span>
           </div>
         </div>
       </div>`;
