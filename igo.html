@@ -778,7 +778,7 @@ function renderWinsChart() {
     </div>`;
 }
 
-
+function renderStandings() {
   const raw = calcStats();
   const sorted = raw.slice().sort((a,b) => {
     if (sortMode === "rate") {
