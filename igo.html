@@ -394,6 +394,16 @@
       <button class="btn" id="edit-save">保存する</button>
       <button class="btn" id="edit-cancel" style="background:#999">キャンセル</button>
     </div>
+    <div style="margin-top:16px;border-top:1px solid #e0dbcd;padding-top:14px">
+      <div style="font-size:0.88rem;font-weight:bold;color:#2c3e50;margin-bottom:8px">💬 コメント</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="font-size:0.82rem;color:#555;white-space:nowrap">名前：</span>
+        <select id="edit-comment-author" style="flex:1;border:1px solid #ddd;border-radius:6px;padding:5px 8px;font-size:0.85rem;font-family:inherit;background:#fff">
+          <option value="">（なし）</option>
+        </select>
+      </div>
+      <textarea id="edit-comment-text" rows="2" style="width:100%;box-sizing:border-box;border:1px solid #ddd;border-radius:6px;padding:6px 8px;font-size:0.85rem;font-family:inherit;resize:vertical" placeholder="一言メモ（任意）"></textarea>
+    </div>
   </div>
 </div>
 
@@ -1620,6 +1630,19 @@ function openEditModal(m, idx) {
   document.getElementById("edit-label-teai-pair").textContent = isJigo ? "対局者B" : "敗者";
 
   document.getElementById("edit-modal").style.display = "";
+
+  // コメントフィールドを初期化
+  const authorSel = document.getElementById("edit-comment-author");
+  authorSel.innerHTML = `<option value="">（なし）</option>` +
+    state.players.map(p => `<option value="${p}">${p}</option>`).join("");
+  const existComment = m.comment || "";
+  if (typeof existComment === "object") {
+    authorSel.value = existComment.author || "";
+    document.getElementById("edit-comment-text").value = existComment.text || "";
+  } else {
+    authorSel.value = "";
+    document.getElementById("edit-comment-text").value = existComment;
+  }
 }
 
 // 結果種別変更でラベル・目数差欄を切替
@@ -1684,6 +1707,14 @@ document.getElementById("edit-save").addEventListener("click", () => {
   }
 
   state.history[editTargetIdx] = updated;
+
+  // コメントも保存
+  const cAuthor = document.getElementById("edit-comment-author").value.trim();
+  const cText   = document.getElementById("edit-comment-text").value.trim();
+  updated.comment = (cText && cAuthor) ? { text: cText, author: cAuthor }
+                  : cText ? { text: cText, author: "" }
+                  : "";
+
   pushState();
   document.getElementById("edit-modal").style.display = "none";
   showToast("対局記録を修正しました");
