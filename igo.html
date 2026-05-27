@@ -48,6 +48,7 @@
   - 管理者メニュー（折りたたみ式・対局者設定・初期手合い設定・シーズン管理を収録）
   - 完全リセット（履歴・アーカイブ・シーズン番号を消去してシーズン1に戻す。手合いレベルは保持）
   - 勝敗グラフ（星取表タブ最上部。名前をベースラインに勝ちバーは上・負けバーは下に伸びる分岐縦棒グラフ）
+  - 対局コメント（履歴から各対局に一言メモを後から追記可能。短文はそのまま表示、長文は折りたたみ）
   - Firebase によるリアルタイム同期
 
 【今後の改良候補】
@@ -1090,13 +1091,54 @@ function matchListHTML(filtered, anchorPlayer) {
     const rightName = effectiveWinner === "right" ? `<strong>${right}</strong>${teai(rightTeai)} 👑`
                     : effectiveWinner === "left"  ? `${right}${teai(rightTeai)}`
                     : `<strong>${right}</strong>${teai(rightTeai)}`;
+    const commentHTML = (() => {
+      const raw = m.comment || "";
+      if (!raw) return `<div class="hist-comment" data-id="${m.id || idx}"></div>`;
+      // 後方互換: 旧データは文字列、新データは {text, author}
+      const text   = typeof raw === "object" ? (raw.text   || "") : raw;
+      const author = typeof raw === "object" ? (raw.author || "") : "";
+      const label  = author ? `<strong>${author}</strong>：` : "";
+      const body   = `${label}${text}`;
+      if (text.length <= 30) return `
+        <div class="hist-comment" data-id="${m.id || idx}" style="margin-top:6px;font-size:0.8rem;color:#666;font-style:italic">💬 ${body}</div>`;
+      return `
+        <div class="hist-comment" data-id="${m.id || idx}" style="margin-top:6px">
+          <details style="font-size:0.8rem;color:#666">
+            <summary style="cursor:pointer;list-style:none;font-style:italic">💬 ${body.slice(0,30)}…</summary>
+            <div style="margin-top:4px;white-space:pre-wrap;font-style:italic">${body}</div>
+          </details>
+        </div>`;
+    })();
+    const playerOptions = state.players.map(p =>
+      `<option value="${p}">${p}</option>`).join("");
+    const savedAuthor = m.comment && typeof m.comment === "object" ? m.comment.author : "";
+    const savedText   = m.comment && typeof m.comment === "object" ? m.comment.text
+                      : (typeof m.comment === "string" ? m.comment : "");
     return `
-      <div class="hist-item">
-        <div>${leftName} vs ${rightName} ${badgeHTML(m)}<br>
-        <span class="hist-date">${m.date}</span></div>
-        <div style="display:flex;gap:6px;flex-shrink:0">
-          <button class="edit-btn" data-id="${m.id || idx}" style="background:#b89752;color:#fff;border:none;padding:5px 10px;border-radius:4px;font-size:0.78rem;cursor:pointer">修正</button>
-          <button class="del-btn" data-id="${m.id || idx}">削除</button>
+      <div class="hist-item" style="flex-direction:column;align-items:stretch">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>${leftName} vs ${rightName} ${badgeHTML(m)}<br>
+          <span class="hist-date">${m.date}</span></div>
+          <div style="display:flex;gap:6px;flex-shrink:0">
+            <button class="comment-btn" data-id="${m.id || idx}" style="background:#f0ede4;color:#888;border:1px solid #ddd;padding:5px 8px;border-radius:4px;font-size:0.78rem;cursor:pointer">💬</button>
+            <button class="edit-btn" data-id="${m.id || idx}" style="background:#b89752;color:#fff;border:none;padding:5px 10px;border-radius:4px;font-size:0.78rem;cursor:pointer">修正</button>
+            <button class="del-btn" data-id="${m.id || idx}">削除</button>
+          </div>
+        </div>
+        ${commentHTML}
+        <div class="comment-form" data-id="${m.id || idx}" style="display:none;margin-top:8px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <span style="font-size:0.82rem;color:#555;white-space:nowrap">名前：</span>
+            <select class="comment-author" style="flex:1;border:1px solid #ddd;border-radius:6px;padding:5px 8px;font-size:0.85rem;font-family:inherit;background:#fff">
+              <option value="">（選択してください）</option>
+              ${playerOptions}
+            </select>
+          </div>
+          <textarea class="comment-input" rows="2" style="width:100%;box-sizing:border-box;border:1px solid #ddd;border-radius:6px;padding:6px 8px;font-size:0.85rem;font-family:inherit;resize:vertical" placeholder="一言メモを入力…">${savedText}</textarea>
+          <div style="display:flex;gap:6px;margin-top:4px;justify-content:flex-end">
+            <button class="comment-cancel" data-id="${m.id || idx}" style="background:#f0ede4;border:1px solid #ddd;padding:4px 12px;border-radius:4px;font-size:0.8rem;cursor:pointer">キャンセル</button>
+            <button class="comment-save" data-id="${m.id || idx}" style="background:#2c3e50;color:#fff;border:none;padding:4px 12px;border-radius:4px;font-size:0.8rem;cursor:pointer">保存</button>
+          </div>
         </div>
       </div>`;
   }).join("");
@@ -1222,6 +1264,42 @@ function renderHistory() {
       const editId = btn.dataset.id;
       const idx = state.history.findIndex(m => (m.id || String(state.history.indexOf(m))) === editId);
       if (idx !== -1) openEditModal(state.history[idx], idx);
+    });
+  });
+
+  // コメントボタンリスナー
+  el.querySelectorAll(".comment-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.id;
+      const form = el.querySelector(`.comment-form[data-id="${id}"]`);
+      if (!form) return;
+      const isOpen = form.style.display !== "none";
+      // 他のフォームを閉じる
+      el.querySelectorAll(".comment-form").forEach(f => f.style.display = "none");
+      form.style.display = isOpen ? "none" : "";
+      if (!isOpen) form.querySelector(".comment-input").focus();
+    });
+  });
+
+  el.querySelectorAll(".comment-cancel").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const form = el.querySelector(`.comment-form[data-id="${btn.dataset.id}"]`);
+      if (form) form.style.display = "none";
+    });
+  });
+
+  el.querySelectorAll(".comment-save").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.id;
+      const form = el.querySelector(`.comment-form[data-id="${id}"]`);
+      const author = form ? form.querySelector(".comment-author").value.trim() : "";
+      const text   = form ? form.querySelector(".comment-input").value.trim() : "";
+      if (!author) { alert("名前を選択してください"); return; }
+      const idx = state.history.findIndex(m => (m.id || String(state.history.indexOf(m))) === id);
+      if (idx === -1) return;
+      state.history[idx].comment = text ? { text, author } : "";
+      pushState();
+      showToast("コメントを保存しました");
     });
   });
 }
