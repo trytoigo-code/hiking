@@ -855,6 +855,9 @@ document.getElementById("full-reset").addEventListener("click", () => {
   showToast("完全リセットしました。シーズン1から始めます。");
   renderSeasonInfo();
 });
+
+// ---------- シーズン情報表示 ----------
+function renderSeasonInfo() {
   document.getElementById("season-info").textContent =
     `現在：シーズン${state.season}（${state.history.length}回終了）`;
 }
