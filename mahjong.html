@@ -383,6 +383,7 @@ function rankEmoji(r) { return RANK_EMOJI[r - 1] || `${r}位`; }
 const RANK_LABELS = ["👑 1位", "🥈 2位", "🥉 3位", "4位"];
 
 function buildRankInputs() {
+  rankInputDirty = false; // 【追加】リビルド時はフラグをリセット
   const container = document.getElementById("rank-inputs");
   if (!container) return;
   container.innerHTML = RANK_LABELS.map((label, r) => {
@@ -395,13 +396,13 @@ function buildRankInputs() {
     return `
       <div class="rank-input-row ${isTop ? 'top-auto-row' : ''}">
         <span class="ri-label">${label}</span>
-        <select class="ri-select" id="ri-player-${r}">${options}</select>
+        <select class="ri-select" id="ri-player-${r}" onchange="rankInputDirty = true">${options}</select>
         
         <div class="ri-val-wrap">
           <span class="ri-val-title">ポイント</span>
           <div class="ri-input-box">
             <input type="text" inputmode="numeric" pattern="[0-9-.]*" class="ri-pt-input" id="ri-pt-${r}" 
-              placeholder="0" ${isTop ? 'readonly' : 'oninput="recalcTopScore()"'}>
+              placeholder="0" ${isTop ? 'readonly' : 'oninput="rankInputDirty = true; recalcTopScore()"'}>
             <button class="sign-toggle-btn ${isTop ? 'hidden' : ''}" onclick="toggleSign('ri-pt-${r}')">±</button>
           </div>
         </div>
@@ -410,7 +411,7 @@ function buildRankInputs() {
           <span class="ri-val-title">チップ</span>
           <div class="ri-input-box">
             <input type="text" inputmode="numeric" pattern="[0-9-]*" class="ri-chip-input" id="ri-chip-${r}" 
-              placeholder="0" ${isTop ? 'readonly' : 'oninput="recalcTopScore()"'}>
+              placeholder="0" ${isTop ? 'readonly' : 'oninput="rankInputDirty = true; recalcTopScore()"'}>
             <button class="sign-toggle-btn ${isTop ? 'hidden' : ''}" onclick="toggleSign('ri-chip-${r}')">±</button>
           </div>
         </div>
@@ -423,13 +424,13 @@ function toggleSign(id) {
   const el = document.getElementById(id);
   if (!el) return;
   let valStr = el.value.trim();
+  if (valStr === "" || valStr === "0") return; // 【修正】空欄・0のときは何もしない（ぶら下がり"-"を防ぐ）
   if (valStr.startsWith("-")) {
     el.value = valStr.substring(1);
-  } else if (valStr !== "" && valStr !== "0") {
-    el.value = "-" + valStr;
   } else {
-    el.value = "-";
+    el.value = "-" + valStr;
   }
+  rankInputDirty = true;
   recalcTopScore();
 }
 
@@ -511,6 +512,7 @@ document.getElementById("add-match").addEventListener("click", () => {
     document.getElementById(`ri-pt-${r}`).value = "";
     document.getElementById(`ri-chip-${r}`).value = "";
   });
+  rankInputDirty = false; // 【追加】登録後はフラグをリセットしてrebuildを許可
   recalcTopScore();
   
   showToast("結果を登録しました！");
@@ -518,6 +520,7 @@ document.getElementById("add-match").addEventListener("click", () => {
 
 // ---------- 順位表 ----------
 let sortMode = "pt";
+let rankInputDirty = false; // 【追加】順位入力欄のドロップダウンが変更されたかを追跡するフラグ
 
 function renderStandings() {
   const totals = {}, chipTotals = {}, gameCnt = {}, rankCnt = { 1:{}, 2:{}, 3:{}, 4:{} };
@@ -573,8 +576,14 @@ function renderStandings() {
         </div>
         <div class="rank-right-score">
           <div class="rank-pt ${ptClass(p.overall)}">${fmtPt(p.overall)}</div>
-          <div class="rank-chip-total ${chipClass(p.chipTotal)}">🪙 ${p.chipTotal > 0 ? '+' : ''}${p.chipTotal}枚</div>
-          <div class="rank-breakdown">(ポイント:${fmtPt(p.total)})</div>
+          <div style="font-size:0.6rem;color:#aaa;text-align:right;margin-bottom:3px">総合ポイント</div>
+          <div class="rank-breakdown" style="margin-top:1px">
+            <span style="color:#555">対局</span> <span class="${ptClass(p.total)}">${fmtPt(p.total)}</span>
+            <span style="color:#bbb;margin:0 2px">＋</span>
+            <span style="color:#555">🪙</span> <span class="${chipClass(p.chipTotal)}">${p.chipTotal > 0 ? '+' : ''}${p.chipTotal}枚</span>
+            <span style="color:#bbb;margin:0 2px">=</span>
+            <span class="${chipClass(Number((p.chipTotal * state.chipRate).toFixed(2)))}">${fmtPt(Number((p.chipTotal * state.chipRate).toFixed(2)))}pt</span>
+          </div>
         </div>
       </div>`;
   }).join("") || `<p style="color:#999;font-size:0.9rem">まだ対局がありません。</p>`;
@@ -669,7 +678,7 @@ let pendingDelete = null;
 function deleteMatch(idx) {
   pendingDelete = { idx, record: state.history[idx] };
   state.history.splice(idx, 1);
-  renderAll();
+  pushState(); // 【修正】即座にFirebaseへ反映（遅延pushだとFirebaseのon("value")が上書きして削除が消える競合バグを修正）
 
   const el = document.getElementById("toast");
   document.getElementById("toast-msg").textContent = "削除しました";
@@ -681,7 +690,7 @@ function deleteMatch(idx) {
 
   undoTimer = setTimeout(() => {
     el.style.display = "none";
-    if (pendingDelete) { pushState(); pendingDelete = null; }
+    pendingDelete = null; // 【修正】既にpushState済みなので、ここでは単にクリアするだけ
   }, 10000);
 }
 
@@ -690,7 +699,7 @@ document.getElementById("toast-undo").addEventListener("click", () => {
     state.history.splice(pendingDelete.idx, 0, pendingDelete.record);
     pendingDelete = null;
     if (undoTimer) clearTimeout(undoTimer);
-    renderAll();
+    pushState(); // 【修正】元に戻す場合もFirebaseへ即座に反映
     showToast("元に戻しました");
   }
 });
@@ -771,12 +780,8 @@ function renderAll() {
   renderHistoryButtons();
   renderHistory();
   renderSeasonInfo();
-  const hasInput = [1,2,3].some(r => {
-    const elPt = document.getElementById(`ri-pt-${r}`);
-    const elCp = document.getElementById(`ri-chip-${r}`);
-    return (elPt && elPt.value !== "") || (elCp && elCp.value !== "");
-  });
-  if (!hasInput) buildRankInputs();
+  // 【修正】ドロップダウン変更・スコア入力のいずれかが行われていたらrebuildしない
+  if (!rankInputDirty) buildRankInputs();
 }
 
 // ---------- 初期化 ----------
