@@ -47,6 +47,7 @@
   - 過去シーズンのアーカイブ表示（Firebase go-league/seasons/ に保存）
   - 管理者メニュー（折りたたみ式・対局者設定・初期手合い設定・シーズン管理を収録）
   - 完全リセット（履歴・アーカイブ・シーズン番号を消去してシーズン1に戻す。手合いレベルは保持）
+  - 勝敗グラフ（星取表タブ最上部。プレイヤーごとの勝敗を積み上げ横棒グラフで表示）
   - Firebase によるリアルタイム同期
 
 【今後の改良候補】
@@ -315,6 +316,7 @@
 
     <!-- 星取表 -->
     <div class="panel active" id="panel-standings">
+      <div id="wins-chart" style="margin-bottom:24px"></div>
       <h3>順位</h3>
       <div style="display:flex;gap:8px;margin-bottom:12px">
         <button class="filter-btn active" id="sort-wins">勝数順</button>
@@ -682,6 +684,7 @@ function resetInputForm() {
 // ---------- Render ----------
 function renderAll() {
   buildSelects();
+  renderWinsChart();
   renderStandings();
   renderHistory();
   renderHandicap();
@@ -733,7 +736,49 @@ function heatmapText(wins, losses) {
   return "#333";
 }
 
-function renderStandings() {
+function renderWinsChart() {
+  const el = document.getElementById("wins-chart");
+  if (!el) return;
+  const stats = calcStats();
+  if (stats.every(p => p.total === 0)) { el.innerHTML = ""; return; }
+
+  const maxTotal = Math.max(...stats.map(p => p.total), 1);
+  const BAR_H = 140; // px
+
+  el.innerHTML = `
+    <h3 style="margin-top:0;margin-bottom:12px">勝敗グラフ</h3>
+    <div style="display:flex;align-items:flex-end;gap:10px;height:${BAR_H + 40}px;padding-bottom:0">
+      ${stats.map(p => {
+        const wH = Math.round(p.wins   / maxTotal * BAR_H);
+        const lH = Math.round(p.losses / maxTotal * BAR_H);
+        const jH = Math.round(p.jigo   / maxTotal * BAR_H);
+        return `
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:0">
+            <div style="font-size:0.72rem;color:#555;margin-bottom:4px;font-weight:bold">${p.total}局</div>
+            <div style="width:100%;display:flex;flex-direction:column;align-items:stretch;border-radius:4px 4px 0 0;overflow:hidden">
+              ${p.losses > 0 ? `<div style="height:${lH}px;background:#c0392b;display:flex;align-items:center;justify-content:center">
+                ${lH >= 16 ? `<span style="color:#fff;font-size:0.7rem;font-weight:bold">${p.losses}</span>` : ""}
+              </div>` : ""}
+              ${p.jigo > 0 ? `<div style="height:${jH}px;background:#aaa;display:flex;align-items:center;justify-content:center">
+                ${jH >= 16 ? `<span style="color:#fff;font-size:0.7rem">${p.jigo}</span>` : ""}
+              </div>` : ""}
+              ${p.wins > 0 ? `<div style="height:${wH}px;background:#2e7d5e;display:flex;align-items:center;justify-content:center">
+                ${wH >= 16 ? `<span style="color:#fff;font-size:0.7rem;font-weight:bold">${p.wins}</span>` : ""}
+              </div>` : ""}
+            </div>
+            <div style="border-top:2px solid #bbb;width:100%;margin:0"></div>
+            <div style="font-size:0.8rem;font-weight:bold;color:#2c3e50;margin-top:5px;text-align:center">${p.name}</div>
+          </div>`;
+      }).join("")}
+    </div>
+    <div style="display:flex;gap:12px;margin-top:10px;font-size:0.72rem;color:#777">
+      <span><span style="display:inline-block;width:10px;height:10px;background:#2e7d5e;border-radius:2px;margin-right:3px"></span>勝</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:#c0392b;border-radius:2px;margin-right:3px"></span>敗</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:#aaa;border-radius:2px;margin-right:3px"></span>持碁</span>
+    </div>`;
+}
+
+
   const raw = calcStats();
   const sorted = raw.slice().sort((a,b) => {
     if (sortMode === "rate") {
