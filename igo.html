@@ -46,6 +46,7 @@
   - シーズンリセット（履歴をFirebaseに保存後リセット・手合いレベルは引き継ぎ）
   - 過去シーズンのアーカイブ表示（Firebase go-league/seasons/ に保存）
   - 管理者メニュー（折りたたみ式・対局者設定・初期手合い設定・シーズン管理を収録）
+  - 完全リセット（履歴・アーカイブ・シーズン番号を消去してシーズン1に戻す。手合いレベルは保持）
   - Firebase によるリアルタイム同期
 
 【今後の改良候補】
@@ -260,6 +261,10 @@
         <div id="season-info" style="margin-bottom:12px;font-size:0.9rem;color:#2c3e50"></div>
         <button class="btn" id="season-reset" style="background:#e74c3c">新シーズンを始める</button>
         <div id="past-seasons" style="margin-top:16px"></div>
+
+        <h3 style="margin-top:24px">完全リセット</h3>
+        <p class="note">テスト中など、すべてをやり直したいときに使います。履歴・アーカイブ・シーズン番号をすべて消去してシーズン1に戻します。手合いレベルは保持されます。</p>
+        <button class="btn" id="full-reset" style="background:#888">シーズン1からやり直す</button>
       </div>
     </div>
 
@@ -1367,6 +1372,19 @@ document.getElementById("season-reset").addEventListener("click", async () => {
   lastSorted = [];
   pushState();
   showToast(`シーズン${state.season - 1}を保存しました。シーズン${state.season}開始！`);
+});
+
+// ---------- 完全リセット ----------
+document.getElementById("full-reset").addEventListener("click", () => {
+  if (!confirm("履歴・アーカイブ・シーズン番号をすべて消去してシーズン1に戻します。\n手合いレベルは保持されます。\nこの操作は取り消せません。本当によいですか？")) return;
+  if (seasonsRef) seasonsRef.remove();
+  state.season  = 1;
+  state.history = [];
+  Object.keys(state.streaks).forEach(k => state.streaks[k] = 0);
+  lastSorted = [];
+  pushState();
+  showToast("完全リセットしました。シーズン1から始めます。");
+  renderSeasonInfo();
 });
 
 // ---------- シーズン情報表示 ----------
