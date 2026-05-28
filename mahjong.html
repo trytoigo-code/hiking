@@ -39,6 +39,7 @@
   - 順位表（総合ポイント順 / 1位回数順の切り替え）
       総合ポイント = 対局ポイント + チップ換算ポイント
       内訳を「対局pt / 🪙チップ換算pt」形式で表示
+  - 成績グラフ（順位表タブ最上部。名前をベースラインに、1位回数・チップ＋は上方向、4位回数・チップ－は下方向の分岐縦棒グラフ）
   - 対局履歴（雀士別ハイライト表示・削除＋10秒Undo機能付き）
   - シーズン管理（履歴をFirebaseにアーカイブ後リセット）
   - 過去シーズンのアーカイブ表示
@@ -262,6 +263,7 @@
   <div id="content">
 
     <div class="panel active" id="panel-standings">
+      <div id="rank-chart" style="margin-bottom:24px"></div>
       <h3>順位</h3>
       <div style="display:flex;gap:8px;margin-bottom:12px">
         <button class="filter-btn active" id="sort-pt">総合ポイント順</button>
@@ -586,6 +588,91 @@ document.getElementById("add-match").addEventListener("click", () => {
   showToast("結果を登録しました！");
 });
 
+// ---------- 棒グラフ ----------
+function renderRankChart() {
+  const el = document.getElementById("rank-chart");
+  if (!el) return;
+  if (!state.history.length) { el.innerHTML = ""; return; }
+
+  // プレイヤーごとに集計
+  const rank1   = {}, rank4   = {};
+  const chipPos = {}, chipNeg = {};
+  state.players.forEach(p => {
+    rank1[p] = 0; rank4[p] = 0; chipPos[p] = 0; chipNeg[p] = 0;
+  });
+  state.history.forEach(m => {
+    const ps = m.players || state.players;
+    ps.forEach((p, i) => {
+      if (!(p in rank1)) { rank1[p]=0; rank4[p]=0; chipPos[p]=0; chipNeg[p]=0; }
+      if (m.ranks[i] === 1) rank1[p]++;
+      if (m.ranks[i] === 4) rank4[p]++;
+      const c = m.chips ? m.chips[i] : 0;
+      if (c > 0) chipPos[p] += c;
+      if (c < 0) chipNeg[p] += Math.abs(c);
+    });
+  });
+
+  const players  = state.players;
+  const TOP_H    = 110; // 上エリア高さ(px)
+  const BOT_H    = 80;  // 下エリア高さ(px)
+  const HALF_TOP = TOP_H / 2;
+  const HALF_BOT = BOT_H / 2;
+
+  const maxR1  = Math.max(...players.map(p => rank1[p]),   1);
+  const maxCP  = Math.max(...players.map(p => chipPos[p]), 1);
+  const maxR4  = Math.max(...players.map(p => rank4[p]),   1);
+  const maxCN  = Math.max(...players.map(p => chipNeg[p]), 1);
+
+  el.innerHTML = `
+    <h3 style="margin-top:0;margin-bottom:12px">成績グラフ</h3>
+    <div style="display:flex;gap:8px;align-items:stretch">
+      ${players.map(p => {
+        const r1h  = Math.round(rank1[p]   / maxR1  * HALF_TOP);
+        const cph  = Math.round(chipPos[p] / maxCP  * HALF_TOP);
+        const r4h  = Math.round(rank4[p]   / maxR4  * HALF_BOT);
+        const cnh  = Math.round(chipNeg[p] / maxCN  * HALF_BOT);
+        return `
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center">
+
+            <!-- 上エリア（1位回数＋チップ+） -->
+            <div style="height:${TOP_H}px;width:100%;display:flex;flex-direction:column;justify-content:flex-end;gap:2px">
+              ${chipPos[p] > 0 ? `
+                <div style="height:${cph}px;background:#2e7d5e;border-radius:4px 4px 0 0;display:flex;align-items:center;justify-content:center">
+                  ${cph >= 14 ? `<span style="color:#fff;font-size:0.68rem">🪙+${chipPos[p]}</span>` : ""}
+                </div>` : ""}
+              ${rank1[p] > 0 ? `
+                <div style="height:${r1h}px;background:#c8a028;border-radius:${chipPos[p] ? "0" : "4px 4px 0 0"};display:flex;align-items:center;justify-content:center">
+                  ${r1h >= 14 ? `<span style="color:#fff;font-size:0.68rem">👑${rank1[p]}</span>` : ""}
+                </div>` : ""}
+            </div>
+
+            <!-- ベースライン + 名前 -->
+            <div style="width:100%;border-top:2px solid #999"></div>
+            <div style="font-size:0.78rem;font-weight:bold;color:#2c3e50;padding:4px 0;text-align:center">${p}</div>
+
+            <!-- 下エリア（4位回数＋チップ-） -->
+            <div style="height:${BOT_H}px;width:100%;display:flex;flex-direction:column;gap:2px">
+              ${rank4[p] > 0 ? `
+                <div style="height:${r4h}px;background:#888;border-radius:0 0 ${chipNeg[p] ? "0 0" : "4px 4px"};display:flex;align-items:center;justify-content:center">
+                  ${r4h >= 14 ? `<span style="color:#fff;font-size:0.68rem">4位${rank4[p]}</span>` : ""}
+                </div>` : ""}
+              ${chipNeg[p] > 0 ? `
+                <div style="height:${cnh}px;background:#c0392b;border-radius:0 0 4px 4px;display:flex;align-items:center;justify-content:center">
+                  ${cnh >= 14 ? `<span style="color:#fff;font-size:0.68rem">🪙-${chipNeg[p]}</span>` : ""}
+                </div>` : ""}
+            </div>
+
+          </div>`;
+      }).join("")}
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:8px;font-size:0.72rem;color:#777">
+      <span><span style="display:inline-block;width:10px;height:10px;background:#c8a028;border-radius:2px;margin-right:3px"></span>👑1位回数（上）</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:#2e7d5e;border-radius:2px;margin-right:3px"></span>🪙チップ＋（上）</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:#888;border-radius:2px;margin-right:3px"></span>4位回数（下）</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:#c0392b;border-radius:2px;margin-right:3px"></span>🪙チップ－（下）</span>
+    </div>`;
+}
+
 // ---------- 順位表 ----------
 let sortMode = "pt";
 let rankInputDirty = false; // 【追加】順位入力欄のドロップダウンが変更されたかを追跡するフラグ
@@ -864,6 +951,7 @@ function renderSeasonInfo() {
 
 // ---------- Render All ----------
 function renderAll() {
+  renderRankChart();
   renderStandings();
   renderHistoryButtons();
   renderHistory();
