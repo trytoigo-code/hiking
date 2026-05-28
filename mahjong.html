@@ -447,6 +447,7 @@ function ptClass(pt) { return pt > 0 ? "pt-pos" : pt < 0 ? "pt-neg" : "pt-zero";
 function chipClass(cp) { return cp > 0 ? "chip-pos" : cp < 0 ? "chip-neg" : "chip-zero"; }
 
 const RANK_EMOJI = ["👑","🥈","🥉","4位"];
+const REACTION_EMOJIS = ["👍","😄","😮","🔥"];
 function rankEmoji(r) { return RANK_EMOJI[r - 1] || `${r}位`; }
 
 // ---------- 結果入力 ----------
@@ -795,20 +796,56 @@ function renderHistory() {
   }
   list.innerHTML = [...state.history].reverse().map((m, revIdx) => {
     const origIdx = state.history.length - 1 - revIdx;
+    const id      = String(origIdx);
     const ps      = m.players || state.players;
     const rows    = ps.map((name, i) => ({
-      name,
-      rank: m.ranks[i],
-      pt: m.points[i],
-      chip: m.chips ? m.chips[i] : 0
+      name, rank: m.ranks[i], pt: m.points[i], chip: m.chips ? m.chips[i] : 0
     }));
     rows.sort((a, b) => a.rank - b.rank);
 
+    // コメント表示
+    const raw       = m.comment || "";
+    const text      = typeof raw === "object" ? (raw.text   || "") : raw;
+    const author    = typeof raw === "object" ? (raw.author || "") : "";
+    const reactions = typeof raw === "object" && raw.reactions ? raw.reactions : {};
+    const hasComment = !!text;
+    const label  = author ? `<strong>${author}</strong>：` : "";
+    const body   = `${label}${text}`;
+
+    const commentBody = !hasComment ? "" : text.length <= 30
+      ? `<div style="font-size:0.8rem;color:#666;font-style:italic">💬 ${body}</div>`
+      : `<details style="font-size:0.8rem;color:#666">
+           <summary style="cursor:pointer;list-style:none;font-style:italic">💬 ${body.slice(0,30)}…</summary>
+           <div style="margin-top:4px;white-space:pre-wrap;font-style:italic">${body}</div>
+         </details>`;
+
+    const reactionPills = REACTION_EMOJIS.map(e => {
+      const names = reactions[e] || [];
+      if (!names.length) return "";
+      return `<span style="display:inline-flex;align-items:center;gap:3px;background:#f0ede4;border:1px solid #e0dbcd;border-radius:12px;padding:2px 8px;font-size:0.78rem" title="${names.join("・")}">${e} <span style="color:#555;font-size:0.72rem">${names.length}</span></span>`;
+    }).join("");
+
+    const emojiButtons = hasComment ? REACTION_EMOJIS.map(e =>
+      `<button class="reaction-emoji-btn" data-id="${id}" data-emoji="${e}" style="background:none;border:1px solid #e0dbcd;border-radius:8px;padding:2px 6px;font-size:0.88rem;cursor:pointer">${e}</button>`
+    ).join("") : "";
+
+    const playerOptions = state.players.map(p =>
+      `<option value="${p}">${p}</option>`).join("");
+    const nameBtns = state.players.map(p =>
+      `<button class="reaction-name-btn" data-id="${id}" data-name="${p}" style="background:#f0ede4;border:1px solid #ddd;border-radius:6px;padding:3px 10px;font-size:0.8rem;cursor:pointer">${p}</button>`
+    ).join("");
+
     return `
-      <div class="hist-item">
-        <div class="hist-meta-box">
-          <span class="hist-date-label">${m.date}</span>
-          <span class="hist-no-label">#${origIdx+1}</span>
+      <div class="hist-item" style="flex-direction:column;align-items:stretch">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div class="hist-meta-box">
+            <span class="hist-date-label">${m.date}</span>
+            <span class="hist-no-label">#${origIdx+1}</span>
+          </div>
+          <div style="display:flex;gap:6px;flex-shrink:0">
+            <button class="comment-btn" data-id="${id}" style="background:#f0ede4;color:#888;border:1px solid #ddd;padding:5px 8px;border-radius:4px;font-size:0.78rem;cursor:pointer">💬</button>
+            <button class="del-btn" onclick="deleteMatch(${origIdx})">×</button>
+          </div>
         </div>
         <div class="hist-grid">
           ${rows.map(r => {
@@ -825,9 +862,113 @@ function renderHistory() {
               </div>`;
           }).join("")}
         </div>
-        <button class="del-btn" onclick="deleteMatch(${origIdx})">×</button>
+        ${hasComment ? `<div style="margin-top:6px">${commentBody}</div>` : ""}
+        ${reactionPills ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px">${reactionPills}</div>` : ""}
+        ${hasComment ? `
+          <div style="display:flex;gap:4px;margin-top:5px;align-items:center">
+            <span style="font-size:0.7rem;color:#bbb">反応：</span>${emojiButtons}
+          </div>
+          <div class="reaction-picker" data-id="${id}" style="display:none;margin-top:6px;padding:8px;background:#faf8f0;border:1px solid #e0dbcd;border-radius:8px">
+            <div style="font-size:0.78rem;color:#555;margin-bottom:6px"><span class="reaction-pending-emoji" style="font-size:1rem"></span> で反応する名前を選んでください</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">${nameBtns}</div>
+          </div>` : ""}
+        <div class="comment-form" data-id="${id}" style="display:none;margin-top:8px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <span style="font-size:0.82rem;color:#555;white-space:nowrap">名前：</span>
+            <select class="comment-author" style="flex:1;border:1px solid #ddd;border-radius:6px;padding:5px 8px;font-size:0.85rem;font-family:inherit;background:#fff">
+              <option value="">（選択してください）</option>
+              ${playerOptions}
+            </select>
+          </div>
+          <textarea class="comment-input" rows="2" style="width:100%;box-sizing:border-box;border:1px solid #ddd;border-radius:6px;padding:6px 8px;font-size:0.85rem;font-family:inherit;resize:vertical" placeholder="一言メモを入力…">${text}</textarea>
+          <div style="display:flex;gap:6px;margin-top:4px;justify-content:flex-end">
+            <button class="comment-cancel" data-id="${id}" style="background:#f0ede4;border:1px solid #ddd;padding:4px 12px;border-radius:4px;font-size:0.8rem;cursor:pointer">キャンセル</button>
+            <button class="comment-save" data-id="${id}" style="background:#2c3e50;color:#fff;border:none;padding:4px 12px;border-radius:4px;font-size:0.8rem;cursor:pointer">保存</button>
+          </div>
+        </div>
       </div>`;
   }).join("");
+
+  // ---------- コメント・リアクション イベントリスナー ----------
+  list.querySelectorAll(".comment-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id   = btn.dataset.id;
+      const form = list.querySelector(`.comment-form[data-id="${id}"]`);
+      if (!form) return;
+      const isOpen = form.style.display !== "none";
+      list.querySelectorAll(".comment-form").forEach(f => f.style.display = "none");
+      form.style.display = isOpen ? "none" : "";
+      if (!isOpen) {
+        const sel = form.querySelector(".comment-author");
+        const m   = state.history[Number(id)];
+        if (m && m.comment && typeof m.comment === "object") sel.value = m.comment.author || "";
+        form.querySelector(".comment-input").focus();
+      }
+    });
+  });
+
+  list.querySelectorAll(".comment-cancel").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const form = list.querySelector(`.comment-form[data-id="${btn.dataset.id}"]`);
+      if (form) form.style.display = "none";
+    });
+  });
+
+  list.querySelectorAll(".comment-save").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id     = btn.dataset.id;
+      const form   = list.querySelector(`.comment-form[data-id="${id}"]`);
+      const author = form ? form.querySelector(".comment-author").value.trim() : "";
+      const text   = form ? form.querySelector(".comment-input").value.trim() : "";
+      if (!author) { alert("名前を選択してください"); return; }
+      const idx = Number(id);
+      const existing  = state.history[idx].comment;
+      const reactions = existing && typeof existing === "object" ? (existing.reactions || {}) : {};
+      state.history[idx].comment = text ? { text, author, reactions } : "";
+      pushState();
+      showToast("コメントを保存しました");
+    });
+  });
+
+  list.querySelectorAll(".reaction-emoji-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id     = btn.dataset.id;
+      const emoji  = btn.dataset.emoji;
+      const picker = list.querySelector(`.reaction-picker[data-id="${id}"]`);
+      if (!picker) return;
+      const isOpen = picker.style.display !== "none"
+        && picker.querySelector(".reaction-pending-emoji").textContent === emoji;
+      list.querySelectorAll(".reaction-picker").forEach(p => p.style.display = "none");
+      if (!isOpen) {
+        picker.querySelector(".reaction-pending-emoji").textContent = emoji;
+        picker.style.display = "";
+        picker.dataset.emoji = emoji;
+      }
+    });
+  });
+
+  list.querySelectorAll(".reaction-name-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id     = btn.dataset.id;
+      const name   = btn.dataset.name;
+      const picker = list.querySelector(`.reaction-picker[data-id="${id}"]`);
+      const emoji  = picker ? picker.dataset.emoji : "";
+      if (!emoji) return;
+      const idx = Number(id);
+      const m   = state.history[idx];
+      if (!m.comment || typeof m.comment !== "object") return;
+      const reactions = m.comment.reactions || {};
+      const existing  = reactions[emoji] || [];
+      if (existing.includes(name)) {
+        reactions[emoji] = existing.filter(n => n !== name);
+        if (!reactions[emoji].length) delete reactions[emoji];
+      } else {
+        reactions[emoji] = [...existing, name];
+      }
+      m.comment.reactions = reactions;
+      pushState();
+    });
+  });
 }
 
 // ---------- 削除 & Undo ----------
