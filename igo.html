@@ -49,6 +49,7 @@
   - 完全リセット（履歴・アーカイブ・シーズン番号を消去してシーズン1に戻す。手合いレベルは保持）
   - 勝敗グラフ（星取表タブ最上部。名前をベースラインに勝ちバーは上・負けバーは下に伸びる分岐縦棒グラフ）
   - 対局コメント（履歴から各対局に一言メモを後から追記可能。短文はそのまま表示、長文は折りたたみ）
+  - コメントへのリアクション（👍😄😮🔥の4種。誰が押したかFirebaseで全員に同期）
   - Firebase によるリアルタイム同期
 
 【今後の改良候補】
@@ -882,7 +883,8 @@ function badgeHTML(m) {
 
 let selectedPlayers = [];
 let lastSorted = []; // 順位変動比較用
-let sortMode = "wins"; // wins or rate // 0=全表示, 1=1人の全対局, 2=2人の対局
+let sortMode = "wins";
+const REACTION_EMOJIS = ["👍","😄","😮","🔥"];
 
 function getMatchPlayers(m) {
   // 登録順で固定した [左対局者, 右対局者, 左が勝者か]
@@ -1104,19 +1106,48 @@ function matchListHTML(filtered, anchorPlayer) {
     const commentHTML = (() => {
       const raw = m.comment || "";
       if (!raw) return `<div class="hist-comment" data-id="${m.id || idx}"></div>`;
-      // 後方互換: 旧データは文字列、新データは {text, author}
-      const text   = typeof raw === "object" ? (raw.text   || "") : raw;
-      const author = typeof raw === "object" ? (raw.author || "") : "";
-      const label  = author ? `<strong>${author}</strong>：` : "";
-      const body   = `${label}${text}`;
-      if (text.length <= 30) return `
-        <div class="hist-comment" data-id="${m.id || idx}" style="margin-top:6px;font-size:0.8rem;color:#666;font-style:italic">💬 ${body}</div>`;
+      const text      = typeof raw === "object" ? (raw.text   || "") : raw;
+      const author    = typeof raw === "object" ? (raw.author || "") : "";
+      const reactions = (typeof raw === "object" && raw.reactions) ? raw.reactions : {};
+      const label     = author ? `<strong>${author}</strong>：` : "";
+      const body      = `${label}${text}`;
+
+      // リアクション表示
+      const reactionPills = REACTION_EMOJIS.map(e => {
+        const names = reactions[e] || [];
+        if (!names.length) return "";
+        return `<span style="display:inline-flex;align-items:center;gap:3px;background:#f0ede4;border:1px solid #e0dbcd;border-radius:12px;padding:2px 8px;font-size:0.8rem;cursor:default" title="${names.join("・")}">${e} <span style="color:#555;font-size:0.75rem">${names.length}</span></span>`;
+      }).join("");
+
+      // 絵文字ボタン行
+      const emojiButtons = REACTION_EMOJIS.map(e =>
+        `<button class="reaction-emoji-btn" data-id="${m.id || idx}" data-emoji="${e}" style="background:none;border:1px solid #e0dbcd;border-radius:8px;padding:2px 6px;font-size:0.9rem;cursor:pointer;line-height:1.4">${e}</button>`
+      ).join("");
+
+      // 名前ピッカー
+      const nameBtns = state.players.map(p =>
+        `<button class="reaction-name-btn" data-id="${m.id || idx}" data-name="${p}" style="background:#f0ede4;border:1px solid #ddd;border-radius:6px;padding:3px 10px;font-size:0.8rem;cursor:pointer">${p}</button>`
+      ).join("");
+
+      const commentBody = text.length <= 30
+        ? `<div style="font-size:0.8rem;color:#666;font-style:italic">💬 ${body}</div>`
+        : `<details style="font-size:0.8rem;color:#666">
+             <summary style="cursor:pointer;list-style:none;font-style:italic">💬 ${body.slice(0,30)}…</summary>
+             <div style="margin-top:4px;white-space:pre-wrap;font-style:italic">${body}</div>
+           </details>`;
+
       return `
         <div class="hist-comment" data-id="${m.id || idx}" style="margin-top:6px">
-          <details style="font-size:0.8rem;color:#666">
-            <summary style="cursor:pointer;list-style:none;font-style:italic">💬 ${body.slice(0,30)}…</summary>
-            <div style="margin-top:4px;white-space:pre-wrap;font-style:italic">${body}</div>
-          </details>
+          ${commentBody}
+          ${reactionPills ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px">${reactionPills}</div>` : ""}
+          <div style="display:flex;gap:4px;margin-top:5px;align-items:center">
+            <span style="font-size:0.7rem;color:#bbb">反応：</span>
+            ${emojiButtons}
+          </div>
+          <div class="reaction-picker" data-id="${m.id || idx}" style="display:none;margin-top:6px;padding:8px;background:#faf8f0;border:1px solid #e0dbcd;border-radius:8px">
+            <div style="font-size:0.78rem;color:#555;margin-bottom:6px"><span class="reaction-pending-emoji" style="font-size:1rem"></span> で反応する名前を選んでください</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">${nameBtns}</div>
+          </div>
         </div>`;
     })();
     const playerOptions = state.players.map(p =>
@@ -1307,9 +1338,54 @@ function renderHistory() {
       if (!author) { alert("名前を選択してください"); return; }
       const idx = state.history.findIndex(m => (m.id || String(state.history.indexOf(m))) === id);
       if (idx === -1) return;
-      state.history[idx].comment = text ? { text, author } : "";
+      const existing = state.history[idx].comment;
+      const reactions = (existing && typeof existing === "object") ? (existing.reactions || {}) : {};
+      state.history[idx].comment = text ? { text, author, reactions } : "";
       pushState();
       showToast("コメントを保存しました");
+    });
+  });
+
+  // リアクション絵文字ボタン → 名前ピッカーを開く
+  el.querySelectorAll(".reaction-emoji-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id    = btn.dataset.id;
+      const emoji = btn.dataset.emoji;
+      const picker = el.querySelector(`.reaction-picker[data-id="${id}"]`);
+      if (!picker) return;
+      const isOpen = picker.style.display !== "none"
+        && picker.querySelector(".reaction-pending-emoji").textContent === emoji;
+      el.querySelectorAll(".reaction-picker").forEach(p => p.style.display = "none");
+      if (!isOpen) {
+        picker.querySelector(".reaction-pending-emoji").textContent = emoji;
+        picker.style.display = "";
+        picker.dataset.emoji = emoji;
+      }
+    });
+  });
+
+  // 名前ボタン → リアクションをトグル
+  el.querySelectorAll(".reaction-name-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id    = btn.dataset.id;
+      const name  = btn.dataset.name;
+      const picker = el.querySelector(`.reaction-picker[data-id="${id}"]`);
+      const emoji  = picker ? picker.dataset.emoji : "";
+      if (!emoji) return;
+      const idx = state.history.findIndex(m => (m.id || String(state.history.indexOf(m))) === id);
+      if (idx === -1) return;
+      const m = state.history[idx];
+      if (!m.comment || typeof m.comment !== "object") return;
+      const reactions = m.comment.reactions || {};
+      const existing  = reactions[emoji] || [];
+      if (existing.includes(name)) {
+        reactions[emoji] = existing.filter(n => n !== name);
+        if (!reactions[emoji].length) delete reactions[emoji];
+      } else {
+        reactions[emoji] = [...existing, name];
+      }
+      m.comment.reactions = reactions;
+      pushState();
     });
   });
 }
@@ -1711,8 +1787,10 @@ document.getElementById("edit-save").addEventListener("click", () => {
   // コメントも保存
   const cAuthor = document.getElementById("edit-comment-author").value.trim();
   const cText   = document.getElementById("edit-comment-text").value.trim();
-  updated.comment = (cText && cAuthor) ? { text: cText, author: cAuthor }
-                  : cText ? { text: cText, author: "" }
+  const existReactions = (updated.comment && typeof updated.comment === "object")
+    ? (updated.comment.reactions || {}) : {};
+  updated.comment = (cText && cAuthor) ? { text: cText, author: cAuthor, reactions: existReactions }
+                  : cText ? { text: cText, author: "", reactions: existReactions }
                   : "";
 
   pushState();
