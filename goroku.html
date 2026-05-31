@@ -43,10 +43,7 @@
   ・機能を追加・変更したら「主な機能」と「今後の改良候補」を合わせて更新する
 
 【主な機能（現時点）】
-  - 🎯心得タブ：対局前に考え方を整える
-      今日のお告げ（スロット式ランダム格言）
-      今日のテーマ（6種から選択、他機能との連動なし）
-      対局前の8問（3section）・各問に📌ポイント説明付き
+  - 🎯着眼タブ：次の一手の考え方（8問・3section）。各問に📌ポイント説明付き
   - 📝学びタブ：感想戦・自己検討を支援
       今日の一局を振り返る（局面認識・方針・評価の8問）
       今日の課題（6問）・各問に📖語録を見るボタン付き
@@ -84,7 +81,7 @@
       margin: 0; padding: 0;
       font-family: "Noto Sans JP", "Hiragino Kaku Gothic ProN", sans-serif;
       background: #fcfaf2 !important;
-      color: #333 !important;
+      color: #333;
     }
     #app { max-width: 500px; margin: 0 auto; min-height: 100vh; background: #fcfaf2; }
 
@@ -157,39 +154,17 @@
       font-style: normal;
     }
 
-    /* テーマピル */
-    .theme-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-    .theme-pill {
-      background: #fff; border: 1px solid #e0dbcd;
-      border-radius: 20px; padding: 5px 14px;
-      font-size: 0.82rem; color: #888;
-      cursor: pointer; transition: 0.15s;
-      font-family: inherit;
-    }
-    .theme-pill.selected {
-      background: #7a5c3a; color: #fdf5e8;
-      border-color: #7a5c3a;
+    /* 着眼タブ ①②③ ステップ見出し */
+    .step-label {
+      font-size: 0.88rem;
+      font-weight: bold;
+      color: #7a5c3a;
+      margin: 16px 0 8px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #e0dbcd;
     }
 
-    /* お告げカード */
-    #otsuge-card {
-      background: #fff; border: 2px solid #e0dbcd;
-      border-radius: 12px; padding: 20px 16px;
-      margin-bottom: 10px; min-height: 120px;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      text-align: center; transition: border-color 0.3s;
-    }
-    #otsuge-chapter { font-size: 0.7rem; font-family: sans-serif; color: #aaa; margin-bottom: 10px; }
-    #otsuge-text { font-size: 0.9rem; line-height: 1.8; color: #2c3e50; font-weight: 500; }
-    #otsuge-author { font-size: 0.72rem; color: #aaa; font-family: sans-serif; margin-top: 12px; }
-    #spin-btn {
-      width: 100%; background: #7a5c3a; color: #fdf5e8;
-      border: none; border-radius: 10px; padding: 12px;
-      font-size: 0.95rem; font-family: inherit;
-      cursor: pointer; transition: 0.2s; margin-bottom: 4px;
-    }
-    #spin-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    /* テーマピル → 削除済み */
 
     /* アコーディオン（語録） */
     .chapter-toggle {
@@ -232,11 +207,6 @@
       display: none; z-index: 999; white-space: nowrap;
     }
 
-    /* スロットアニメ */
-    @keyframes slot-blur { 0%,100%{opacity:1} 50%{opacity:0.3} }
-    .spinning { animation: slot-blur 0.15s ease infinite; }
-    @keyframes land { 0%{transform:scale(0.97)} 60%{transform:scale(1.02)} 100%{transform:scale(1)} }
-    .landed { animation: land 0.3s ease; }
   </style>
 </head>
 <body>
@@ -248,7 +218,7 @@
     <h1>囲碁 一局一得</h1>
     <div id="header-sub">進化の連鎖を楽しもう。</div>
     <div id="nav">
-      <button class="tab-btn active" data-tab="kokoroe">🎯心得</button>
+      <button class="tab-btn active" data-tab="chakugan">🎯着眼</button>
       <button class="tab-btn" data-tab="manabi">📝学び</button>
       <button class="tab-btn" data-tab="goroku">📖語録</button>
       <button class="tab-btn" data-tab="settings">⚙️設定</button>
@@ -257,31 +227,13 @@
 
   <div id="content">
 
-    <!-- 🎯 心得パネル -->
-    <div class="panel active" id="panel-kokoroe">
+    <!-- 🎯 着眼パネル -->
+    <div class="panel active" id="panel-chakugan">
 
-      <div class="section-title">今日のお告げ</div>
-      <div id="otsuge-card">
-        <div id="otsuge-chapter">ボタンを押してお告げを引いてください</div>
-        <div id="otsuge-text" style="color:#bbb;font-size:0.85rem">🎯</div>
-        <div id="otsuge-author"></div>
-      </div>
-      <button id="spin-btn">🎰 今日のお告げを引く</button>
-
-      <div class="section-title">今日のテーマ</div>
-      <div class="theme-pills" id="theme-pills">
-        <button class="theme-pill" data-theme="強弱">強弱</button>
-        <button class="theme-pill" data-theme="弱石処理">弱石処理</button>
-        <button class="theme-pill" data-theme="軽さ">軽さ</button>
-        <button class="theme-pill" data-theme="主導権">主導権</button>
-        <button class="theme-pill" data-theme="大場">大場</button>
-        <button class="theme-pill" data-theme="先手後手">先手後手</button>
-      </div>
-
-      <div class="section-title">対局前の8問</div>
+      <div class="section-title" style="margin-top:0">次の一手の考え方</div>
 
       <div class="check-group">
-        <div class="check-group-label">① 局面を認識する</div>
+        <div class="step-label">① 局面を認識する</div>
         <div class="check-item">
           <label class="check-label"><input type="checkbox"> ここは誰の勢力か</label>
           <details class="point-details"><summary class="point-summary">📌 ポイント</summary>
@@ -291,13 +243,13 @@
         <div class="check-item">
           <label class="check-label"><input type="checkbox"> この石は強いか弱いか</label>
           <details class="point-details"><summary class="point-summary">📌 ポイント</summary>
-            <div class="point-body tip">石の強弱を見極めることが次の一手の出発点。強い石は放置、弱い石は処理、というシンプルな原則で考える。</div>
+            <div class="point-body tip">石の強弱を見極めることが次の一手の出発点。強い石には余計な手をかけず、弱い石への対応を優先する。</div>
           </details>
         </div>
       </div>
 
       <div class="check-group">
-        <div class="check-group-label">② 方針を決める</div>
+        <div class="step-label">② 方針を決める</div>
         <div class="check-item">
           <label class="check-label"><input type="checkbox"> 強い石に手を掛けていないか</label>
           <details class="point-details"><summary class="point-summary">📌 ポイント</summary>
@@ -319,7 +271,7 @@
       </div>
 
       <div class="check-group">
-        <div class="check-group-label">③ 手を評価する</div>
+        <div class="step-label">③ 手を評価する</div>
         <div class="check-item">
           <label class="check-label"><input type="checkbox"> 主導権は取れるか</label>
           <details class="point-details"><summary class="point-summary">📌 ポイント</summary>
@@ -340,7 +292,7 @@
         </div>
       </div>
 
-      <button class="reset-btn" id="kokoroe-reset">チェックをリセット</button>
+      <button class="reset-btn" id="chakugan-reset">チェックをリセット</button>
     </div>
 
     <!-- 📝 学びパネル -->
@@ -349,7 +301,7 @@
       <div class="section-title">今日の一局を振り返る</div>
 
       <div class="check-group">
-        <div class="check-group-label">局面認識</div>
+        <div class="step-label">局面認識</div>
         <div class="check-item">
           <label class="check-label"><input type="checkbox"> 強弱判断は適切だったか</label>
           <details class="point-details"><summary class="point-summary">📖 語録を見る</summary>
@@ -365,7 +317,7 @@
       </div>
 
       <div class="check-group">
-        <div class="check-group-label">方針</div>
+        <div class="step-label">方針</div>
         <div class="check-item">
           <label class="check-label"><input type="checkbox"> 強い石に手を掛けていなかったか</label>
           <details class="point-details"><summary class="point-summary">📖 語録を見る</summary>
@@ -387,7 +339,7 @@
       </div>
 
       <div class="check-group">
-        <div class="check-group-label">評価</div>
+        <div class="step-label">評価</div>
         <div class="check-item">
           <label class="check-label"><input type="checkbox"> 主導権を握れたか</label>
           <details class="point-details"><summary class="point-summary">📖 語録を見る</summary>
@@ -690,43 +642,6 @@ function updateColorCurrent() {
   else el.textContent = "まだ色が選ばれていません";
 }
 
-// ---------- お告げ（スロット） ----------
-document.getElementById("spin-btn").addEventListener("click", () => {
-  const btn = document.getElementById("spin-btn");
-  const card = document.getElementById("otsuge-card");
-  const textEl = document.getElementById("otsuge-text");
-  const chapEl = document.getElementById("otsuge-chapter");
-  const authEl = document.getElementById("otsuge-author");
-  btn.disabled = true;
-  const chosen = ALL_QUOTES[Math.floor(Math.random() * ALL_QUOTES.length)];
-  card.style.borderColor = "#e0dbcd"; card.classList.remove("landed");
-  textEl.classList.add("spinning");
-  let count = 0;
-  const iv = setInterval(() => {
-    const r = ALL_QUOTES[Math.floor(Math.random() * ALL_QUOTES.length)];
-    textEl.textContent = r.text.slice(0,20) + "…"; chapEl.textContent = r.chapterLabel;
-    if (++count >= 18) {
-      clearInterval(iv); textEl.classList.remove("spinning");
-      chapEl.textContent = `${chosen.chapterLabel}　${chosen.chapterTitle}`;
-      chapEl.style.color = chosen.color;
-      textEl.textContent = `「${chosen.text}」`;
-      authEl.textContent = `― ${chosen.by}`;
-      card.style.borderColor = chosen.color;
-      void card.offsetWidth; card.classList.add("landed");
-      btn.disabled = false;
-    }
-  }, 100);
-});
-
-// ---------- テーマ選択 ----------
-document.querySelectorAll(".theme-pill").forEach(btn => {
-  btn.addEventListener("click", () => {
-    const isSelected = btn.classList.contains("selected");
-    document.querySelectorAll(".theme-pill").forEach(b => b.classList.remove("selected"));
-    if (!isSelected) btn.classList.add("selected");
-  });
-});
-
 // ---------- タブ ----------
 document.querySelectorAll(".tab-btn").forEach(btn => {
   btn.addEventListener("click", () => {
@@ -739,10 +654,9 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
 });
 
 // ---------- リセット ----------
-document.getElementById("kokoroe-reset").addEventListener("click", () => {
-  document.querySelectorAll("#panel-kokoroe input[type=checkbox]").forEach(cb => cb.checked = false);
-  document.querySelectorAll("#panel-kokoroe details").forEach(d => d.open = false);
-  document.querySelectorAll(".theme-pill").forEach(b => b.classList.remove("selected"));
+document.getElementById("chakugan-reset").addEventListener("click", () => {
+  document.querySelectorAll("#panel-chakugan input[type=checkbox]").forEach(cb => cb.checked = false);
+  document.querySelectorAll("#panel-chakugan details").forEach(d => d.open = false);
 });
 document.getElementById("manabi-reset").addEventListener("click", () => {
   document.querySelectorAll("#panel-manabi input[type=checkbox]").forEach(cb => cb.checked = false);
