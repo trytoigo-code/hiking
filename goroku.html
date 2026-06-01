@@ -217,11 +217,12 @@
     <div id="yamaарuki-label" style="display:none">山あるき</div>
     <h1>囲碁 一局一得</h1>
     <div id="header-sub">進化の連鎖を楽しもう。</div>
+    <div style="font-size:0.7rem;color:#c8a87a;line-height:1.6;margin-bottom:12px;font-family:sans-serif">なお、このアプリに掲載している囲碁語録や考え方は、平本先生および畠さんの言葉をもとに作成しています。文責は西にあります。</div>
     <div id="nav">
       <button class="tab-btn active" data-tab="chakugan">🎯着眼</button>
       <button class="tab-btn" data-tab="manabi">📝学び</button>
       <button class="tab-btn" data-tab="goroku">📖語録</button>
-      <button class="tab-btn" data-tab="settings">⚙️設定</button>
+      <button class="tab-btn" data-tab="settings" id="tab-settings">⚙️設定</button>
     </div>
   </div>
 
@@ -518,6 +519,7 @@ const urlParams  = new URLSearchParams(window.location.search);
 const groupParam = urlParams.get("group");
 const hasGroup   = !!groupParam;
 if (hasGroup) document.getElementById("yamaарuki-label").style.display = "block";
+if (!hasGroup) document.getElementById("tab-settings").style.display = "none";
 
 // ---------- Firebase ----------
 let bookmarksRef = null, colorsRef = null;
