@@ -552,7 +552,7 @@ function renderKibou() {
       const picker = document.getElementById(`picker-${id}`);
       const isOpen = getComputedStyle(picker).display !== "none";
       document.querySelectorAll(".vote-picker").forEach(p => p.style.display = "none");
-      picker.style.display = isOpen ? "none" : "";
+      picker.style.display = isOpen ? "none" : "block";
     });
   });
 
