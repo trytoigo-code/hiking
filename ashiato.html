@@ -550,7 +550,7 @@ function renderKibou() {
     btn.addEventListener("click", () => {
       const id = btn.dataset.id;
       const picker = document.getElementById(`picker-${id}`);
-      const isOpen = picker.style.display !== "none";
+      const isOpen = getComputedStyle(picker).display !== "none";
       document.querySelectorAll(".vote-picker").forEach(p => p.style.display = "none");
       picker.style.display = isOpen ? "none" : "";
     });
