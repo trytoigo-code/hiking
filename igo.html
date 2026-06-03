@@ -625,10 +625,10 @@ document.getElementById("add-match").addEventListener("click", () => {
   let d;
   if (dateVal) {
     const [y, mo, dy] = dateVal.split("-");
-    d = `${parseInt(mo)}/${parseInt(dy)}`;
+    d = `${y}/${parseInt(mo)}/${parseInt(dy)}`;
   } else {
     const now = new Date();
-    d = `${now.getMonth()+1}/${now.getDate()}`;
+    d = `${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()}`;
   }
   let m;
 
