@@ -603,7 +603,7 @@ document.getElementById("add-match").addEventListener("click", () => {
     const [yr, mo, dy] = dateVal.split("-");
     d = `${yr}/${parseInt(mo)}/${parseInt(dy)}`;
   } else {
-    const now = new Date(); d = `${now.getMonth()+1}/${now.getDate()}`;
+    const now = new Date(); d = `${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()}`;
   }
 
   state.history.push({ date: d, ranks, points, chips, players: [...state.players] });
