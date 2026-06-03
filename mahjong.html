@@ -206,12 +206,17 @@
     .hist-chip-cell { font-size: 0.68rem; font-weight: bold; margin-top: 1px; color: #666; }
 
     .del-btn {
-      position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
-      background: #fcebe9; color: #e74c3c; border: 1px solid #f5c6cb;
-      width: 22px; height: 22px; border-radius: 4px; font-size: 0.65rem;
-      cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: bold;
+      background: #e74c3c; color: #fff; border: none;
+      padding: 5px 10px; border-radius: 4px; font-size: 0.78rem;
+      cursor: pointer; flex-shrink: 0;
     }
-    .del-btn:active { background: #f8d7da; }
+    .del-btn:active { opacity: 0.8; }
+    .edit-btn {
+      background: #b89752; color: #fff; border: none;
+      padding: 5px 10px; border-radius: 4px; font-size: 0.78rem;
+      cursor: pointer; flex-shrink: 0;
+    }
+    .edit-btn:active { opacity: 0.8; }
 
     /* ── Filter / sort buttons ── */
     .filter-btn {
@@ -340,6 +345,19 @@
   </div></div><div id="toast" style="display:none">
   <span id="toast-msg"></span>
   <button id="toast-undo" style="display:none">元に戻す</button>
+</div>
+
+<!-- 修正モーダル -->
+<div id="edit-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;overflow-y:auto">
+  <div style="background:#fff;margin:40px auto;max-width:420px;border-radius:10px;padding:20px;box-sizing:border-box">
+    <h3 style="border-left:4px solid #b89752;padding-left:8px;color:#2c3e50;margin-top:0;font-size:1rem">対局記録の修正</h3>
+    <div class="fg"><label>対局日</label><input type="text" id="em-date" placeholder="例: 5/29"></div>
+    <div id="em-players-wrap"></div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button id="em-save" style="flex:1;background:#b89752;color:#fff;border:none;padding:10px;border-radius:6px;font-size:0.9rem;cursor:pointer">保存する</button>
+      <button id="em-cancel" style="flex:1;background:#999;color:#fff;border:none;padding:10px;border-radius:6px;font-size:0.9rem;cursor:pointer">キャンセル</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -856,7 +874,8 @@ function renderHistory() {
           </div>
           <div style="display:flex;gap:6px;flex-shrink:0">
             <button class="comment-btn" data-id="${id}" style="background:#f0ede4;color:#888;border:1px solid #ddd;padding:5px 8px;border-radius:4px;font-size:0.78rem;cursor:pointer">💬</button>
-            <button class="del-btn" onclick="deleteMatch(${origIdx})">×</button>
+            <button class="edit-btn" data-id="${id}" data-origidx="${origIdx}">修正</button>
+            <button class="del-btn" data-origidx="${origIdx}">削除</button>
           </div>
         </div>
         <div class="hist-grid">
@@ -881,7 +900,10 @@ function renderHistory() {
             <span style="font-size:0.7rem;color:#bbb">反応：</span>${emojiButtons}
           </div>
           <div class="reaction-picker" data-id="${id}" style="display:none;margin-top:6px;padding:8px;background:#faf8f0;border:1px solid #e0dbcd;border-radius:8px">
-            <div style="font-size:0.78rem;color:#555;margin-bottom:6px"><span class="reaction-pending-emoji" style="font-size:1rem"></span> で反応する名前を選んでください</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+              <div style="font-size:0.78rem;color:#555"><span class="reaction-pending-emoji" style="font-size:1rem"></span> で反応する名前を選んでください</div>
+              <button class="reaction-cancel-btn" data-id="${id}" style="background:none;border:none;color:#aaa;font-size:0.8rem;cursor:pointer;padding:0 4px">✕</button>
+            </div>
             <div style="display:flex;gap:6px;flex-wrap:wrap">${nameBtns}</div>
           </div>` : ""}
         <div class="comment-form" data-id="${id}" style="display:none;margin-top:8px">
@@ -979,6 +1001,28 @@ function renderHistory() {
       }
       m.comment.reactions = reactions;
       pushState();
+    });
+  });
+
+  // ---------- 削除ボタン ----------
+  list.querySelectorAll(".del-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      deleteMatch(Number(btn.dataset.origidx));
+    });
+  });
+
+  // ---------- 修正ボタン ----------
+  list.querySelectorAll(".edit-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      openEditModal(Number(btn.dataset.origidx));
+    });
+  });
+
+  // ---------- 反応ピッカー キャンセル ----------
+  list.querySelectorAll(".reaction-cancel-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const picker = list.querySelector(`.reaction-picker[data-id="${btn.dataset.id}"]`);
+      if (picker) picker.style.display = "none";
     });
   });
 }
@@ -1123,6 +1167,66 @@ function renderAll() {
 fillSettingsInputs();
 buildRankInputs();
 renderAll();
+
+// ---------- 修正モーダル ----------
+let editTargetIdx = -1;
+
+function openEditModal(idx) {
+  const m = state.history[idx];
+  if (!m) return;
+  editTargetIdx = idx;
+
+  document.getElementById("em-date").value = m.date || "";
+
+  const wrap = document.getElementById("em-players-wrap");
+  wrap.innerHTML = (m.players || state.players).map((name, pi) => `
+    <div style="margin-top:10px;border:1px solid #e0dbcd;border-radius:8px;padding:10px">
+      <div style="font-size:0.8rem;color:#888;margin-bottom:6px">${name}</div>
+      <div style="display:flex;gap:8px">
+        <div class="fg" style="flex:1;margin:0"><label>点数</label><input type="number" id="em-pt-${pi}" value="${m.points[pi]}"></div>
+        <div class="fg" style="flex:1;margin:0"><label>チップ</label><input type="number" id="em-chip-${pi}" value="${m.chips[pi]}"></div>
+      </div>
+    </div>
+  `).join("");
+
+  document.getElementById("edit-modal").style.display = "block";
+}
+
+document.getElementById("em-save").addEventListener("click", () => {
+  if (editTargetIdx < 0) return;
+  const m = state.history[editTargetIdx];
+  const dateVal = document.getElementById("em-date").value.trim();
+  if (dateVal) m.date = dateVal;
+
+  const players = m.players || state.players;
+  players.forEach((_, pi) => {
+    const pt   = parseInt(document.getElementById(`em-pt-${pi}`).value);
+    const chip = parseInt(document.getElementById(`em-chip-${pi}`).value);
+    if (!isNaN(pt))   m.points[pi] = pt;
+    if (!isNaN(chip)) m.chips[pi]  = chip;
+  });
+
+  // 点数から順位を再計算
+  const sorted = [...m.points].map((p, i) => ({ i, p })).sort((a, b) => b.p - a.p);
+  sorted.forEach((s, rank) => { m.ranks[s.i] = rank + 1; });
+
+  pushState();
+  document.getElementById("edit-modal").style.display = "none";
+  editTargetIdx = -1;
+  showToast("修正しました");
+});
+
+document.getElementById("em-cancel").addEventListener("click", () => {
+  document.getElementById("edit-modal").style.display = "none";
+  editTargetIdx = -1;
+});
+
+document.getElementById("edit-modal").addEventListener("click", e => {
+  if (e.target === document.getElementById("edit-modal")) {
+    document.getElementById("edit-modal").style.display = "none";
+    editTargetIdx = -1;
+  }
+});
 </script>
 </body>
 </html>
