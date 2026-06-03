@@ -123,7 +123,6 @@
       padding: 12px 12px; font-size: 0.95rem; font-family: inherit;
       background: #fff; color: #333; box-sizing: border-box;
     }
-    .fg input[type="text"] { min-height: 4.5em; }
     .fg textarea { resize: vertical; }
     .member-checks { display: flex; flex-wrap: wrap; gap: 6px; }
     .member-check-btn {
@@ -245,7 +244,7 @@
       <div class="form-box" id="activity-form">
         <div class="fg"><label>活動日</label><input type="date" id="act-date"></div>
         <div class="fg"><label>種類</label><div class="member-checks"><button type="button" class="member-check-btn" id="act-yotei" onclick="this.classList.toggle('selected')">📅 予定</button></div></div>
-        <div class="fg"><label>活動名・場所</label><input type="text" id="act-name" placeholder="例：川越散策"></div>
+        <div class="fg"><label>活動名・場所</label><textarea id="act-name" rows="2" placeholder="例：川越散策"></textarea></div>
         <div class="fg">
           <label>活動種別</label>
           <div class="member-checks" id="act-kinds">
@@ -270,7 +269,7 @@
       <button class="add-btn" id="add-kibou-btn">＋ 行き先を追加</button>
 
       <div class="form-box" id="kibou-form">
-        <div class="fg"><label>行き先・やりたいこと</label><input type="text" id="kib-place" placeholder="例：鎌倉"></div>
+        <div class="fg"><label>行き先・やりたいこと</label><textarea id="kib-place" rows="2" placeholder="例：鎌倉"></textarea></div>
         <div class="fg">
           <label>提案者</label>
           <select id="kib-proposer">
@@ -452,7 +451,7 @@ function renderKiroku() {
         <div class="inline-edit-form" id="act-edit-${id}">
           <div class="fg"><label>活動日</label><input type="date" id="ae-date-${id}" value="${dateVal}"></div>
           <div class="fg"><label>種類</label><div class="member-checks"><button type="button" class="member-check-btn ${yoteiBtnSel}" id="ae-yotei-${id}" onclick="this.classList.toggle('selected')">📅 予定</button></div></div>
-          <div class="fg"><label>活動名・場所</label><input type="text" id="ae-name-${id}" value="${(act.name||"").replace(/"/g,'&quot;')}"></div>
+          <div class="fg"><label>活動名・場所</label><textarea id="ae-name-${id}" rows="2">${(act.name||"").replace(/</g,'&lt;')}</textarea></div>
           <div class="fg"><label>活動種別</label><div class="member-checks" id="ae-kinds-${id}">${kindBtns}</div></div>
           <div class="fg"><label>参加メンバー</label><div class="member-checks" id="ae-members-${id}">${memberBtns}</div></div>
           <div class="fg"><label>メモ（任意）</label><textarea id="ae-note-${id}" rows="2">${act.note||""}</textarea></div>
@@ -531,7 +530,7 @@ function renderKibou() {
               <div class="vote-name-btns">${memberNames}</div>
             </div>
             <div class="inline-edit-form" id="kib-edit-${id}">
-              <div class="fg"><label>行き先・やりたいこと</label><input type="text" id="ke-place-${id}" value="${(w.place||"").replace(/"/g,'&quot;')}"></div>
+              <div class="fg"><label>行き先・やりたいこと</label><textarea id="ke-place-${id}" rows="2">${(w.place||"").replace(/</g,'&lt;')}</textarea></div>
               <div class="fg"><label>提案者</label>
                 <select id="ke-proposer-${id}">
                   <option value="">（選択してください）</option>
