@@ -1764,7 +1764,7 @@ document.getElementById("edit-save").addEventListener("click", () => {
   let d = state.history[editTargetIdx].date;
   if (dateVal) {
     const [y,mo,dy] = dateVal.split("-");
-    d = `${parseInt(mo)}/${parseInt(dy)}`;
+    d = `${y}/${parseInt(mo)}/${parseInt(dy)}`;
   }
 
   const wv = document.getElementById("edit-winner").value;
