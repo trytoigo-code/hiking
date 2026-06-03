@@ -545,19 +545,21 @@ function renderKibou() {
       }).join("")
     : `<p style="color:#999;font-size:0.88rem">まだ希望地がありません。</p>`;
 
+  const kibouList = document.getElementById("kibou-list");
+
   // 行きたいボタン
-  document.querySelectorAll(".vote-btn").forEach(btn => {
+  kibouList.querySelectorAll(".vote-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       const id = btn.dataset.id;
       const picker = document.getElementById(`picker-${id}`);
       const isOpen = getComputedStyle(picker).display !== "none";
-      document.querySelectorAll(".vote-picker").forEach(p => p.style.display = "none");
+      kibouList.querySelectorAll(".vote-picker").forEach(p => p.style.display = "none");
       picker.style.display = isOpen ? "none" : "block";
     });
   });
 
   // 名前ボタン → 投票トグル
-  document.querySelectorAll(".vote-name-btn").forEach(btn => {
+  kibouList.querySelectorAll(".vote-name-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       const id   = btn.dataset.id;
       const name = btn.dataset.name;
