@@ -9,6 +9,11 @@
   対局結果・星取表・手合い割を全員がリアルタイムで確認できることを重視する。
   現時点では6名での利用を想定しているが、今後の拡張余地を残した設計とする。
 
+【セキュリティ】
+  - 合言葉認証あり（初回のみ入力）
+  - 認証情報はブラウザのlocalStorageに保存される
+  - 別端末・別ブラウザ・キャッシュ削除後は再入力が必要
+
 【利用環境】
   - スマホ利用を最優先とする（モバイルファースト）
   - GitHub Pages でホスティング（現時点では単一 index.html で完結）
@@ -207,6 +212,21 @@
   </style>
 </head>
 <body>
+<script>
+(function(){
+  var KEY = 'gosenrigue_auth';
+  var PASS = 'ごせんりーぐ';
+  if(localStorage.getItem(KEY) !== 'ok'){
+    var input = prompt('合言葉を入力してください');
+    if(input === PASS){
+      localStorage.setItem(KEY, 'ok');
+    } else {
+      document.documentElement.innerHTML = '<body style="font-family:sans-serif;text-align:center;padding:60px"><h2>アクセスできません</h2></body>';
+      throw new Error('access denied');
+    }
+  }
+})();
+</script>
 <div id="app">
 
   <!-- Header -->
