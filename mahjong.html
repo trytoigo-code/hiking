@@ -51,9 +51,9 @@
   - 管理者メニュー（設定タブ内・折りたたみ式）
       雀士設定・チップレート設定・シーズン管理を収録
   - Firebase によるリアルタイム同期
+  - データエクスポート（設定タブからJSONファイルとしてダウンロード。日付入りファイル名で保存）
 
 【今後の改良候補】
-  - データのエクスポート（CSV等）
   - ダークモード対応
 ================================================================================
 -->
@@ -358,6 +358,10 @@
         <h3 style="margin-top:24px">完全リセット</h3>
         <p class="note">テスト中など、すべてをやり直したいときに使います。履歴・アーカイブ・シーズン番号をすべて消去してシーズン1に戻します。</p>
         <button class="btn" id="full-reset" style="background:#888">シーズン1からやり直す</button>
+
+        <h3 style="margin-top:24px">データエクスポート</h3>
+        <p class="note">Firebaseのデータをファイルとして保存します。万が一のバックアップに使ってください。</p>
+        <button class="btn" id="export-btn" style="background:#2c3e50">JSONでダウンロード</button>
 
       </div>
     </div>
@@ -1164,6 +1168,25 @@ document.getElementById("full-reset").addEventListener("click", () => {
   pushState();
   showToast("完全リセットしました。シーズン1から始めます。");
   renderSeasonInfo();
+});
+
+// ---------- データエクスポート ----------
+document.getElementById("export-btn").addEventListener("click", () => {
+  if (!isConfigured) { showToast("データベースに接続されていません"); return; }
+  firebase.database().ref("mahjong").once("value", snap => {
+    const data = snap.val();
+    if (!data) { showToast("エクスポートするデータがありません"); return; }
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const date = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `tenbo_backup_${date}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast("エクスポートしました");
+  });
 });
 
 // ---------- シーズン情報表示 ----------
