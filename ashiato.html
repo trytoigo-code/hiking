@@ -10,11 +10,6 @@
   複数のグループ（山あるき・遠足クラブ・ぶんかのかい等）で共用し、
   URLの ?group= パラメータでデータを切り替える。
 
-【セキュリティ】
-  - 合言葉認証あり（初回のみ入力）
-  - 認証情報はブラウザのlocalStorageに保存される
-  - 別端末・別ブラウザ・キャッシュ削除後は再入力が必要
-
 【利用環境】
   - スマホ利用を最優先とする（モバイルファースト）
   - GitHub Pages でホスティング（単一 ashiato.html で完結）
@@ -45,6 +40,12 @@
   - 📋記録タブ：活動記録の一覧・追加・編集・削除（活動種別：囲碁／麻雀 複数選択可、予定フラグ付き）
   - 🌟希望タブ：行き先希望の一覧・追加（メモ任意）・編集・投票（名前選択式トグル）・削除
   - ⚙️設定タブ：管理者の仕事（メンバー管理）
+  - データエクスポート（設定タブからJSONファイルとしてダウンロード。日付入りファイル名で保存）
+
+【セキュリティ】
+  - 合言葉認証あり（初回のみ入力）
+  - 認証情報はブラウザのlocalStorageに保存される
+  - 別端末・別ブラウザ・キャッシュ削除後は再入力が必要
 
 【今後の改良候補】
   - 活動の写真添付
@@ -318,6 +319,10 @@
           <input type="text" id="new-member-input" placeholder="名前を入力" style="flex:1;border:1px solid #ddd;border-radius:6px;padding:8px 10px;font-size:0.88rem;font-family:inherit">
           <button id="add-member-btn" style="background:#3a5c4a;color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:0.88rem;font-family:inherit;cursor:pointer">追加</button>
         </div>
+
+        <div class="section-title" style="margin-top:24px">データエクスポート</div>
+        <p style="font-size:0.84rem;color:#666;margin:0 0 10px;line-height:1.6">Firebaseのデータをファイルとして保存します。万が一のバックアップに使ってください。</p>
+        <button id="export-btn" style="width:100%;background:#2c3e50;color:#fff;border:none;border-radius:8px;padding:12px;font-size:0.95rem;font-family:inherit;cursor:pointer">JSONでダウンロード</button>
       </div>
     </div>
 
@@ -712,6 +717,25 @@ function buildProposerSelect() {
   sel.innerHTML = `<option value="">（選択してください）</option>`
     + members.map(m => `<option value="${m}">${m}</option>`).join("");
 }
+
+// ---------- データエクスポート ----------
+document.getElementById("export-btn").addEventListener("click", () => {
+  if (!isConfigured) { showToast("データベースに接続されていません"); return; }
+  firebase.database().ref(`ashiato/${group}`).once("value", snap => {
+    const data = snap.val();
+    if (!data) { showToast("エクスポートするデータがありません"); return; }
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const date = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `ashiato_${group}_backup_${date}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast("エクスポートしました");
+  });
+});
 
 // ---------- 設定タブ（メンバー管理） ----------
 document.getElementById("admin-toggle").addEventListener("click", () => {
