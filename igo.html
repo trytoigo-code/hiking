@@ -39,7 +39,7 @@
 
 【主な機能（現時点）】
   - 対局者設定（現時点では6名、拡張余地あり）
-  - 結果入力（中押し・時間切れ・目数差・持碁・不明）
+  - 結果入力（中押し・時間切れ・目数差・持碁）
   - 星取表・順位表示（ヒートマップ付き・勝数順/勝率順の切り替え対応）
   - 対局履歴（多視点表示・修正機能付き）
       全体：全対局の記録
@@ -56,11 +56,11 @@
   - 対局コメント（履歴から各対局に一言メモを後から追記可能。短文はそのまま表示、長文は折りたたみ）
   - コメントへのリアクション（👍😄😮🔥の4種。誰が押したかFirebaseで全員に同期）
   - Firebase によるリアルタイム同期
+  - データエクスポート（設定タブからJSONファイルとしてダウンロード。日付入りファイル名で保存）
 
 【今後の改良候補】
   - 結果入力画面のカード型UI
   - ダークモード対応
-  - データのバックアップ・エクスポート
   - 囲碁語録アプリとの連携
 ================================================================================
 -->
@@ -200,7 +200,7 @@
     #toast {
       position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
       background: #2c3e50; color: #fff; padding: 10px 18px;
-      border-radius: 20px; font-size: 0.88rem; z-index: 999;
+      border-radius: 20px; font-size: 0.88rem; z-index: 1100;
       display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
       display: none; align-items: center; gap: 12px; white-space: nowrap;
     }
@@ -278,7 +278,7 @@
         <p class="note">ペアごとの手合いを手動で設定します。使い始めや手合いを直接変更したい時にお使いください。</p>
         <div id="level-settings"></div>
         <button class="btn" id="save-levels" style="background:#b89752">手合いを保存して同期</button>
-        <p class="note" style="margin-top:8px">※ 対局記録を修正しても手合いレベルは自動で再計算されません。必要な場合はここで手動調整してください。</p>
+        <p class="note" style="margin-top:8px">※ 対局記録を修正・削除すると手合いレベルと連勝数は自動で再計算されます。手動で直接変更したい場合はここを使ってください。</p>
 
         <h3 style="margin-top:24px">シーズン管理</h3>
         <p class="note">対局履歴と連勝カウントをリセットします。手合いレベルは引き継ぎます。</p>
@@ -289,6 +289,10 @@
         <h3 style="margin-top:24px">完全リセット</h3>
         <p class="note">テスト中など、すべてをやり直したいときに使います。履歴・アーカイブ・シーズン番号をすべて消去してシーズン1に戻します。手合いレベルは保持されます。</p>
         <button class="btn" id="full-reset" style="background:#888">シーズン1からやり直す</button>
+
+        <h3 style="margin-top:24px">データエクスポート</h3>
+        <p class="note">Firebaseのデータをファイルとして保存します。万が一のバックアップに使ってください。</p>
+        <button class="btn" id="export-btn" style="background:#2c3e50">JSONでダウンロード</button>
       </div>
     </div>
 
@@ -308,7 +312,6 @@
           <option value="jikan">時間切れ</option>
           <option value="moku">目数差</option>
           <option value="jigo">持碁（黒勝ち）</option>
-          <option value="fumei">不明</option>
         </select>
       </div>
       <div class="fg"><label id="label-left">勝者 👑</label><select id="winner"></select></div>
@@ -386,7 +389,6 @@
         <option value="jikan">時間切れ</option>
         <option value="moku">目数差</option>
         <option value="jigo">持碁（黒勝ち）</option>
-        <option value="fumei">不明</option>
       </select>
     </div>
     <div class="fg"><label id="edit-label-left">勝者 👑</label><select id="edit-winner"></select></div>
@@ -628,13 +630,31 @@ document.getElementById("winner-teai").addEventListener("change", function() {
 
 document.getElementById("result-type").addEventListener("change", function() {
   const t = this.value;
-  const isJigo = t === "jigo";
   document.getElementById("moku-fg").style.display = t === "moku" ? "" : "none";
-  // ラベルを結果種別に応じて切替
-  document.getElementById("label-left").textContent      = isJigo ? "対局者A" : "勝者 👑";
-  document.getElementById("label-right").textContent     = isJigo ? "対局者B" : "敗者";
-  document.getElementById("label-left-teai").textContent = isJigo ? "対局者Aの手合い" : "勝者の手合い";
-  document.getElementById("label-right-teai").textContent= isJigo ? "対局者B" : "敗者";
+  // 持碁選択時は手合い選択肢を黒番（下手）のみに絞る
+  const teaiSel = document.getElementById("winner-teai");
+  const allOptions = [
+    { value: "",     label: "指定なし" },
+    { value: "互先", label: "互先（白黒不明）" },
+    { value: "互白", label: "互白（コミあり・白番）" },
+    { value: "互黒", label: "互黒（コミあり・黒番）" },
+    { value: "向先", label: "向先（コミなし・白番）" },
+    { value: "先",   label: "先（コミなし・黒番）" },
+    { value: "向2",  label: "向2（向2子・上手）" },
+    { value: "2子",  label: "2子（下手）" },
+    { value: "向3",  label: "向3（向3子・上手）" },
+    { value: "3子",  label: "3子（下手）" },
+  ];
+  const jigoOptions = [
+    { value: "",     label: "指定なし" },
+    { value: "先",   label: "先（コミなし・黒番）" },
+    { value: "2子",  label: "2子（下手）" },
+    { value: "3子",  label: "3子（下手）" },
+  ];
+  const opts = t === "jigo" ? jigoOptions : allOptions;
+  const current = teaiSel.value;
+  teaiSel.innerHTML = opts.map(o => `<option value="${o.value}">${o.label}</option>`).join("");
+  teaiSel.value = opts.find(o => o.value === current) ? current : "";
   autoFillTeai();
 });
 
@@ -659,6 +679,8 @@ document.getElementById("add-match").addEventListener("click", () => {
     const i1 = +v1, i2 = +v2;
     if (i1 === i2) { showToast("同じ人は選べません"); return; }
     const ta1 = document.getElementById("winner-teai").value;
+    if (!ta1) { showToast("手合いを選択してください"); return; }
+    if (!BLACK_TEAI.includes(ta1)) { showToast("持碁は手合い「先・2子・3子」のみ登録できます"); return; }
     const ta2 = TEAI_PAIR[ta1] || "";
     m = { id:crypto.randomUUID(), type:"jigo", p1:state.players[i1], p2:state.players[i2],
           teai1:ta1, teai2:ta2, date:d };
@@ -670,6 +692,7 @@ document.getElementById("add-match").addEventListener("click", () => {
     const wi = +wv, li = +lv;
     if (wi === li) { showToast("同じ人は選べません"); return; }
     const tw = document.getElementById("winner-teai").value;
+    if (!tw) { showToast("手合いを選択してください"); return; }
     const tl = TEAI_PAIR[tw] || "";
     if (type === "moku") {
       const mk = parseFloat(document.getElementById("mokusuu").value);
@@ -747,10 +770,6 @@ function calcStats() {
         const loser = jw === m.p1 ? m.p2 : m.p1;
         if (s[jw])    { s[jw].wins++;    s[jw].total++;    }
         if (s[loser]) { s[loser].losses++; s[loser].total++; }
-      } else {
-        // 手合い未設定の持碁は引き分けカウント
-        if (s[m.p1]) { s[m.p1].jigo++; s[m.p1].total++; }
-        if (s[m.p2]) { s[m.p2].jigo++; s[m.p2].total++; }
       }
     } else {
       if (s[m.winner]) { s[m.winner].wins++; s[m.winner].total++; }
@@ -979,7 +998,7 @@ function renderHistoryFilter() {
 // 黒番（下手）に該当する手合い。
 // 互黒=互先の黒番、先=向先局の黒番（下手）。
 // 持碁はこの手合いを持つ側の勝ちとして扱う。
-const BLACK_TEAI = ["互黒", "先"];
+const BLACK_TEAI = ["先", "2子", "3子"];
 
 function jigoWinner(m) {
   // 持碁は黒番（下手）の勝ちとして勝者を返す。手合い未設定ならnull
@@ -1641,6 +1660,25 @@ document.getElementById("full-reset").addEventListener("click", () => {
   renderSeasonInfo();
 });
 
+// ---------- データエクスポート ----------
+document.getElementById("export-btn").addEventListener("click", () => {
+  if (!isConfigured) { showToast("データベースに接続されていません"); return; }
+  firebase.database().ref("go-league").once("value", snap => {
+    const data = snap.val();
+    if (!data) { showToast("エクスポートするデータがありません"); return; }
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const date = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `hoshitori_backup_${date}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast("エクスポートしました");
+  });
+});
+
 // ---------- シーズン情報表示 ----------
 function renderSeasonInfo() {
   const el = document.getElementById("season-info");
@@ -1729,13 +1767,11 @@ function openEditModal(m, idx) {
     document.getElementById("edit-teai-pair-row").style.display = "none";
   }
 
-  // ラベル切替
-  const labelL = isJigo ? "対局者A" : "勝者 👑";
-  const labelR = isJigo ? "対局者B" : "敗者";
-  document.getElementById("edit-label-left").textContent  = labelL;
-  document.getElementById("edit-label-right").textContent = labelR;
-  document.getElementById("edit-label-teai").textContent  = isJigo ? "対局者Aの手合い" : "勝者の手合い";
-  document.getElementById("edit-label-teai-pair").textContent = isJigo ? "対局者B" : "敗者";
+  // ラベルは常に固定
+  document.getElementById("edit-label-left").textContent  = "勝者 👑";
+  document.getElementById("edit-label-right").textContent = "敗者";
+  document.getElementById("edit-label-teai").textContent  = "勝者の手合い";
+  document.getElementById("edit-label-teai-pair").textContent = "敗者";
 
   document.getElementById("edit-modal").style.display = "";
 
@@ -1753,15 +1789,10 @@ function openEditModal(m, idx) {
   }
 }
 
-// 結果種別変更でラベル・目数差欄を切替
+// 結果種別変更で目数差欄を切替
 document.getElementById("edit-result").addEventListener("change", function() {
   const t = this.value;
-  const isJigo = t === "jigo";
   document.getElementById("edit-moku-fg").style.display = t === "moku" ? "" : "none";
-  document.getElementById("edit-label-left").textContent  = isJigo ? "対局者A" : "勝者 👑";
-  document.getElementById("edit-label-right").textContent = isJigo ? "対局者B" : "敗者";
-  document.getElementById("edit-label-teai").textContent  = isJigo ? "対局者Aの手合い" : "勝者の手合い";
-  document.getElementById("edit-label-teai-pair").textContent = isJigo ? "対局者B" : "敗者";
 });
 
 // 手合い変更で相手手合いを自動表示
@@ -1777,6 +1808,19 @@ document.getElementById("edit-teai").addEventListener("change", function() {
 });
 
 // 保存
+// ---------- 手合い・連勝の全再計算 ----------
+// 履歴を登録順（古い順）に全件なめてlevels/streaksを再構築する。
+// 対局記録を修正した際に呼ぶ。
+function recalcAllLevelsAndStreaks() {
+  // 全ペアをリセット
+  state.levels  = {};
+  state.streaks = {};
+  // historyは新しい順（unshift）で積まれているため逆順で処理
+  [...state.history].reverse().forEach(m => {
+    updateLevelsAndStreaks(m);
+  });
+}
+
 document.getElementById("edit-save").addEventListener("click", () => {
   if (editTargetIdx < 0) return;
   const type = document.getElementById("edit-result").value;
@@ -1794,6 +1838,8 @@ document.getElementById("edit-save").addEventListener("click", () => {
   if (wv === lv) { showToast("同じ人は選べません"); return; }
 
   const tw = document.getElementById("edit-teai").value;
+  if (!tw) { showToast("手合いを選択してください"); return; }
+  if (type === "jigo" && !BLACK_TEAI.includes(tw)) { showToast("持碁は手合い「先・2子・3子」のみ登録できます"); return; }
   const tl = TEAI_PAIR[tw] || "";
   const orig = state.history[editTargetIdx];
 
@@ -1825,6 +1871,7 @@ document.getElementById("edit-save").addEventListener("click", () => {
                   : cText ? { text: cText, author: "", reactions: existReactions }
                   : "";
 
+  recalcAllLevelsAndStreaks();
   pushState();
   document.getElementById("edit-modal").style.display = "none";
   showToast("対局記録を修正しました");
@@ -1876,6 +1923,7 @@ function showDeleteUndo(delIdx) {
   undoTimer = setTimeout(() => {
     el.style.display = "none";
     if (pendingDelete) {
+      recalcAllLevelsAndStreaks();
       pushState(); // ここで初めてFirebaseに書き込む
       pendingDelete = null;
     }
@@ -1889,6 +1937,7 @@ document.getElementById("toast-undo").addEventListener("click", () => {
     state.history.splice(pendingDelete.idx, 0, pendingDelete.record);
     pendingDelete = null;
     if (undoTimer) clearTimeout(undoTimer);
+    recalcAllLevelsAndStreaks();
     renderAll();
     showToast("元に戻しました");
   }
