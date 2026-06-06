@@ -470,7 +470,7 @@ function renderKiroku() {
         </div>
         ${seqDisp}
         ${kindDisp}
-        <div class="card-title">${act.date || ""} ${act.name || ""}</div>
+        <div class="card-title">${(act.date || "")} ${(act.name || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>")}</div>
         <div class="card-sub">参加 ${count}名${mems ? "：" + mems : ""}</div>
         ${note}
         <div class="inline-edit-form" id="act-edit-${id}">
@@ -543,7 +543,7 @@ function renderKibou() {
               <button class="edit-btn-sm" onclick="toggleKibouEdit('${id}')">修正</button>
               <button class="del-btn-sm" onclick="deleteWish('${id}')">削除</button>
             </div>
-            <div class="kibou-title">${w.place || ""}</div>
+            <div class="kibou-title">${(w.place || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>")}</div>
             <div class="kibou-votes">
               🙋 ${votes.length}名${votes.length ? "：" + votes.join("・") : ""}
               ${w.proposer ? `<span style="color:#bbb;margin-left:8px">提案：${w.proposer}</span>` : ""}
