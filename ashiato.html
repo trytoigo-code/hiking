@@ -447,7 +447,7 @@ function renderKiroku() {
   document.getElementById("kiroku-list").innerHTML = sorted.map(([id, act]) => {
     const mems  = act.members ? act.members.join("・") : "";
     const count = act.members ? act.members.length : 0;
-    const note  = act.note ? `<div style="font-size:0.78rem;color:#888;margin-top:4px;word-break:break-all">${act.note}</div>` : "";
+    const note  = act.note ? `<div style="font-size:0.78rem;color:#888;margin-top:4px;word-break:break-all">${linkify(act.note)}</div>` : "";
     const dateVal = act.date ? act.date.replace(/\//g, "-") : "";
     const actKinds = act.kinds || [];
     const kindDisp = actKinds.length
@@ -536,7 +536,7 @@ function renderKibou() {
         const proposerOpts = members.map(m =>
           `<option value="${m}" ${w.proposer===m?"selected":""}>${m}</option>`
         ).join("");
-        const noteDisp = w.note ? `<div style="font-size:0.78rem;color:#888;margin-top:4px;word-break:break-all">${w.note}</div>` : "";
+        const noteDisp = w.note ? `<div style="font-size:0.78rem;color:#888;margin-top:4px;word-break:break-all">${linkify(w.note)}</div>` : "";
         return `
           <div class="kibou-card" id="kibou-${id}">
             <div class="card-btn-row">
@@ -736,6 +736,13 @@ document.getElementById("export-btn").addEventListener("click", () => {
     showToast("エクスポートしました");
   });
 });
+
+// ---------- URLリンク変換 ----------
+function linkify(text) {
+  const escaped = text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  const linked = escaped.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener" style="color:#3a5c4a;word-break:break-all">$1</a>');
+  return linked.replace(/\n/g, "<br>");
+}
 
 // ---------- 設定タブ（メンバー管理） ----------
 document.getElementById("admin-toggle").addEventListener("click", () => {
