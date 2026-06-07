@@ -6,7 +6,7 @@
 
 【アプリの目的】
   少人数の囲碁リーグ戦を、グループLINEで共有しながら管理する。
-  対局結果・星取表・手合い割を全員がリアルタイムで確認できることを重視する。
+  対局結果・順位・手合い割を全員がリアルタイムで確認できることを重視する。
   現時点では6名での利用を想定しているが、今後の拡張余地を残した設計とする。
 
 【セキュリティ】
@@ -40,19 +40,19 @@
 【主な機能（現時点）】
   - 対局者設定（現時点では6名、拡張余地あり）
   - 結果入力（中押し・時間切れ・目数差・持碁）
-  - 星取表・順位表示（ヒートマップ付き・勝数順/勝率順の切り替え対応）
+  - 順位表示（勝数順/勝率順の切り替え対応）
   - 対局履歴（多視点表示・修正機能付き）
       全体：全対局の記録
       1人選択：最近の流れ・相手別成績・決着内容・対局履歴
       2人選択：最近の流れ・決着内容・直接対局履歴
-  - 手合い自動計算（5連勝で手合い変更、多段階対応）
+  - 手合い自動計算（3連勝で手合い変更、多段階対応）
   - 手合いレベルの独立保存（履歴に依存せず管理）
   - 初期手合い設定（ペアごとに手合いを手動設定可能）
   - シーズンリセット（履歴をFirebaseに保存後リセット・手合いレベルは引き継ぎ）
   - 過去シーズンのアーカイブ表示（Firebase go-league/seasons/ に保存）
   - 管理者メニュー（折りたたみ式・対局者設定・初期手合い設定・シーズン管理を収録）
   - 完全リセット（履歴・アーカイブ・シーズン番号を消去してシーズン1に戻す。手合いレベルは保持）
-  - 勝敗グラフ（星取表タブ最上部。名前をベースラインに勝ちバーは上・負けバーは下に伸びる分岐縦棒グラフ）
+  - 勝敗グラフ（順位タブ最上部。名前をベースラインに勝ちバーは上・負けバーは下に伸びる分岐縦棒グラフ）
   - 対局コメント（履歴から各対局に一言メモを後から追記可能。短文はそのまま表示、長文は折りたたみ）
   - コメントへのリアクション（👍😄😮🔥の4種。誰が押したかFirebaseで全員に同期）
   - Firebase によるリアルタイム同期
@@ -145,27 +145,11 @@
     .progress-bar { background: #e8e4da; height: 5px; border-radius: 3px; margin-top: 5px; overflow: hidden; }
     .progress-fill { background: #b89752; height: 100%; border-radius: 3px; transition: width 0.4s; }
 
-    /* Matrix */
+    /* Table（手合い表用） */
     .matrix-wrap { overflow-x: auto; margin-top: 8px; }
     table { width: 100%; border-collapse: collapse; background: #faf9f5; font-size: 0.82rem; }
     th, td { border: 1px solid #ddd8cc; padding: 8px 4px; text-align: center; }
     th { background: #f1f0ea; color: #2c3e50; }
-    .cell-self { background: #ece8dc; }
-    .stone-w {
-      display: inline-block; width: 20px; height: 20px; border-radius: 50%;
-      line-height: 20px; text-align: center; font-size: 0.68rem; font-weight: bold;
-      background: #222; color: #fff; vertical-align: middle;
-    }
-    .stone-l {
-      display: inline-block; width: 20px; height: 20px; border-radius: 50%;
-      line-height: 20px; text-align: center; font-size: 0.68rem; font-weight: bold;
-      background: #fff; color: #333; border: 1px solid #bbb; vertical-align: middle;
-    }
-    .stone-j {
-      display: inline-block; width: 20px; height: 20px; border-radius: 50%;
-      line-height: 20px; text-align: center; font-size: 0.68rem; font-weight: bold;
-      background: #888; color: #fff; vertical-align: middle;
-    }
 
     /* History */
     .hist-item {
@@ -240,7 +224,7 @@
 
   <!-- Tabs -->
   <div id="nav">
-    <button class="tab-btn active" data-tab="standings">🏆星取表</button>
+    <button class="tab-btn active" data-tab="standings">🏆順位</button>
     <button class="tab-btn" data-tab="input">📝結果入力</button>
     <button class="tab-btn" data-tab="history">📜履歴</button>
     <button class="tab-btn" data-tab="handicap">🤝手合い</button>
@@ -332,6 +316,8 @@
           <option value="2子">2子（下手）</option>
           <option value="向3">向3（向3子・上手）</option>
           <option value="3子">3子（下手）</option>
+          <option value="向4">向4（向4子・上手）</option>
+          <option value="4子">4子（下手）</option>
         </select>
         <div id="loser-teai-row" style="margin-top:8px;font-size:0.88rem;color:#555;display:none">
           <span id="label-right-teai">敗者</span>の手合い：<strong id="loser-teai-val"></strong>
@@ -340,7 +326,7 @@
       <button class="btn" id="add-match">登録する（全員に即時反映）</button>
     </div>
 
-    <!-- 星取表 -->
+    <!-- 順位 -->
     <div class="panel active" id="panel-standings">
       <div id="wins-chart" style="margin-bottom:24px"></div>
       <h3>順位</h3>
@@ -349,8 +335,7 @@
         <button class="filter-btn" id="sort-rate">勝率順</button>
       </div>
       <div id="rank-list"></div>
-      <h3 style="margin-top:24px">星取表</h3>
-      <div class="matrix-wrap"><table id="matrix"></table></div>
+
     </div>
 
     <!-- 履歴 -->
@@ -363,7 +348,7 @@
     <!-- 手合い -->
     <div class="panel" id="panel-handicap">
       <h3>手合い割</h3>
-      <p class="note">5連勝で手合い割が変わります。</p>
+      <p class="note">3連勝で手合い割が変わります。</p>
       <div class="matrix-wrap">
         <table id="handicap-table">
           <thead><tr><th>対局</th><th>現在の手合い</th><th>状況</th></tr></thead>
@@ -409,6 +394,8 @@
         <option value="2子">2子（下手）</option>
         <option value="向3">向3（向3子・上手）</option>
         <option value="3子">3子（下手）</option>
+        <option value="向4">向4（向4子・上手）</option>
+        <option value="4子">4子（下手）</option>
       </select>
       <div id="edit-teai-pair-row" style="margin-top:8px;font-size:0.88rem;color:#555;display:none">
         <span id="edit-label-teai-pair">相手</span>の手合い：<strong id="edit-teai-pair-val"></strong>
@@ -569,7 +556,7 @@ document.getElementById("save-players").addEventListener("click", () => {
 });
 
 // ---------- Match Input ----------
-const TEAI_PAIR = { "互先":"互先", "互白":"互黒", "互黒":"互白", "向先":"先", "先":"向先", "向2":"2子", "2子":"向2", "向3":"3子", "3子":"向3", "":"" };
+const TEAI_PAIR = { "互先":"互先", "互白":"互黒", "互黒":"互白", "向先":"先", "先":"向先", "向2":"2子", "2子":"向2", "向3":"3子", "3子":"向3", "向4":"4子", "4子":"向4", "":"" };
 
 function buildSelects() {
   ["winner","loser"].forEach(id => {
@@ -644,12 +631,15 @@ document.getElementById("result-type").addEventListener("change", function() {
     { value: "2子",  label: "2子（下手）" },
     { value: "向3",  label: "向3（向3子・上手）" },
     { value: "3子",  label: "3子（下手）" },
+    { value: "向4",  label: "向4（向4子・上手）" },
+    { value: "4子",  label: "4子（下手）" },
   ];
   const jigoOptions = [
     { value: "",     label: "指定なし" },
     { value: "先",   label: "先（コミなし・黒番）" },
     { value: "2子",  label: "2子（下手）" },
     { value: "3子",  label: "3子（下手）" },
+    { value: "4子",  label: "4子（下手）" },
   ];
   const opts = t === "jigo" ? jigoOptions : allOptions;
   const current = teaiSel.value;
@@ -680,7 +670,7 @@ document.getElementById("add-match").addEventListener("click", () => {
     if (i1 === i2) { showToast("同じ人は選べません"); return; }
     const ta1 = document.getElementById("winner-teai").value;
     if (!ta1) { showToast("手合いを選択してください"); return; }
-    if (!BLACK_TEAI.includes(ta1)) { showToast("持碁は手合い「先・2子・3子」のみ登録できます"); return; }
+    if (!BLACK_TEAI.includes(ta1)) { showToast("持碁は手合い「先・2子・3子・4子」のみ登録できます"); return; }
     const ta2 = TEAI_PAIR[ta1] || "";
     m = { id:crypto.randomUUID(), type:"jigo", p1:state.players[i1], p2:state.players[i2],
           teai1:ta1, teai2:ta2, date:d };
@@ -779,26 +769,6 @@ function calcStats() {
   return Object.values(s).sort((a,b) => b.wins - a.wins || a.losses - b.losses);
 }
 
-function heatmapColor(wins, losses) {
-  const total = wins + losses;
-  if (total === 0) return "#ffffff";
-  const rate = wins / total;
-  if (rate >= 0.80) return "#1a3a5c";       // 濃紺
-  if (rate >= 0.60) return "#6a9fc0";       // 薄紺
-  if (rate > 0.40)  return "#f5f5f5";       // ほぼ互角・薄グレー
-  if (rate >= 0.20) return "#e8a090";       // 薄赤
-  return "#c0392b";                          // 濃赤
-}
-
-function heatmapText(wins, losses) {
-  const total = wins + losses;
-  if (total === 0) return "#333";
-  const rate = wins / total;
-  // 濃い背景色の時は白文字
-  if (rate >= 0.80 || rate < 0.20) return "#fff";
-  return "#333";
-}
-
 function renderWinsChart() {
   const el = document.getElementById("wins-chart");
   if (!el) return;
@@ -892,36 +862,6 @@ function renderStandings() {
       </div>`;
   }).join("");
 
-  // 星取表
-  const ps = state.players;
-  const diagCell = `<th style="background:linear-gradient(to bottom left,transparent calc(50% - 0.5px),#bbb calc(50% - 0.5px),#bbb calc(50% + 0.5px),transparent calc(50% + 0.5px))"></th>`;
-  let html = "<thead><tr>" + diagCell + ps.map(p=>`<th>${p}</th>`).join("") + "</tr></thead><tbody>";
-  ps.forEach(p1 => {
-    html += `<tr><th>${p1}</th>`;
-    ps.forEach(p2 => {
-      if (p1 === p2) { html += `<td class="cell-self">—</td>`; return; }
-      const cells = [];
-      let w1=0, l1=0;
-      [...state.history].reverse().forEach(m => {
-        if (m.type==="jigo" && ((m.p1===p1&&m.p2===p2)||(m.p1===p2&&m.p2===p1))) {
-          const jw = jigoWinner(m);
-          if (jw === p1)      { cells.push(`<span class="stone-w">●</span>`); w1++; }
-          else if (jw === p2) { cells.push(`<span class="stone-l">○</span>`); l1++; }
-          else                  cells.push(`<span class="stone-j">△</span>`);
-        }
-        if (m.winner===p1 && m.loser===p2) { cells.push(`<span class="stone-w">●</span>`); w1++; }
-        if (m.winner===p2 && m.loser===p1) { cells.push(`<span class="stone-l">○</span>`); l1++; }
-      });
-      const bg = heatmapColor(w1, l1);
-      const fg = heatmapText(w1, l1);
-      const total = w1 + l1;
-      const cellText = total === 0 ? "" : `${w1}勝${l1}敗`;
-      html += `<td style="background:${bg};color:${fg};font-size:0.78rem;font-weight:bold">${cellText}</td>`;
-    });
-    html += "</tr>";
-  });
-  html += "</tbody>";
-  document.getElementById("matrix").innerHTML = html;
 }
 
 function badgeHTML(m) {
@@ -998,7 +938,7 @@ function renderHistoryFilter() {
 // 黒番（下手）に該当する手合い。
 // 互黒=互先の黒番、先=向先局の黒番（下手）。
 // 持碁はこの手合いを持つ側の勝ちとして扱う。
-const BLACK_TEAI = ["先", "2子", "3子"];
+const BLACK_TEAI = ["先", "2子", "3子", "4子"];
 
 function jigoWinner(m) {
   // 持碁は黒番（下手）の勝ちとして勝者を返す。手合い未設定ならnull
@@ -1460,8 +1400,8 @@ function calcFromHistory(pA, pB) {
     if (!winner) continue;
     if (winner === pA) streak = streak >= 0 ? streak + 1 : 1;
     else               streak = streak <= 0 ? streak - 1 : -1;
-    if (streak >= 5)   { level++; streak = 0; }
-    else if (streak <= -5) { level--; streak = 0; }
+    if (streak >= 3)   { level++; streak = 0; }
+    else if (streak <= -3) { level--; streak = 0; }
   }
   return { level, streak };
 }
@@ -1501,8 +1441,8 @@ function updateLevelsAndStreaks(m) {
   else                  newStreak = cur <= 0 ? cur - 1 : -1;
 
   let newLevel = state.levels[key] || 0;
-  if (newStreak >= 5)       { newLevel++; newStreak = 0; }
-  else if (newStreak <= -5) { newLevel--; newStreak = 0; }
+  if (newStreak >= 3)       { newLevel++; newStreak = 0; }
+  else if (newStreak <= -3) { newLevel--; newStreak = 0; }
 
   state.levels[key]  = newLevel;
   state.streaks[key] = newStreak;
@@ -1523,7 +1463,7 @@ function calcPairHandicapRaw(pA, pB) {
   };
 }
 
-// ペアの現在の手合いを5連勝ルールで計算
+// ペアの現在の手合いを3連勝ルールで計算
 function calcPairHandicap(pA, pB) {
   const { level, streak } = calcPairHandicapRaw(pA, pB);
 
@@ -1542,7 +1482,7 @@ function calcPairHandicap(pA, pB) {
   }
 
   // 残り連勝数
-  const remain = 5 - Math.abs(streak);
+  const remain = 3 - Math.abs(streak);
   let statusStr;
   if (streak === 0) {
     statusStr = `<span style="color:#999">—</span>`;
@@ -1839,7 +1779,7 @@ document.getElementById("edit-save").addEventListener("click", () => {
 
   const tw = document.getElementById("edit-teai").value;
   if (!tw) { showToast("手合いを選択してください"); return; }
-  if (type === "jigo" && !BLACK_TEAI.includes(tw)) { showToast("持碁は手合い「先・2子・3子」のみ登録できます"); return; }
+  if (type === "jigo" && !BLACK_TEAI.includes(tw)) { showToast("持碁は手合い「先・2子・3子・4子」のみ登録できます"); return; }
   const tl = TEAI_PAIR[tw] || "";
   const orig = state.history[editTargetIdx];
 
