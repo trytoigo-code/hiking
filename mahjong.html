@@ -668,37 +668,43 @@ function renderRankChart() {
   });
 
   const players  = state.players;
-  const TOP_H    = 110;
-  const BOT_H    = 80;
+  // 1位回数と4位回数は同じ単位（対局数）、チップ＋とチップ－は同じ単位（枚数）なので、
+  // それぞれ共通の最大値・共通の枠高さでスケーリングし、上下で見た目の基準がずれないようにする
+  const AREA_H  = 110;
 
-  const maxR1  = Math.max(...players.map(p => rank1[p]),   1);
-  const maxCP  = Math.max(...players.map(p => chipPos[p]), 1);
-  const maxR4  = Math.max(...players.map(p => rank4[p]),   1);
-  const maxCN  = Math.max(...players.map(p => chipNeg[p]), 1);
+  const rankMax = Math.max(...players.map(p => rank1[p]),   ...players.map(p => rank4[p]),   1);
+  const chipMax = Math.max(...players.map(p => chipPos[p]), ...players.map(p => chipNeg[p]), 1);
 
   el.innerHTML = `
     <h3 style="margin-top:0;margin-bottom:12px">成績グラフ</h3>
     <div style="display:flex;gap:8px;align-items:stretch">
       ${players.map(p => {
-        const r1h  = Math.round(rank1[p]   / maxR1  * TOP_H);
-        const cph  = Math.round(chipPos[p] / maxCP  * TOP_H);
-        const r4h  = Math.round(rank4[p]   / maxR4  * BOT_H);
-        const cnh  = Math.round(chipNeg[p] / maxCN  * BOT_H);
+        const r1h  = Math.round(rank1[p]   / rankMax * AREA_H);
+        const cph  = Math.round(chipPos[p] / chipMax * AREA_H);
+        const r4h  = Math.round(rank4[p]   / rankMax * AREA_H);
+        const cnh  = Math.round(chipNeg[p] / chipMax * AREA_H);
+        // バーの高さが低く、内側に数字が収まらない場合は外側に表示する
+        const r1Inside = r1h >= 14;
+        const cpInside = cph >= 14;
+        const r4Inside = r4h >= 14;
+        const cnInside = cnh >= 14;
         return `
           <div style="flex:1;display:flex;flex-direction:column;align-items:center">
 
             <!-- 上エリア（1位回数 | チップ+ を横並び） -->
-            <div style="height:${TOP_H}px;width:100%;display:flex;align-items:flex-end;justify-content:center;gap:2px">
-              <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:100%">
+            <div style="height:${AREA_H}px;width:100%;display:flex;align-items:flex-end;justify-content:center;gap:2px">
+              <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%">
                 ${rank1[p] > 0 ? `
-                  <div style="height:${r1h}px;background:#c8a028;border-radius:4px 4px 0 0;display:flex;align-items:center;justify-content:center">
-                    ${r1h >= 14 ? `<span style="color:#fff;font-size:0.65rem">👑${rank1[p]}</span>` : ""}
+                  ${!r1Inside ? `<div style="font-size:0.62rem;color:#c8a028;font-weight:bold;margin-bottom:1px">👑${rank1[p]}</div>` : ""}
+                  <div style="height:${r1h}px;width:100%;background:#c8a028;border-radius:4px 4px 0 0;display:flex;align-items:center;justify-content:center">
+                    ${r1Inside ? `<span style="color:#fff;font-size:0.65rem">👑${rank1[p]}</span>` : ""}
                   </div>` : `<div style="height:2px"></div>`}
               </div>
-              <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:100%">
+              <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%">
                 ${chipPos[p] > 0 ? `
-                  <div style="height:${cph}px;background:#2e7d5e;border-radius:4px 4px 0 0;display:flex;align-items:center;justify-content:center">
-                    ${cph >= 14 ? `<span style="color:#fff;font-size:0.65rem">+${chipPos[p]}</span>` : ""}
+                  ${!cpInside ? `<div style="font-size:0.62rem;color:#2e7d5e;font-weight:bold;margin-bottom:1px">+${chipPos[p]}</div>` : ""}
+                  <div style="height:${cph}px;width:100%;background:#2e7d5e;border-radius:4px 4px 0 0;display:flex;align-items:center;justify-content:center">
+                    ${cpInside ? `<span style="color:#fff;font-size:0.65rem">+${chipPos[p]}</span>` : ""}
                   </div>` : `<div style="height:2px"></div>`}
               </div>
             </div>
@@ -708,18 +714,20 @@ function renderRankChart() {
             <div style="font-size:0.78rem;font-weight:bold;color:#2c3e50;padding:4px 0;text-align:center">${p}</div>
 
             <!-- 下エリア（4位回数 | チップ- を横並び） -->
-            <div style="height:${BOT_H}px;width:100%;display:flex;align-items:flex-start;justify-content:center;gap:2px">
+            <div style="height:${AREA_H}px;width:100%;display:flex;align-items:flex-start;justify-content:center;gap:2px">
               <div style="flex:1">
                 ${rank4[p] > 0 ? `
                   <div style="height:${r4h}px;background:#888;border-radius:0 0 4px 4px;display:flex;align-items:center;justify-content:center">
-                    ${r4h >= 14 ? `<span style="color:#fff;font-size:0.65rem">4位${rank4[p]}</span>` : ""}
-                  </div>` : ""}
+                    ${r4Inside ? `<span style="color:#fff;font-size:0.65rem">4位${rank4[p]}</span>` : ""}
+                  </div>
+                  ${!r4Inside ? `<div style="font-size:0.62rem;color:#888;font-weight:bold;text-align:center;margin-top:1px">4位${rank4[p]}</div>` : ""}` : ""}
               </div>
               <div style="flex:1">
                 ${chipNeg[p] > 0 ? `
                   <div style="height:${cnh}px;background:#c0392b;border-radius:0 0 4px 4px;display:flex;align-items:center;justify-content:center">
-                    ${cnh >= 14 ? `<span style="color:#fff;font-size:0.65rem">-${chipNeg[p]}</span>` : ""}
-                  </div>` : ""}
+                    ${cnInside ? `<span style="color:#fff;font-size:0.65rem">-${chipNeg[p]}</span>` : ""}
+                  </div>
+                  ${!cnInside ? `<div style="font-size:0.62rem;color:#c0392b;font-weight:bold;text-align:center;margin-top:1px">-${chipNeg[p]}</div>` : ""}` : ""}
               </div>
             </div>
 
