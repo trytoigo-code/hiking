@@ -53,6 +53,8 @@
   - 管理者メニュー（折りたたみ式・対局者設定・初期手合い設定・シーズン管理を収録）
   - 完全リセット（履歴・アーカイブ・シーズン番号を消去してシーズン1に戻す。手合いは保持）
   - 勝敗グラフ（順位タブ最上部。名前をベースラインに勝ちバーは上・負けバーは下に伸びる分岐縦棒グラフ）
+      手合い別フィルター（すべて／互先／先／2子／3子／4子）に対応。
+      「先」なら先・向先、「2子」なら2子・向2、というように同じ差の手合いをまとめて集計
   - ご無沙汰ランキング（順位タブ。最後に対局した日が古い人ほど上位に表示）
   - 半目職人ランキング（順位タブ。半目差での勝利数。半目勝ちが1件も無い間は非表示）
   - 対局コメント（履歴から各対局に一言メモを後から追記可能。短文はそのまま表示、長文は折りたたみ）
@@ -795,10 +797,29 @@ function renderAll() {
   renderSeasonInfo();
 }
 
-function calcStats() {
+// 手合い文字列を5分類（互先／先／2子／3子／4子）にまとめる。
+// 互先グループ＝互先・互白・互黒。以降は「先」＝先・向先のように、
+// 下手側の手合いと、その裏返しである上手側の手合い（向〇）を同じ分類にする。
+function teaiCategory(teai) {
+  if (["互先","互白","互黒"].includes(teai)) return "互先";
+  if (["先","向先"].includes(teai))          return "先";
+  if (["2子","向2"].includes(teai))          return "2子";
+  if (["3子","向3"].includes(teai))          return "3子";
+  if (["4子","向4"].includes(teai))          return "4子";
+  return null;
+}
+
+// 対局1件の手合い分類を返す（jigoはteai1、それ以外はteai_w基準。両者は同じ分類になる）
+function matchTeaiCategory(m) {
+  const t = m.type === "jigo" ? m.teai1 : m.teai_w;
+  return teaiCategory(t);
+}
+
+function calcStats(filterCategory) {
   const s = {};
   state.players.forEach(p => s[p] = { name:p, wins:0, losses:0, total:0 });
   state.history.forEach(m => {
+    if (filterCategory && filterCategory !== "all" && matchTeaiCategory(m) !== filterCategory) return;
     if (m.type === "jigo") {
       const jw = jigoWinner(m);
       if (jw) {
@@ -815,11 +836,32 @@ function calcStats() {
   return Object.values(s).sort((a,b) => b.wins - a.wins || a.losses - b.losses);
 }
 
+let winsChartFilter = "all";
+const WINS_CHART_FILTERS = ["all","互先","先","2子","3子","4子"];
+const WINS_CHART_FILTER_LABELS = { all:"すべて", "互先":"互先", "先":"先", "2子":"2子", "3子":"3子", "4子":"4子" };
+
+function setWinsChartFilter(cat) {
+  winsChartFilter = cat;
+  renderWinsChart();
+}
+
 function renderWinsChart() {
   const el = document.getElementById("wins-chart");
   if (!el) return;
-  const stats = calcStats();
-  if (stats.every(p => p.total === 0)) { el.innerHTML = ""; return; }
+  const stats = calcStats(winsChartFilter);
+
+  const filterButtonsHTML = `
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
+      ${WINS_CHART_FILTERS.map(cat => `
+        <button class="filter-btn wins-chart-filter-btn ${winsChartFilter===cat?'active':''}" data-cat="${cat}">${WINS_CHART_FILTER_LABELS[cat]}</button>
+      `).join("")}
+    </div>`;
+
+  if (stats.every(p => p.total === 0)) {
+    el.innerHTML = `<h3 style="margin-top:0;margin-bottom:12px">勝敗グラフ</h3>${filterButtonsHTML}<p style="color:#999;font-size:0.88rem">該当する対局がありません。</p>`;
+    bindWinsChartFilterButtons(el);
+    return;
+  }
 
   // 勝ち負けで別々の基準にすると、本数の大小が見た目と対応しなくなるため、
   // 共通の最大値・共通の枠高さでスケーリングする
@@ -828,6 +870,7 @@ function renderWinsChart() {
 
   el.innerHTML = `
     <h3 style="margin-top:0;margin-bottom:12px">勝敗グラフ</h3>
+    ${filterButtonsHTML}
     <div style="display:flex;gap:8px;align-items:stretch">
       ${stats.map(p => {
         const wH = Math.round(p.wins   / commonMax * AREA_H);
@@ -867,6 +910,13 @@ function renderWinsChart() {
       <span><span style="display:inline-block;width:10px;height:10px;background:#2e7d5e;border-radius:2px;margin-right:3px"></span>勝（上）</span>
       <span><span style="display:inline-block;width:10px;height:10px;background:#c0392b;border-radius:2px;margin-right:3px"></span>敗（下）</span>
     </div>`;
+  bindWinsChartFilterButtons(el);
+}
+
+function bindWinsChartFilterButtons(el) {
+  el.querySelectorAll(".wins-chart-filter-btn").forEach(btn => {
+    btn.addEventListener("click", () => setWinsChartFilter(btn.dataset.cat));
+  });
 }
 
 function renderStandings() {
