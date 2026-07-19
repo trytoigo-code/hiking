@@ -45,7 +45,8 @@
       総合ポイント = 対局ポイント + チップ換算ポイント
       内訳を「対局pt / 🪙チップ換算pt」形式で表示
   - 成績グラフ（順位表タブ最上部。対局ポイント合計が高い順に左から並び、雀士ごとに固定色のバーで表示。
-      対局pt・チップ枚数それぞれについて、値がプラスなら上方向・マイナスなら下方向の分岐縦棒グラフ。
+      対局pt・チップ枚数・総合ポイント（pt＋チップ換算）の3列を横並びで表示し、
+      それぞれ値がプラスなら上方向・マイナスなら下方向の分岐縦棒グラフ。
       値がバー内に収まらない場合のみ外側にラベル表示）
   - 対局履歴（雀士別ハイライト表示・削除＋10秒Undo機能付き）
   - シーズン管理（履歴をFirebaseにアーカイブ後リセット）
@@ -673,12 +674,22 @@ function renderRankChart() {
   const ordered = players.slice().sort((a, b) => ptTotal[b] - ptTotal[a]);
   const colorOf = p => PLAYER_BAR_COLORS[players.indexOf(p) % PLAYER_BAR_COLORS.length];
 
-  // 対局ptとチップは単位こそ違うが、実際の数値の大小関係がそのままバーの高さに表れるよう、
-  // 共通の最大値でスケーリングする（別々の最大値にすると、チップの少ない枚数がptと同じ高さになり実態より目立ってしまう）
+  // 総合ポイント（対局pt + チップ換算pt）。順位表タブの「総合ポイント」と同じ計算式
+  const overallTotal = {};
+  players.forEach(p => {
+    overallTotal[p] = Number((ptTotal[p] + chipTotal[p] * state.chipRate).toFixed(2));
+  });
+
+  // 対局pt・チップ・総合ポイントは単位こそ違うが、実際の数値の大小関係がそのままバーの高さに表れるよう、
+  // 共通の最大値でスケーリングする（別々の最大値にすると、値が小さい列が実態より目立ってしまう）
   const AREA_H = 110;
-  const commonMax = Math.max(...players.map(p => Math.abs(ptTotal[p])), ...players.map(p => Math.abs(chipTotal[p])), 1);
-  const ptMax   = commonMax;
-  const chipMax = commonMax;
+  const commonMax = Math.max(
+    ...players.map(p => Math.abs(ptTotal[p])),
+    ...players.map(p => Math.abs(chipTotal[p])),
+    ...players.map(p => Math.abs(overallTotal[p])),
+    1
+  );
+  const ptMax = commonMax, chipMax = commonMax, overallMax = commonMax;
 
   // 単色バーのHTMLを生成。igo.htmlの勝敗グラフと同じく、
   // バーが小さく数字が収まらない場合のみ外側にラベルを表示する
@@ -704,29 +715,32 @@ function renderRankChart() {
     <h3 style="margin-top:0;margin-bottom:12px">成績グラフ</h3>
     <div style="display:flex;gap:8px;align-items:stretch">
       ${ordered.map(p => {
-        const color = colorOf(p);
-        const pt   = ptTotal[p];
-        const chip = chipTotal[p];
+        const color   = colorOf(p);
+        const pt      = ptTotal[p];
+        const chip    = chipTotal[p];
+        const overall = overallTotal[p];
         return `
           <div style="flex:1;display:flex;flex-direction:column;align-items:center">
 
-            <!-- 上エリア（対局pt | チップ を横並び） -->
-            <div style="height:${AREA_H}px;width:100%;display:flex;align-items:flex-end;justify-content:center;gap:4px">
+            <!-- 上エリア（対局pt | チップ | 総合 を横並び） -->
+            <div style="height:${AREA_H}px;width:100%;display:flex;align-items:flex-end;justify-content:center;gap:3px">
               <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%">${barHTML(pt, ptMax, color, "pos")}</div>
               <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%">${barHTML(chip, chipMax, color, "pos")}</div>
+              <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%">${barHTML(overall, overallMax, color, "pos")}</div>
             </div>
 
             <!-- ベースライン + 名前 + 列見出し -->
             <div style="width:100%;border-top:2px solid ${color}"></div>
             <div style="font-size:0.78rem;font-weight:bold;color:${color};padding:4px 0 0;text-align:center">${p}</div>
-            <div style="display:flex;width:100%;justify-content:center;gap:16px;font-size:0.6rem;color:#aaa;margin-bottom:2px">
-              <span>pt</span><span>🪙</span>
+            <div style="display:flex;width:100%;justify-content:center;gap:10px;font-size:0.58rem;color:#aaa;margin-bottom:2px">
+              <span>pt</span><span>🪙</span><span>総合</span>
             </div>
 
-            <!-- 下エリア（対局pt | チップ を横並び） -->
-            <div style="height:${AREA_H}px;width:100%;display:flex;align-items:flex-start;justify-content:center;gap:4px">
+            <!-- 下エリア（対局pt | チップ | 総合 を横並び） -->
+            <div style="height:${AREA_H}px;width:100%;display:flex;align-items:flex-start;justify-content:center;gap:3px">
               <div style="flex:1;display:flex;flex-direction:column">${barHTML(pt, ptMax, color, "neg")}</div>
               <div style="flex:1;display:flex;flex-direction:column">${barHTML(chip, chipMax, color, "neg")}</div>
+              <div style="flex:1;display:flex;flex-direction:column">${barHTML(overall, overallMax, color, "neg")}</div>
             </div>
 
           </div>`;
@@ -735,7 +749,7 @@ function renderRankChart() {
     <div style="display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:10px;font-size:0.72rem;color:#777">
       ${ordered.map((p,i) => `<span><span style="display:inline-block;width:10px;height:10px;background:${colorOf(p)};border-radius:2px;margin-right:3px"></span>${i+1}位 ${p}</span>`).join("")}
     </div>
-    <div style="font-size:0.7rem;color:#999;margin-top:4px">左から対局ポイント合計の高い順。上＝pt/チップ合計が＋、下＝－</div>`;
+    <div style="font-size:0.7rem;color:#999;margin-top:4px">左から対局ポイント合計の高い順。上＝各値が＋、下＝－（pt／🪙チップ／総合ポイントの3列）</div>`;
 }
 
 // ---------- 順位表 ----------
