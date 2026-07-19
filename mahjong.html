@@ -673,10 +673,12 @@ function renderRankChart() {
   const ordered = players.slice().sort((a, b) => ptTotal[b] - ptTotal[a]);
   const colorOf = p => PLAYER_BAR_COLORS[players.indexOf(p) % PLAYER_BAR_COLORS.length];
 
-  // ポイントとチップは単位が異なるので、それぞれ別に共通の最大値でスケーリングする
+  // 対局ptとチップは単位こそ違うが、実際の数値の大小関係がそのままバーの高さに表れるよう、
+  // 共通の最大値でスケーリングする（別々の最大値にすると、チップの少ない枚数がptと同じ高さになり実態より目立ってしまう）
   const AREA_H = 110;
-  const ptMax   = Math.max(...players.map(p => Math.abs(ptTotal[p])),   1);
-  const chipMax = Math.max(...players.map(p => Math.abs(chipTotal[p])), 1);
+  const commonMax = Math.max(...players.map(p => Math.abs(ptTotal[p])), ...players.map(p => Math.abs(chipTotal[p])), 1);
+  const ptMax   = commonMax;
+  const chipMax = commonMax;
 
   // 単色バーのHTMLを生成。igo.htmlの勝敗グラフと同じく、
   // バーが小さく数字が収まらない場合のみ外側にラベルを表示する
