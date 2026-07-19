@@ -44,6 +44,11 @@
   - 順位表（総合ポイント順 / 1位回数順の切り替え）
       総合ポイント = 対局ポイント + チップ換算ポイント
       内訳を「対局pt / 🪙チップ換算pt」形式で表示
+      各対局の1位〜4位（👑🥈🥉4位のカウント・履歴のバッジ）は、対局ptとチップ換算分を合算した
+      その対局の総合値で判定する（対局pt単独の大小ではない）。順位はデータとして保存せず、
+      表示のたびに matchOverallRanks() でその場計算する（チップレートを変更しても常に最新の値で表示される）
+  - 古いranksデータの削除（設定タブ・管理者メニュー。上記の仕組みに変更する前の対局記録に残っている、
+      今は使われていないranksキーを取り除く一回限りのクリーンアップ機能）
   - 成績グラフ（順位表タブ最上部。雀士ごとに固定色のバーで表示。
       「総合ポイント／ポイント／チップ」ボタンで表示指標を切り替え可能。
       選択中の指標が高い順に左から並び、値がプラスなら上方向・マイナスなら下方向。
@@ -342,6 +347,8 @@
           <input id="chip-rate" type="number" step="any" style="width:80px; text-align:center; padding:6px;" value="1">
           <span style="font-size:0.9rem; font-weight:bold; color:#444;">ポイント (pt)</span>
         </div>
+        <p class="note">対局記録に残っている、使われなくなった古いranksデータを削除します（表示には影響しません）。一度実行すれば十分です。</p>
+        <button class="btn" id="cleanup-ranks-btn" style="background:#888;margin-bottom:20px">古いranksデータを削除</button>
 
         <h3>雀士設定</h3>
         <p class="note">雀士の名前を設定してください。変更すると全員の画面に即時反映されます。</p>
@@ -507,6 +514,16 @@ const RANK_EMOJI = ["👑","🥈","🥉","4位"];
 const REACTION_EMOJIS = ["👍","😄","😮","🔥"];
 function rankEmoji(r) { return RANK_EMOJI[r - 1] || `${r}位`; }
 
+// その対局の「1位〜4位」を、対局ptだけでなくチップ換算分も加えた総合値で判定する。
+// 順位はデータとして保存せず、必要な場所（順位表・履歴）でその都度この関数で計算する。
+function matchOverallRanks(m) {
+  const combined = m.points.map((pt, i) => pt + (m.chips ? (m.chips[i] || 0) : 0) * state.chipRate);
+  const order = combined.map((v, i) => ({ i, v })).sort((a, b) => b.v - a.v);
+  const ranks = new Array(combined.length);
+  order.forEach((o, idx) => { ranks[o.i] = idx + 1; });
+  return ranks;
+}
+
 // ---------- 結果入力 ----------
 const RANK_LABELS = ["👑 1位", "🥈 2位", "🥉 3位", "4位"];
 
@@ -611,14 +628,12 @@ document.getElementById("add-match").addEventListener("click", () => {
   const rankPts = [0,1,2,3].map(r => parseInputVal(document.getElementById(`ri-pt-${r}`).value));
   const rankCps = [0,1,2,3].map(r => parseInputVal(document.getElementById(`ri-chip-${r}`).value));
 
-  const ranks  = new Array(PLAYER_COUNT);
   const points = new Array(PLAYER_COUNT);
   const chips  = new Array(PLAYER_COUNT);
 
   playerNames.forEach((name, rankIdx) => {
     const pi = state.players.indexOf(name);
     if (pi >= 0) {
-      ranks[pi]  = rankIdx + 1;
       points[pi] = rankPts[rankIdx];
       chips[pi]  = rankCps[rankIdx];
     }
@@ -633,7 +648,7 @@ document.getElementById("add-match").addEventListener("click", () => {
     const now = new Date(); d = `${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()}`;
   }
 
-  state.history.push({ date: d, ranks, points, chips, players: [...state.players] });
+  state.history.push({ date: d, points, chips, players: [...state.players] });
   pushState();
 
   [1,2,3].forEach(r => {
@@ -771,6 +786,7 @@ function renderStandings() {
 
   state.history.forEach(m => {
     const ps = m.players || state.players;
+    const oranks = matchOverallRanks(m);
     ps.forEach((p, i) => {
       if (!(p in totals)) {
         totals[p] = 0; chipTotals[p] = 0; gameCnt[p] = 0;
@@ -779,7 +795,7 @@ function renderStandings() {
       totals[p]     = totals[p] + m.points[i];
       chipTotals[p] = chipTotals[p] + (m.chips ? m.chips[i] : 0);
       gameCnt[p]++;
-      rankCnt[m.ranks[i]][p] = (rankCnt[m.ranks[i]][p] || 0) + 1;
+      rankCnt[oranks[i]][p] = (rankCnt[oranks[i]][p] || 0) + 1;
     });
   });
 
@@ -875,8 +891,9 @@ function renderHistory() {
     const origIdx = state.history.length - 1 - revIdx;
     const id      = String(origIdx);
     const ps      = m.players || state.players;
+    const oranks  = matchOverallRanks(m);
     const rows    = ps.map((name, i) => ({
-      name, rank: m.ranks[i], pt: m.points[i], chip: m.chips ? m.chips[i] : 0
+      name, rank: oranks[i], pt: m.points[i], chip: m.chips ? m.chips[i] : 0
     }));
     rows.sort((a, b) => a.rank - b.rank);
 
@@ -889,12 +906,7 @@ function renderHistory() {
     const label  = author ? `<strong>${author}</strong>：` : "";
     const body   = `${label}${text}`;
 
-    const commentBody = !hasComment ? "" : text.length <= 30
-      ? `<div style="font-size:0.8rem;color:#666;font-style:italic">💬 ${body}</div>`
-      : `<details style="font-size:0.8rem;color:#666">
-           <summary style="cursor:pointer;list-style:none;font-style:italic">💬 ${body.slice(0,30)}…</summary>
-           <div style="margin-top:4px;white-space:pre-wrap;font-style:italic">${body}</div>
-         </details>`;
+    const commentBody = !hasComment ? "" : `<div style="font-size:0.8rem;color:#666;font-style:italic;white-space:pre-wrap">💬 ${body}</div>`;
 
     const reactionPills = REACTION_EMOJIS.map(e => {
       const names = reactions[e] || [];
@@ -1163,6 +1175,20 @@ document.getElementById("save-settings").addEventListener("click", () => {
   showToast("設定を保存し、全員に同期しました！");
 });
 
+// ---------- 古いranksデータの削除（一回限りのクリーンアップ） ----------
+// 順位表示は matchOverallRanks() でその都度計算するようになり、m.ranksは保存・参照しなくなった。
+// これ以前に登録された対局記録には、今は使われていないranksキーが残っているため、それを取り除く。
+document.getElementById("cleanup-ranks-btn").addEventListener("click", () => {
+  if (!state.history.length) { showToast("対局記録がありません"); return; }
+  const targetCount = state.history.filter(m => "ranks" in m).length;
+  if (targetCount === 0) { showToast("削除対象のranksデータはありませんでした"); return; }
+  if (!confirm(`${targetCount}局分の古いranksデータを削除します。表示には影響しません。よろしいですか？`)) return;
+
+  state.history.forEach(m => { delete m.ranks; });
+  pushState();
+  showToast(`${targetCount}局分の古いranksデータを削除しました`);
+});
+
 // ---------- シーズン管理 ----------
 document.getElementById("season-reset").addEventListener("click", () => {
   if (!confirm(`シーズン${state.season}の記録をアーカイブして新シーズンを開始しますか？`)) return;
@@ -1271,10 +1297,6 @@ document.getElementById("em-save").addEventListener("click", () => {
     if (!isNaN(pt))   m.points[pi] = pt;
     if (!isNaN(chip)) m.chips[pi]  = chip;
   });
-
-  // 点数から順位を再計算
-  const sorted = [...m.points].map((p, i) => ({ i, p })).sort((a, b) => b.p - a.p);
-  sorted.forEach((s, rank) => { m.ranks[s.i] = rank + 1; });
 
   pushState();
   document.getElementById("edit-modal").style.display = "none";
