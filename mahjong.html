@@ -44,7 +44,9 @@
   - 順位表（総合ポイント順 / 1位回数順の切り替え）
       総合ポイント = 対局ポイント + チップ換算ポイント
       内訳を「対局pt / 🪙チップ換算pt」形式で表示
-  - 成績グラフ（順位表タブ最上部。名前をベースラインに、1位回数・チップ＋は上方向、4位回数・チップ－は下方向の分岐縦棒グラフ）
+  - 成績グラフ（順位表タブ最上部。対局ポイント合計が高い順に左から並び、雀士ごとに固定色のバーで表示。
+      対局pt・チップ枚数それぞれについて、値がプラスなら上方向・マイナスなら下方向の分岐縦棒グラフ。
+      値がバー内に収まらない場合のみ外側にラベル表示）
   - 対局履歴（雀士別ハイライト表示・削除＋10秒Undo機能付き）
   - シーズン管理（履歴をFirebaseにアーカイブ後リセット）
   - 過去シーズンのアーカイブ表示
@@ -644,9 +646,9 @@ document.getElementById("add-match").addEventListener("click", () => {
 });
 
 // ---------- 棒グラフ ----------
-// 順位ごとの色分け（1位〜4位）。ポイント・チップの両方で共通して使う。
-const RANK_BAR_COLOR = { 1:"#c8a028", 2:"#9fa8b3", 3:"#b8763e", 4:"#7f8c8d" };
-const RANK_BAR_MARK  = { 1:"👑", 2:"🥈", 3:"🥉", 4:"4" };
+// 対局者ごとの固定色（並び順が変わっても同じ人は常に同じ色になるよう、
+// state.players内でのインデックスに紐づける）
+const PLAYER_BAR_COLORS = ["#c0392b", "#2980b9", "#27ae60", "#d68910"];
 
 function renderRankChart() {
   const el = document.getElementById("rank-chart");
@@ -655,112 +657,83 @@ function renderRankChart() {
 
   const players = state.players;
 
-  // プレイヤー×順位ごとにポイント・チップを集計（1位〜4位すべてを反映）
-  const ptByRank = {1:{},2:{},3:{},4:{}}, chipByRank = {1:{},2:{},3:{},4:{}};
-  players.forEach(p => [1,2,3,4].forEach(r => { ptByRank[r][p] = 0; chipByRank[r][p] = 0; }));
+  // プレイヤーごとに対局pt・チップの合計（すべての順位分を通算）を集計
+  const ptTotal = {}, chipTotal = {};
+  players.forEach(p => { ptTotal[p] = 0; chipTotal[p] = 0; });
   state.history.forEach(m => {
     const ps = m.players || state.players;
     ps.forEach((p, i) => {
-      const r = m.ranks[i];
-      if (!ptByRank[r] || !(p in ptByRank[r])) return; // 現在の対局者名簿にいない場合はグラフ対象外（既存仕様を踏襲）
-      ptByRank[r][p]   += m.points[i];
-      chipByRank[r][p] += (m.chips ? m.chips[i] : 0);
+      if (!(p in ptTotal)) return; // 現在の対局者名簿にいない場合はグラフ対象外（既存仕様を踏襲）
+      ptTotal[p]   += m.points[i];
+      chipTotal[p] += (m.chips ? m.chips[i] : 0);
     });
   });
 
-  // 各プレイヤーについて、順位別の値をプラス方向（上積み）とマイナス方向（下積み）に振り分ける。
-  // 4位→3位→2位→1位の順でDOMに積むことで、1位が常にベースライン側（一番目立つ位置）にくる。
-  function buildStack(byRank, p) {
-    const order = [4,3,2,1];
-    let posTotal = 0, negTotal = 0;
-    const segs = order.map(r => {
-      const v = byRank[r][p] || 0;
-      if (v > 0) posTotal += v; else negTotal += Math.abs(v);
-      return { r, v };
-    });
-    return { segs, posTotal, negTotal };
-  }
-
-  const ptStacks   = {}, chipStacks = {};
-  players.forEach(p => {
-    ptStacks[p]   = buildStack(ptByRank,   p);
-    chipStacks[p] = buildStack(chipByRank, p);
-  });
+  // ポイント合計が高い人が左（1位）にくるよう並べ替える
+  const ordered = players.slice().sort((a, b) => ptTotal[b] - ptTotal[a]);
+  const colorOf = p => PLAYER_BAR_COLORS[players.indexOf(p) % PLAYER_BAR_COLORS.length];
 
   // ポイントとチップは単位が異なるので、それぞれ別に共通の最大値でスケーリングする
   const AREA_H = 110;
-  const ptMax   = Math.max(...players.map(p => ptStacks[p].posTotal),   ...players.map(p => ptStacks[p].negTotal),   1);
-  const chipMax = Math.max(...players.map(p => chipStacks[p].posTotal), ...players.map(p => chipStacks[p].negTotal), 1);
+  const ptMax   = Math.max(...players.map(p => Math.abs(ptTotal[p])),   1);
+  const chipMax = Math.max(...players.map(p => Math.abs(chipTotal[p])), 1);
 
-  // 積み上げバー（上方向＝プラス、下方向＝マイナス）のHTMLを生成。
-  // igo.htmlの勝敗グラフと同じく、バー（各順位のセグメント）が小さく数字が収まらない場合のみ、
-  // 外側にその順位の値を表示する（常に外側表示にはしない）
-  function stackSegmentsHTML(stack, max, dir) {
-    // dir: "pos"（上積み。プラスの順位のみ描画） / "neg"（下積み。マイナスの順位のみ描画）
-    return stack.segs.map(({ r, v }) => {
-      if (dir === "pos" && v <= 0) return "";
-      if (dir === "neg" && v >= 0) return "";
-      const val = Math.abs(v);
-      const h = Math.round(val / max * AREA_H);
-      if (h <= 0) return "";
-      const inside = h >= 16;
-      const color = RANK_BAR_COLOR[r];
-      const mark  = RANK_BAR_MARK[r];
-      const label = `${mark}${val}`;
-      const radius = dir === "pos" ? "border-radius:2px 2px 0 0" : "border-radius:0 0 2px 2px";
-      const bar = `<div style="height:${h}px;width:100%;background:${color};${radius};display:flex;align-items:center;justify-content:center;overflow:hidden">
-        ${inside ? `<span style="color:#fff;font-size:0.6rem;font-weight:bold;white-space:nowrap">${label}</span>` : ""}
-      </div>`;
-      const outside = !inside
-        ? `<div style="font-size:0.58rem;color:${color};font-weight:bold;text-align:center;line-height:1.2">${label}</div>`
-        : "";
-      // 上積みは「外側ラベル→バー」の順（バーの上に表示）、下積みは「バー→外側ラベル」の順（バーの下に表示）
-      return dir === "pos" ? (outside + bar) : (bar + outside);
-    }).join("");
+  // 単色バーのHTMLを生成。igo.htmlの勝敗グラフと同じく、
+  // バーが小さく数字が収まらない場合のみ外側にラベルを表示する
+  function barHTML(value, max, color, dir) {
+    if (dir === "pos" && value <= 0) return "";
+    if (dir === "neg" && value >= 0) return "";
+    const val = Math.abs(value);
+    const h = Math.round(val / max * AREA_H);
+    if (h <= 0) return "";
+    const inside = h >= 16;
+    const label = dir === "pos" ? `+${val}` : `-${val}`;
+    const radius = dir === "pos" ? "border-radius:3px 3px 0 0" : "border-radius:0 0 3px 3px";
+    const bar = `<div style="height:${h}px;width:100%;background:${color};${radius};display:flex;align-items:center;justify-content:center;overflow:hidden">
+      ${inside ? `<span style="color:#fff;font-size:0.68rem;font-weight:bold">${label}</span>` : ""}
+    </div>`;
+    const outside = !inside
+      ? `<div style="font-size:0.62rem;color:${color};font-weight:bold;text-align:center">${label}</div>`
+      : "";
+    return dir === "pos" ? (outside + bar) : (bar + outside);
   }
 
   el.innerHTML = `
     <h3 style="margin-top:0;margin-bottom:12px">成績グラフ</h3>
     <div style="display:flex;gap:8px;align-items:stretch">
-      ${players.map(p => {
-        const pt   = ptStacks[p];
-        const chip = chipStacks[p];
+      ${ordered.map(p => {
+        const color = colorOf(p);
+        const pt   = ptTotal[p];
+        const chip = chipTotal[p];
         return `
           <div style="flex:1;display:flex;flex-direction:column;align-items:center">
 
             <!-- 上エリア（対局pt | チップ を横並び） -->
-            <div style="height:${AREA_H}px;width:100%;display:flex;align-items:flex-end;justify-content:center;gap:3px">
-              <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%">
-                <div style="width:100%;display:flex;flex-direction:column;justify-content:flex-end">${stackSegmentsHTML(pt, ptMax, "pos")}</div>
-              </div>
-              <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%">
-                <div style="width:100%;display:flex;flex-direction:column;justify-content:flex-end">${stackSegmentsHTML(chip, chipMax, "pos")}</div>
-              </div>
+            <div style="height:${AREA_H}px;width:100%;display:flex;align-items:flex-end;justify-content:center;gap:4px">
+              <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%">${barHTML(pt, ptMax, color, "pos")}</div>
+              <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%">${barHTML(chip, chipMax, color, "pos")}</div>
             </div>
 
             <!-- ベースライン + 名前 + 列見出し -->
-            <div style="width:100%;border-top:2px solid #999"></div>
-            <div style="font-size:0.78rem;font-weight:bold;color:#2c3e50;padding:4px 0 0;text-align:center">${p}</div>
+            <div style="width:100%;border-top:2px solid ${color}"></div>
+            <div style="font-size:0.78rem;font-weight:bold;color:${color};padding:4px 0 0;text-align:center">${p}</div>
             <div style="display:flex;width:100%;justify-content:center;gap:16px;font-size:0.6rem;color:#aaa;margin-bottom:2px">
               <span>pt</span><span>🪙</span>
             </div>
 
             <!-- 下エリア（対局pt | チップ を横並び） -->
-            <div style="height:${AREA_H}px;width:100%;display:flex;align-items:flex-start;justify-content:center;gap:3px">
-              <div style="flex:1;display:flex;flex-direction:column">${stackSegmentsHTML(pt, ptMax, "neg")}</div>
-              <div style="flex:1;display:flex;flex-direction:column">${stackSegmentsHTML(chip, chipMax, "neg")}</div>
+            <div style="height:${AREA_H}px;width:100%;display:flex;align-items:flex-start;justify-content:center;gap:4px">
+              <div style="flex:1;display:flex;flex-direction:column">${barHTML(pt, ptMax, color, "neg")}</div>
+              <div style="flex:1;display:flex;flex-direction:column">${barHTML(chip, chipMax, color, "neg")}</div>
             </div>
 
           </div>`;
       }).join("")}
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:10px;font-size:0.72rem;color:#777">
-      <span><span style="display:inline-block;width:10px;height:10px;background:${RANK_BAR_COLOR[1]};border-radius:2px;margin-right:3px"></span>👑1位</span>
-      <span><span style="display:inline-block;width:10px;height:10px;background:${RANK_BAR_COLOR[2]};border-radius:2px;margin-right:3px"></span>🥈2位</span>
-      <span><span style="display:inline-block;width:10px;height:10px;background:${RANK_BAR_COLOR[3]};border-radius:2px;margin-right:3px"></span>🥉3位</span>
-      <span><span style="display:inline-block;width:10px;height:10px;background:${RANK_BAR_COLOR[4]};border-radius:2px;margin-right:3px"></span>4位</span>
-      <span style="color:#999">上＝対局pt／チップの内訳が＋、下＝－（各順位の実際の値の符号で振り分け）</span>
-    </div>`;
+      ${ordered.map((p,i) => `<span><span style="display:inline-block;width:10px;height:10px;background:${colorOf(p)};border-radius:2px;margin-right:3px"></span>${i+1}位 ${p}</span>`).join("")}
+    </div>
+    <div style="font-size:0.7rem;color:#999;margin-top:4px">左から対局ポイント合計の高い順。上＝pt/チップ合計が＋、下＝－</div>`;
 }
 
 // ---------- 順位表 ----------
