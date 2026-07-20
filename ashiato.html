@@ -129,7 +129,7 @@
       padding: 12px 12px; font-size: 0.95rem; font-family: inherit;
       background: #fff; color: #333; box-sizing: border-box;
     }
-    .fg textarea { resize: vertical; }
+    .fg textarea { resize: vertical; overflow: hidden; }
     .member-checks { display: flex; flex-wrap: wrap; gap: 6px; }
     .member-check-btn {
       background: #f0ede4; border: 1px solid #ddd;
@@ -485,11 +485,21 @@ function renderKiroku() {
         </div>
       </div>`;
   }).join("") || `<p style="color:#999;font-size:0.88rem">まだ活動記録がありません。</p>`;
+
+  document.querySelectorAll("#kiroku-list .fg textarea").forEach(ta => {
+    ta.addEventListener("input", () => autoGrowTextarea(ta));
+  });
 }
 
 function toggleActEdit(id) {
   const form = document.getElementById(`act-edit-${id}`);
   form.classList.toggle("open");
+  if (form.classList.contains("open")) {
+    [`ae-name-${id}`, `ae-note-${id}`].forEach(elId => {
+      const ta = document.getElementById(elId);
+      if (ta) autoGrowTextarea(ta);
+    });
+  }
 }
 
 function submitActEdit(id) {
@@ -594,11 +604,21 @@ function renderKibou() {
       document.getElementById(`picker-${id}`).style.display = "none";
     });
   });
+
+  kibouList.querySelectorAll(".fg textarea").forEach(ta => {
+    ta.addEventListener("input", () => autoGrowTextarea(ta));
+  });
 }
 
 function toggleKibouEdit(id) {
   const form = document.getElementById(`kib-edit-${id}`);
   form.classList.toggle("open");
+  if (form.classList.contains("open")) {
+    [`ke-place-${id}`, `ke-note-${id}`].forEach(elId => {
+      const ta = document.getElementById(elId);
+      if (ta) autoGrowTextarea(ta);
+    });
+  }
 }
 
 function submitKibouEdit(id) {
@@ -624,8 +644,10 @@ document.getElementById("add-activity-btn").addEventListener("click", () => {
   if (actFormOpen) {
     const today = new Date();
     document.getElementById("act-date").value = `${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
-    document.getElementById("act-name").value = "";
-    document.getElementById("act-note").value = "";
+    const nameTa = document.getElementById("act-name");
+    const noteTa = document.getElementById("act-note");
+    nameTa.value = ""; nameTa.style.height = "";
+    noteTa.value = ""; noteTa.style.height = "";
     selectedActMembers.clear();
     selectedActKinds.clear();
     buildMemberChecks();
@@ -692,7 +714,12 @@ function buildKindChecks() {
 document.getElementById("add-kibou-btn").addEventListener("click", () => {
   kibFormOpen = !kibFormOpen;
   document.getElementById("kibou-form").className = `form-box ${kibFormOpen ? "open" : ""}`;
-  if (kibFormOpen) { document.getElementById("kib-place").value = ""; document.getElementById("kib-note").value = ""; }
+  if (kibFormOpen) {
+    const placeTa = document.getElementById("kib-place");
+    const noteTa  = document.getElementById("kib-note");
+    placeTa.value = ""; placeTa.style.height = "";
+    noteTa.value = "";  noteTa.style.height = "";
+  }
 });
 
 document.getElementById("kib-cancel").addEventListener("click", () => {
@@ -800,6 +827,16 @@ function showToast(msg) {
   if (toastTimer) clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.style.display = "none", 2500);
 }
+
+// テキストエリアを、入力中の文字数に合わせて自動で高さを伸ばす
+// （スマホではresize:verticalのつまみをドラッグしづらいため、こちらを主な手段とする）
+function autoGrowTextarea(el) {
+  el.style.height = "auto";
+  el.style.height = el.scrollHeight + "px";
+}
+document.querySelectorAll(".fg textarea").forEach(ta => {
+  ta.addEventListener("input", () => autoGrowTextarea(ta));
+});
 </script>
 </body>
 </html>
