@@ -47,8 +47,6 @@
       各対局の1位〜4位（👑🥈🥉4位のカウント・履歴のバッジ）は、対局ptとチップ換算分を合算した
       その対局の総合値で判定する（対局pt単独の大小ではない）。順位はデータとして保存せず、
       表示のたびに matchOverallRanks() でその場計算する（チップレートを変更しても常に最新の値で表示される）
-  - 古いranksデータの削除（設定タブ・管理者メニュー。上記の仕組みに変更する前の対局記録に残っている、
-      今は使われていないranksキーを取り除く一回限りのクリーンアップ機能）
   - 成績グラフ（順位表タブ最上部。雀士ごとに固定色のバーで表示。
       「総合ポイント／ポイント／チップ」ボタンで表示指標を切り替え可能。
       選択中の指標が高い順に左から並び、値がプラスなら上方向・マイナスなら下方向。
@@ -347,8 +345,6 @@
           <input id="chip-rate" type="number" step="any" style="width:80px; text-align:center; padding:6px;" value="1">
           <span style="font-size:0.9rem; font-weight:bold; color:#444;">ポイント (pt)</span>
         </div>
-        <p class="note">対局記録に残っている、使われなくなった古いranksデータを削除します（表示には影響しません）。一度実行すれば十分です。</p>
-        <button class="btn" id="cleanup-ranks-btn" style="background:#888;margin-bottom:20px">古いranksデータを削除</button>
 
         <h3>雀士設定</h3>
         <p class="note">雀士の名前を設定してください。変更すると全員の画面に即時反映されます。</p>
@@ -973,7 +969,7 @@ function renderHistory() {
               ${playerOptions}
             </select>
           </div>
-          <textarea class="comment-input" rows="2" style="width:100%;box-sizing:border-box;border:1px solid #ddd;border-radius:6px;padding:6px 8px;font-size:0.85rem;font-family:inherit;resize:vertical" placeholder="一言メモを入力…">${text}</textarea>
+          <textarea class="comment-input" rows="2" style="width:100%;box-sizing:border-box;border:1px solid #ddd;border-radius:6px;padding:6px 8px;font-size:0.85rem;font-family:inherit;resize:vertical;overflow:hidden" placeholder="一言メモを入力…">${text}</textarea>
           <div style="display:flex;gap:6px;margin-top:4px;justify-content:flex-end">
             <button class="comment-cancel" data-id="${id}" style="background:#f0ede4;border:1px solid #ddd;padding:4px 12px;border-radius:4px;font-size:0.8rem;cursor:pointer">キャンセル</button>
             <button class="comment-save" data-id="${id}" style="background:#2c3e50;color:#fff;border:none;padding:4px 12px;border-radius:4px;font-size:0.8rem;cursor:pointer">保存</button>
@@ -983,6 +979,9 @@ function renderHistory() {
   }).join("");
 
   // ---------- コメント・リアクション イベントリスナー ----------
+  list.querySelectorAll(".comment-input").forEach(ta => {
+    ta.addEventListener("input", () => autoGrowTextarea(ta));
+  });
   list.querySelectorAll(".comment-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       const id   = btn.dataset.id;
@@ -995,7 +994,9 @@ function renderHistory() {
         const sel = form.querySelector(".comment-author");
         const m   = state.history[Number(id)];
         if (m && m.comment && typeof m.comment === "object") sel.value = m.comment.author || "";
-        form.querySelector(".comment-input").focus();
+        const ta = form.querySelector(".comment-input");
+        ta.focus();
+        autoGrowTextarea(ta);
       }
     });
   });
@@ -1129,6 +1130,13 @@ function showToast(msg) {
   toastTimer = setTimeout(() => { el.style.display = "none"; }, 2500);
 }
 
+// コメント入力欄を、入力中の文字数に合わせて自動で高さを伸ばす
+// （スマホではresize:verticalのつまみをドラッグしづらいため、こちらを主な手段とする）
+function autoGrowTextarea(el) {
+  el.style.height = "auto";
+  el.style.height = el.scrollHeight + "px";
+}
+
 // ---------- 管理者メニュー開閉 ----------
 document.getElementById("admin-toggle").addEventListener("click", () => {
   const body  = document.getElementById("admin-body");
@@ -1173,20 +1181,6 @@ document.getElementById("save-settings").addEventListener("click", () => {
   buildRankInputs();
   pushState();
   showToast("設定を保存し、全員に同期しました！");
-});
-
-// ---------- 古いranksデータの削除（一回限りのクリーンアップ） ----------
-// 順位表示は matchOverallRanks() でその都度計算するようになり、m.ranksは保存・参照しなくなった。
-// これ以前に登録された対局記録には、今は使われていないranksキーが残っているため、それを取り除く。
-document.getElementById("cleanup-ranks-btn").addEventListener("click", () => {
-  if (!state.history.length) { showToast("対局記録がありません"); return; }
-  const targetCount = state.history.filter(m => "ranks" in m).length;
-  if (targetCount === 0) { showToast("削除対象のranksデータはありませんでした"); return; }
-  if (!confirm(`${targetCount}局分の古いranksデータを削除します。表示には影響しません。よろしいですか？`)) return;
-
-  state.history.forEach(m => { delete m.ranks; });
-  pushState();
-  showToast(`${targetCount}局分の古いranksデータを削除しました`);
 });
 
 // ---------- シーズン管理 ----------
