@@ -426,8 +426,20 @@ function setWinner(cat, idx, side) {
 function renderBracketDiagram(container, leaves, winnerSideLevels, winnerName, loserName, outputLabels, editableLeaves, onSlotClick) {
   const n = leaves.length;
   const rounds = Math.log2(n);
-  const rowH = 46, leafW = 120, boxH = 34, stepW = 30, outBoxW = 120, gapOut = boxH + 12;
+  const rowH = 46, boxH = 34, gapOut = boxH + 12;
   const GRAY = "#d8d2c2", RED = "#b03a2e";
+
+  // 表示エリアの実際の幅に合わせて、名前ボックスの横幅と間隔を動的に決める。
+  // ラウンド数（cols=ラウンド数+最終結果列）で幅を等分し、
+  // 横スクロールしなくても収まるようにする（極端に狭い画面ではbd-scrollの
+  // overflow-xがフォールバックとして働く）。
+  const availW = Math.max(container.clientWidth || 0, 260);
+  const cols = rounds + 1; // 名前ボックスの列数（各ラウンド＋最終結果列）
+  const stepW = 12;
+  let leafW = Math.floor((availW - 4 - cols * stepW) / cols);
+  leafW = Math.max(52, Math.min(130, leafW));
+  const outBoxW = leafW;
+  const boxFont = leafW < 66 ? "0.66rem" : leafW < 82 ? "0.76rem" : "0.86rem";
   const colStep = leafW + stepW; // 1ラウンド分の横幅（名前ボックス＋線の間隔）
 
   // 各段の中心y座標を計算（levels[0]=葉、levels[rounds]=最終合流点）
@@ -492,7 +504,7 @@ function renderBracketDiagram(container, leaves, winnerSideLevels, winnerName, l
         if (isWinnerSide) cls += " bd-slot-winner";
         attrs = ` data-level="${L}" data-pair="${pairIdx}" data-side="${side}"`;
       }
-      boxes += `<div class="${cls}" style="left:${x}px; top:${y}px; width:${leafW}px; height:${boxH}px; line-height:${boxH}px"${attrs}>${label}</div>`;
+      boxes += `<div class="${cls}" style="left:${x}px; top:${y}px; width:${leafW}px; height:${boxH}px; line-height:${boxH}px; font-size:${boxFont}"${attrs}>${label}</div>`;
     });
   }
 
@@ -526,10 +538,10 @@ function renderBracketDiagram(container, leaves, winnerSideLevels, winnerName, l
     }
   }
 
-  boxes += `<div class="bd-box bd-out ${winnerName ? "bd-decided" : ""}" style="left:${xAfterRounds+stepW}px; top:${outTopY-boxH/2}px; width:${outBoxW}px; height:${boxH}px">
+  boxes += `<div class="bd-box bd-out ${winnerName ? "bd-decided" : ""}" style="left:${xAfterRounds+stepW}px; top:${outTopY-boxH/2}px; width:${outBoxW}px; height:${boxH}px; font-size:${boxFont}">
     <span class="bd-out-label">${outputLabels[0]}</span>${winnerName ? escapeHtml(winnerName) : ""}
   </div>`;
-  boxes += `<div class="bd-box bd-out ${loserName ? "bd-decided" : ""}" style="left:${xAfterRounds+stepW}px; top:${outBotY-boxH/2}px; width:${outBoxW}px; height:${boxH}px">
+  boxes += `<div class="bd-box bd-out ${loserName ? "bd-decided" : ""}" style="left:${xAfterRounds+stepW}px; top:${outBotY-boxH/2}px; width:${outBoxW}px; height:${boxH}px; font-size:${boxFont}">
     <span class="bd-out-label">${outputLabels[1]}</span>${loserName ? escapeHtml(loserName) : ""}
   </div>`;
 
