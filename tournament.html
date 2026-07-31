@@ -21,16 +21,16 @@
   🖼トーナメント表の本戦の枠を直接タップして1人ずつ入力・修正する
   方法の両方に対応する。
 
-  結果の入力は、トーナメント図の名前枠を直接タップする方法と、
-  「ラウンドごとのカードリスト」形式（対局者名をタップして勝者を選択）の
-  両方に対応する。トーナメント図では、両者の名前が揃った枠をタップすると
-  その対局の勝者に選べる（本戦・3位決定戦・5位決定戦・7位決定戦すべてに対応）。
+  結果の入力は、トーナメント図の名前枠を直接タップして行う。
+  両者の名前が揃った枠をタップするとその対局の勝者に選べる
+  （本戦・3位決定戦・5位決定戦・7位決定戦すべてに対応）。
   その内容をもとに紙のトーナメント表のような罫線でつないだブラケット図を
   自動で描画する。罫線は常にグレーで骨組みを描き、実際に勝ち上がった
   経路だけを赤で上書きする（負けた側の線は最後までグレーのまま）ため、
   誰が勝ったかが一目でわかる。
   上位ラウンドの結果を変更した場合、その結果に依存する下流の試合結果は
   自動的にクリアされる。
+  決定した順位（優勝〜8位）は、トーナメント図の下に一覧表示される。
 
 【利用環境】
   - スマホ利用を最優先とする（モバイルファースト）
@@ -62,13 +62,13 @@
 【主な機能（現時点）】
   - 大会名・対局者8名の設定（⚙️設定タブでまとめて入力／トーナメント図の
     本戦の枠を直接タップして1人ずつ入力・修正、の両方に対応）
-  - 結果入力（トーナメント図の名前枠を直接タップして勝者選択／
-    ラウンドごとのカード表示で対局者名タップして勝者選択、の両方に対応。
+  - 結果入力（トーナメント図の名前枠を直接タップして勝者選択。
     本戦だけでなく3位・5位・7位決定戦の図でも同様にタップで選択できる）
   - トーナメント図（罫線でつないだブラケット表示。本戦・3位決定戦・
     5位決定戦・7位決定戦。各ラウンドの対局候補も名前枠として表示され、
     両者揃った枠はタップで勝者選択できる。勝ち上がった経路だけ赤で表示され、
     負けた側はグレーのまま残るので、誰が勝ったかが一目でわかる）
+  - 順位表示（トーナメント図の下に優勝〜8位を一覧表示。未定の順位は「未定」）
   - 3位決定戦・5位決定戦・7位決定戦の自動組み合わせ
   - 結果だけリセット（対局者名は保持）
   - 新しい大会にする（現在の大会をアーカイブして白紙に戻す）
@@ -138,22 +138,6 @@
     padding: 14px 16px; border-radius: 8px; margin-bottom: 16px;
     font-size: 0.85rem; line-height: 1.7; display: none;
   }
-
-  .match-card {
-    background: #fdfdfb; border: 1px solid #e0dbcd; border-radius: 8px;
-    padding: 8px 10px; margin-bottom: 8px;
-  }
-  .match-label { font-size: 0.7rem; color: #b89752; font-weight: bold; margin-bottom: 4px; }
-  .match-row { display: flex; align-items: center; gap: 8px; }
-  .player-btn {
-    flex: 1; padding: 10px 6px; font-size: 0.9rem; font-weight: bold;
-    border: 1px solid #ddd8cc; border-radius: 6px; background: #fff;
-    color: #444; cursor: pointer; font-family: inherit; min-width: 0;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-  .player-btn.winner { background: #2c3e50; color: #fff; border-color: #2c3e50; }
-  .player-btn.disabled { color: #bbb; background: #f5f4ee; cursor: default; }
-  .vs { font-size: 0.72rem; color: #999; flex-shrink: 0; }
 
   .standings-row {
     display: flex; align-items: center; gap: 10px;
@@ -572,20 +556,6 @@ function editLeafName(idx) {
 }
 
 // ---------- 描画 ----------
-function matchCardHTML(label, cat, idx, players, resultVal) {
-  const [a, b] = players;
-  const clickable = !!a && !!b;
-  const aSel = resultVal === 0, bSel = resultVal === 1;
-  return `<div class="match-card">
-    <div class="match-label">${label}</div>
-    <div class="match-row">
-      <button class="player-btn ${aSel?'winner':''} ${!clickable?'disabled':''}" data-cat="${cat}" data-idx="${idx}" data-side="0" ${clickable?'':'disabled'}>${a ? escapeHtml(a) : "（未定）"}</button>
-      <span class="vs">vs</span>
-      <button class="player-btn ${bSel?'winner':''} ${!clickable?'disabled':''}" data-cat="${cat}" data-idx="${idx}" data-side="1" ${clickable?'':'disabled'}>${b ? escapeHtml(b) : "（未定）"}</button>
-    </div>
-  </div>`;
-}
-
 function renderBracket() {
   const el = document.getElementById("panel-bracket");
 
@@ -594,41 +564,36 @@ function renderBracket() {
 
   // ===== トーナメント図 =====
   html += `<h4 class="section-head">🖼 トーナメント表</h4>`;
-  html += `<p class="note" style="margin-top:-2px">対局者名は枠を直接タップして入力・修正できます。両者の名前が揃った枠は、タップするとその対局の勝者に選べます（下の「結果を入力」からでも同じ操作ができます）。</p>`;
+  html += `<p class="note" style="margin-top:-2px">対局者名は枠を直接タップして入力・修正できます。両者の名前が揃った枠は、タップするとその対局の勝者に選べます。</p>`;
   html += `<div class="bracket-block"><div class="bracket-block-title">本戦</div><div id="bd-main"></div></div>`;
   html += `<div class="bracket-block"><div class="bracket-block-title">3位決定戦</div><div id="bd-third"></div></div>`;
   html += `<div class="bracket-divider"></div>`;
   html += `<div class="bracket-block"><div class="bracket-block-title">5位決定戦</div><div id="bd-fifth"></div></div>`;
   html += `<div class="bracket-block"><div class="bracket-block-title">7位決定戦</div><div id="bd-seventh"></div></div>`;
 
-  // ===== 結果入力（タップで勝者選択） =====
-  html += `<h4 class="section-head">📝結果を入力</h4>`;
-
-  html += `<div class="match-label" style="margin:0 0 6px">1回戦</div>`;
-  for (let i=0;i<4;i++) html += matchCardHTML(`第${i+1}試合`, "qf", i, getQFPlayers(i), state.results.qf[i]);
-
-  html += `<div class="match-label" style="margin:14px 0 6px">2回戦（準決勝）</div>`;
-  for (let i=0;i<2;i++) html += matchCardHTML(`準決勝${i+1}`, "sf", i, getSFPlayers(i), state.results.sf[i]);
-
-  html += `<div class="match-label" style="margin:14px 0 6px">決勝</div>`;
-  html += matchCardHTML("優勝・準優勝", "final", 0, getFinalPlayers(), state.results.final);
-
-  html += `<div class="match-label" style="margin:14px 0 6px">3位決定戦</div>`;
-  html += matchCardHTML("準決勝の敗者同士", "third", 0, getThirdPlayers(), state.results.third);
-
-  html += `<div class="match-label" style="margin:14px 0 6px">下位トーナメント（1回戦の敗者）</div>`;
-  for (let i=0;i<2;i++) html += matchCardHTML(`下位準決勝${i+1}`, "cLower", i, getCLowerPlayers(i), state.results.cLower[i]);
-
-  html += `<div class="match-label" style="margin:14px 0 6px">5位決定戦</div>`;
-  html += matchCardHTML("下位準決勝の勝者同士", "fifth", 0, getFifthPlayers(), state.results.fifth);
-
-  html += `<div class="match-label" style="margin:14px 0 6px">7位決定戦</div>`;
-  html += matchCardHTML("下位準決勝の敗者同士", "seventh", 0, getSeventhPlayers(), state.results.seventh);
+  // ===== 順位（決定した分だけ表示、未定は「未定」） =====
+  const finalR   = getFinalResult();
+  const thirdR   = getThirdResult();
+  const fifthR   = getFifthResult();
+  const seventhR = getSeventhResult();
+  const placements = [
+    { rank: 1, medal: "🥇", name: finalR.winner },
+    { rank: 2, medal: "🥈", name: finalR.loser },
+    { rank: 3, medal: "🥉", name: thirdR.winner },
+    { rank: 4, medal: "4",  name: thirdR.loser },
+    { rank: 5, medal: "5",  name: fifthR.winner },
+    { rank: 6, medal: "6",  name: fifthR.loser },
+    { rank: 7, medal: "7",  name: seventhR.winner },
+    { rank: 8, medal: "8",  name: seventhR.loser },
+  ];
+  html += `<h4 class="section-head">🏅 順位</h4>`;
+  html += placements.map(p => `
+    <div class="standings-row">
+      <div class="standings-num">${p.medal}</div>
+      <div class="standings-name">${p.name ? escapeHtml(p.name) : '<span style="color:#bbb;font-weight:normal">未定</span>'}</div>
+    </div>`).join("");
 
   el.innerHTML = html;
-  el.querySelectorAll(".player-btn:not([disabled])").forEach(btn => {
-    btn.addEventListener("click", () => setWinner(btn.dataset.cat, Number(btn.dataset.idx), Number(btn.dataset.side)));
-  });
 
   // 図を描画
   renderBracketDiagram(
