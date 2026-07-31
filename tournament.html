@@ -21,9 +21,11 @@
   🖼トーナメント表の本戦の枠を直接タップして1人ずつ入力・修正する
   方法の両方に対応する。
 
-  結果の入力は「ラウンドごとのカードリスト」形式（対局者名をタップして
-  勝者を選択）で行い、その内容をもとに紙のトーナメント表のような
-  罫線でつないだブラケット図（本戦・3位決定戦・5位決定戦・7位決定戦）を
+  結果の入力は、トーナメント図の名前枠を直接タップする方法と、
+  「ラウンドごとのカードリスト」形式（対局者名をタップして勝者を選択）の
+  両方に対応する。トーナメント図では、両者の名前が揃った枠をタップすると
+  その対局の勝者に選べる（本戦・3位決定戦・5位決定戦・7位決定戦すべてに対応）。
+  その内容をもとに紙のトーナメント表のような罫線でつないだブラケット図を
   自動で描画する。罫線は常にグレーで骨組みを描き、実際に勝ち上がった
   経路だけを赤で上書きする（負けた側の線は最後までグレーのまま）ため、
   誰が勝ったかが一目でわかる。
@@ -60,10 +62,13 @@
 【主な機能（現時点）】
   - 大会名・対局者8名の設定（⚙️設定タブでまとめて入力／トーナメント図の
     本戦の枠を直接タップして1人ずつ入力・修正、の両方に対応）
-  - 結果入力（ラウンドごとのカード表示。対局者名タップで勝者選択）
+  - 結果入力（トーナメント図の名前枠を直接タップして勝者選択／
+    ラウンドごとのカード表示で対局者名タップして勝者選択、の両方に対応。
+    本戦だけでなく3位・5位・7位決定戦の図でも同様にタップで選択できる）
   - トーナメント図（罫線でつないだブラケット表示。本戦・3位決定戦・
-    5位決定戦・7位決定戦。勝ち上がった経路だけ赤で表示され、負けた側は
-    グレーのまま残るので、誰が勝ったかが一目でわかる）
+    5位決定戦・7位決定戦。各ラウンドの対局候補も名前枠として表示され、
+    両者揃った枠はタップで勝者選択できる。勝ち上がった経路だけ赤で表示され、
+    負けた側はグレーのまま残るので、誰が勝ったかが一目でわかる）
   - 3位決定戦・5位決定戦・7位決定戦の自動組み合わせ
   - 結果だけリセット（対局者名は保持）
   - 新しい大会にする（現在の大会をアーカイブして白紙に戻す）
@@ -174,6 +179,9 @@
   .bd-editable { cursor: pointer; border-style: dashed; }
   .bd-editable:active { background: #f5f0e0; }
   .bd-placeholder { color: #bbb; font-weight: normal; }
+  .bd-pick { cursor: pointer; }
+  .bd-pick:active { background: #f5f0e0; }
+  .bd-slot-winner { border-color: #b03a2e; color: #b03a2e; background: #fdf1ef; }
   .bd-decided { background: #2c3e50; border-color: #2c3e50; color: #fff; }
   .bd-decided .bd-out-label { color: #f0c987; }
   .bracket-divider { border-top: 1px dashed #ccc; margin: 22px 0; }
@@ -415,11 +423,12 @@ function setWinner(cat, idx, side) {
 // editable: true の場合、葉ボックス（対局者名）をタップして直接編集できる
 //   （本戦の1回戦＝対局者8名の入力に使う。3位/5位/7位決定戦の図は結果から自動計算される
 //   ため編集不可＝falseのまま呼び出す）
-function renderBracketDiagram(container, leaves, winnerSideLevels, winnerName, loserName, outputLabels, editable) {
+function renderBracketDiagram(container, leaves, winnerSideLevels, winnerName, loserName, outputLabels, editableLeaves, onSlotClick) {
   const n = leaves.length;
   const rounds = Math.log2(n);
   const rowH = 46, leafW = 120, boxH = 34, stepW = 30, outBoxW = 120, gapOut = boxH + 12;
   const GRAY = "#d8d2c2", RED = "#b03a2e";
+  const colStep = leafW + stepW; // 1ラウンド分の横幅（名前ボックス＋線の間隔）
 
   // 各段の中心y座標を計算（levels[0]=葉、levels[rounds]=最終合流点）
   const levels = [Array.from({ length:n }, (_, i) => (i + 0.5) * rowH)];
@@ -430,9 +439,23 @@ function renderBracketDiagram(container, leaves, winnerSideLevels, winnerName, l
     levels.push(next);
   }
 
+  // 各段（レベル）の対局者名を、勝敗結果をもとに積み上げ計算する。
+  // levelNames[0]=葉（初期対局者）。以降levelNames[L]は、その1つ前のラウンドの
+  // 勝者が並んだ配列になる（＝次ラウンドの対局候補）。
+  const levelNames = [leaves.slice()];
+  for (let r = 0; r < rounds; r++) {
+    const prev = levelNames[r];
+    const cur = [];
+    for (let i = 0; i < prev.length / 2; i++) {
+      const side = winnerSideLevels[r] ? winnerSideLevels[r][i] : null;
+      cur.push(side === 0 ? prev[2*i] : side === 1 ? prev[2*i+1] : null);
+    }
+    levelNames.push(cur);
+  }
+
   const finalY = levels[rounds][0];
   const outTopY = finalY - gapOut / 2, outBotY = finalY + gapOut / 2;
-  const xAfterRounds = leafW + rounds * stepW;
+  const xAfterRounds = rounds * colStep;
   const totalW = xAfterRounds + stepW + outBoxW + 4;
   const totalH = n * rowH;
 
@@ -440,17 +463,42 @@ function renderBracketDiagram(container, leaves, winnerSideLevels, winnerName, l
 
   let baseLines = "", winLines = "", boxes = "";
 
-  leaves.forEach((name, i) => {
-    const y = levels[0][i] - boxH / 2;
-    const cls = "bd-box" + (editable ? " bd-editable" : "");
-    const attr = editable ? ` data-leaf-idx="${i}"` : "";
-    const label = name ? escapeHtml(name) : (editable ? `<span class="bd-placeholder">対局者${i+1}</span>` : "―");
-    boxes += `<div class="${cls}" style="left:0px; top:${y}px; width:${leafW}px; height:${boxH}px; line-height:${boxH}px"${attr}>${label}</div>`;
-  });
+  // レベルL（0〜rounds-1）ごとに名前ボックスを描画する。
+  // L=0は葉（本戦のみ対局者名の直接編集も兼ねる）。
+  // L>=1は、1つ前のラウンドの勝者＝次ラウンドの対局候補として表示され、
+  // 対になる2枠の名前が両方揃っていれば、タップでその対局の勝者を選べる。
+  for (let L = 0; L < rounds; L++) {
+    const names = levelNames[L];
+    const ys = levels[L];
+    const x = L * colStep;
+    names.forEach((name, j) => {
+      const y = ys[j] - boxH / 2;
+      const pairIdx = Math.floor(j / 2);
+      const side = j % 2;
+      const partner = names[side === 0 ? j + 1 : j - 1];
+      const isLeafEditable = (L === 0 && editableLeaves);
+      const ready = !!name && !!partner;
+      const isWinnerSide = winnerSideLevels[L] && winnerSideLevels[L][pairIdx] === side;
+      let cls = "bd-box";
+      let attrs = "";
+      const label = name ? escapeHtml(name) : (isLeafEditable ? `<span class="bd-placeholder">対局者${j+1}</span>` : "―");
+      if (isLeafEditable && !ready) {
+        // 名前が未入力、または対戦相手が未入力のうちは、タップで名前を編集
+        cls += " bd-editable";
+        attrs = ` data-leaf-idx="${j}"`;
+      } else if (ready && onSlotClick) {
+        // 両者揃ったら、タップでその対局の勝者を選べる
+        cls += " bd-pick";
+        if (isWinnerSide) cls += " bd-slot-winner";
+        attrs = ` data-level="${L}" data-pair="${pairIdx}" data-side="${side}"`;
+      }
+      boxes += `<div class="${cls}" style="left:${x}px; top:${y}px; width:${leafW}px; height:${boxH}px; line-height:${boxH}px"${attrs}>${label}</div>`;
+    });
+  }
 
   for (let r = 0; r < rounds; r++) {
     const fromYs = levels[r], toYs = levels[r+1];
-    const xIn = leafW + r * stepW, xMid = xIn + stepW / 2, xOut = leafW + (r+1) * stepW;
+    const xIn = r * colStep + leafW, xMid = xIn + stepW / 2, xOut = xIn + stepW;
     for (let i = 0; i < toYs.length; i++) {
       const yTop = fromYs[2*i], yBot = fromYs[2*i+1], yMid = toYs[i];
       // 骨組み（常にグレー）
@@ -490,9 +538,14 @@ function renderBracketDiagram(container, leaves, winnerSideLevels, winnerName, l
     ${boxes}
   </div></div>`;
 
-  if (editable) {
+  if (editableLeaves) {
     container.querySelectorAll(".bd-editable").forEach(box => {
       box.addEventListener("click", () => editLeafName(Number(box.dataset.leafIdx)));
+    });
+  }
+  if (onSlotClick) {
+    container.querySelectorAll(".bd-pick").forEach(box => {
+      box.addEventListener("click", () => onSlotClick(Number(box.dataset.level), Number(box.dataset.pair), Number(box.dataset.side)));
     });
   }
 }
@@ -529,7 +582,7 @@ function renderBracket() {
 
   // ===== トーナメント図 =====
   html += `<h4 class="section-head">🖼 トーナメント表</h4>`;
-  html += `<p class="note" style="margin-top:-2px">本戦の対局者名は、下の枠を直接タップして入力・修正できます。</p>`;
+  html += `<p class="note" style="margin-top:-2px">対局者名は枠を直接タップして入力・修正できます。両者の名前が揃った枠は、タップするとその対局の勝者に選べます（下の「結果を入力」からでも同じ操作ができます）。</p>`;
   html += `<div class="bracket-block"><div class="bracket-block-title">本戦</div><div id="bd-main"></div></div>`;
   html += `<div class="bracket-block"><div class="bracket-block-title">3位決定戦</div><div id="bd-third"></div></div>`;
   html += `<div class="bracket-divider"></div>`;
@@ -571,25 +624,35 @@ function renderBracket() {
     state.players,
     [ state.results.qf, state.results.sf, [state.results.final] ],
     getFinalResult().winner, getFinalResult().loser, ["優勝", "準優勝"],
-    true
+    true,
+    (L, pairIdx, side) => {
+      const cat = L === 0 ? "qf" : L === 1 ? "sf" : "final";
+      setWinner(cat, cat === "final" ? 0 : pairIdx, side);
+    }
   );
   renderBracketDiagram(
     document.getElementById("bd-third"),
     getThirdPlayers(),
     [ [state.results.third] ],
-    getThirdResult().winner, getThirdResult().loser, ["第3位", "第4位"]
+    getThirdResult().winner, getThirdResult().loser, ["第3位", "第4位"],
+    false,
+    (L, pairIdx, side) => setWinner("third", 0, side)
   );
   renderBracketDiagram(
     document.getElementById("bd-fifth"),
     [getQFResult(0).loser, getQFResult(1).loser, getQFResult(2).loser, getQFResult(3).loser],
     [ state.results.cLower, [state.results.fifth] ],
-    getFifthResult().winner, getFifthResult().loser, ["第5位", "第6位"]
+    getFifthResult().winner, getFifthResult().loser, ["第5位", "第6位"],
+    false,
+    (L, pairIdx, side) => L === 0 ? setWinner("cLower", pairIdx, side) : setWinner("fifth", 0, side)
   );
   renderBracketDiagram(
     document.getElementById("bd-seventh"),
     getSeventhPlayers(),
     [ [state.results.seventh] ],
-    getSeventhResult().winner, getSeventhResult().loser, ["第7位", "第8位"]
+    getSeventhResult().winner, getSeventhResult().loser, ["第7位", "第8位"],
+    false,
+    (L, pairIdx, side) => setWinner("seventh", 0, side)
   );
 }
 
