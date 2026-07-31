@@ -17,9 +17,8 @@
         下位準決勝の勝者2名 → 5位決定戦 → 5位・6位
         下位準決勝の敗者2名 → 7位決定戦 → 7位・8位
 
-  対局者名の入力は、⚙️設定タブでまとめて入力する方法と、
-  🖼トーナメント表の本戦の枠を直接タップして1人ずつ入力・修正する
-  方法の両方に対応する。設定タブでは▲▼ボタンで対局者の並び順
+  対局者名の入力・修正は⚙️設定タブで行う。各対局者の段位も設定タブで
+  入力でき、順位表に表示される。▲▼ボタンで対局者の並び順
   （シード順）を入れ替えられる。
 
   結果の入力は、トーナメント図の名前枠を直接タップして行う。
@@ -61,16 +60,17 @@
   ・機能を追加・変更したら「主な機能」と「今後の改良候補」を合わせて更新する
 
 【主な機能（現時点）】
-  - 大会名・対局者8名の設定（⚙️設定タブでまとめて入力／トーナメント図の
-    本戦の枠を直接タップして1人ずつ入力・修正、の両方に対応。
-    設定タブでは▲▼ボタンで対局者の並び順を入れ替え可能）
+  - 大会名・対局者8名の設定（⚙️設定タブでまとめて入力。各対局者の段位も
+    初段〜九段から選択可能。▲▼ボタンで対局者の並び順（シード順）を
+    入れ替え可能。並び替え時は名前と段位がセットで移動する）
   - 結果入力（トーナメント図の名前枠を直接タップして勝者選択。
     本戦だけでなく3位・5位・7位決定戦の図でも同様にタップで選択できる）
   - トーナメント図（罫線でつないだブラケット表示。本戦・3位決定戦・
     5位決定戦・7位決定戦。各ラウンドの対局候補も名前枠として表示され、
     両者揃った枠はタップで勝者選択できる。勝ち上がった経路だけ赤で表示され、
     負けた側はグレーのまま残るので、誰が勝ったかが一目でわかる）
-  - 順位表示（トーナメント図の下に優勝〜8位を一覧表示。未定の順位は「未定」）
+  - 順位表示（トーナメント図の下に優勝〜8位を一覧表示。各対局者の段位も
+    併記される。未定の順位は「未定」）
   - 3位決定戦・5位決定戦・7位決定戦の自動組み合わせ
   - 結果だけリセット（対局者名は保持）
   - 新しい大会にする（現在の大会をアーカイブして白紙に戻す）
@@ -124,7 +124,7 @@
 
   .fg { margin-bottom: 12px; }
   label { display: block; margin-bottom: 4px; font-weight: bold; font-size: 0.86rem; color: #444; }
-  input {
+  input, select {
     width: 100%; padding: 10px; border: 1px solid #ddd8cc;
     border-radius: 6px; font-size: 1rem; background: #fff;
   }
@@ -135,11 +135,12 @@
   }
   .btn:active { opacity: 0.85; }
 
-  .seed-input-row { display: flex; gap: 6px; align-items: stretch; }
-  .seed-input-row input { flex: 1; min-width: 0; }
+  .seed-input-row { display: flex; gap: 5px; align-items: stretch; }
+  .seed-input-row input.seed-name { flex: 1; min-width: 0; }
+  .seed-input-row select.seed-rank { width: 68px; flex-shrink: 0; padding: 0 2px; font-size: 0.76rem; box-sizing: border-box; }
   .seed-move-btn {
-    width: 34px; flex-shrink: 0; border: 1px solid #ddd8cc; border-radius: 6px;
-    background: #fff; color: #555; font-size: 0.85rem; cursor: pointer;
+    width: 28px; flex-shrink: 0; border: 1px solid #ddd8cc; border-radius: 6px;
+    background: #fff; color: #555; font-size: 0.8rem; cursor: pointer; padding: 0;
   }
   .seed-move-btn:active:not(:disabled) { background: #f0ede4; }
   .seed-move-btn:disabled { opacity: 0.3; cursor: default; }
@@ -171,9 +172,6 @@
   }
   .bd-out { display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.25; border-color: #b89752; background: #fdf8ee; }
   .bd-out-label { font-size: 0.62rem; color: #b89752; font-weight: bold; letter-spacing: 0.05em; }
-  .bd-editable { cursor: pointer; border-style: dashed; }
-  .bd-editable:active { background: #f5f0e0; }
-  .bd-placeholder { color: #bbb; font-weight: normal; }
   .bd-pick { cursor: pointer; }
   .bd-pick:active { background: #f5f0e0; }
   .bd-slot-winner { border-color: #b03a2e; color: #b03a2e; background: #fdf1ef; }
@@ -238,16 +236,16 @@
       </div>
 
       <h3>大会設定</h3>
-      <p class="note">対局者名を入れて保存すると、シード順（1〜8）で1回戦の組み合わせが決まります。▲▼で並び順（シード順）を入れ替えられます。</p>
+      <p class="note">対局者名を入れて保存すると、シード順（1〜8）で1回戦の組み合わせが決まります。▲▼で並び順（シード順）を入れ替えられます（名前と段位は一緒に移動します）。段位は順位表に表示されます。</p>
       <div class="fg"><label>大会名</label><input id="t-title" type="text" placeholder="例：大石道場杯"></div>
-      <div class="fg seed-row"><label>対局者 1</label><div class="seed-input-row"><input id="t-p0" type="text"><button type="button" class="seed-move-btn" data-idx="0" data-dir="-1" disabled>▲</button><button type="button" class="seed-move-btn" data-idx="0" data-dir="1">▼</button></div></div>
-      <div class="fg seed-row"><label>対局者 2</label><div class="seed-input-row"><input id="t-p1" type="text"><button type="button" class="seed-move-btn" data-idx="1" data-dir="-1">▲</button><button type="button" class="seed-move-btn" data-idx="1" data-dir="1">▼</button></div></div>
-      <div class="fg seed-row"><label>対局者 3</label><div class="seed-input-row"><input id="t-p2" type="text"><button type="button" class="seed-move-btn" data-idx="2" data-dir="-1">▲</button><button type="button" class="seed-move-btn" data-idx="2" data-dir="1">▼</button></div></div>
-      <div class="fg seed-row"><label>対局者 4</label><div class="seed-input-row"><input id="t-p3" type="text"><button type="button" class="seed-move-btn" data-idx="3" data-dir="-1">▲</button><button type="button" class="seed-move-btn" data-idx="3" data-dir="1">▼</button></div></div>
-      <div class="fg seed-row"><label>対局者 5</label><div class="seed-input-row"><input id="t-p4" type="text"><button type="button" class="seed-move-btn" data-idx="4" data-dir="-1">▲</button><button type="button" class="seed-move-btn" data-idx="4" data-dir="1">▼</button></div></div>
-      <div class="fg seed-row"><label>対局者 6</label><div class="seed-input-row"><input id="t-p5" type="text"><button type="button" class="seed-move-btn" data-idx="5" data-dir="-1">▲</button><button type="button" class="seed-move-btn" data-idx="5" data-dir="1">▼</button></div></div>
-      <div class="fg seed-row"><label>対局者 7</label><div class="seed-input-row"><input id="t-p6" type="text"><button type="button" class="seed-move-btn" data-idx="6" data-dir="-1">▲</button><button type="button" class="seed-move-btn" data-idx="6" data-dir="1">▼</button></div></div>
-      <div class="fg seed-row"><label>対局者 8</label><div class="seed-input-row"><input id="t-p7" type="text"><button type="button" class="seed-move-btn" data-idx="7" data-dir="-1">▲</button><button type="button" class="seed-move-btn" data-idx="7" data-dir="1" disabled>▼</button></div></div>
+      <div class="fg seed-row"><label>対局者 1</label><div class="seed-input-row"><input id="t-p0" type="text" class="seed-name" placeholder="名前"><select id="t-r0" class="seed-rank"><option value="">－</option><option value="初段">初段</option><option value="二段">二段</option><option value="三段">三段</option><option value="四段">四段</option><option value="五段">五段</option><option value="六段">六段</option><option value="七段">七段</option><option value="八段">八段</option><option value="九段">九段</option></select><button type="button" class="seed-move-btn" data-idx="0" data-dir="-1" disabled>▲</button><button type="button" class="seed-move-btn" data-idx="0" data-dir="1">▼</button></div></div>
+      <div class="fg seed-row"><label>対局者 2</label><div class="seed-input-row"><input id="t-p1" type="text" class="seed-name" placeholder="名前"><select id="t-r1" class="seed-rank"><option value="">－</option><option value="初段">初段</option><option value="二段">二段</option><option value="三段">三段</option><option value="四段">四段</option><option value="五段">五段</option><option value="六段">六段</option><option value="七段">七段</option><option value="八段">八段</option><option value="九段">九段</option></select><button type="button" class="seed-move-btn" data-idx="1" data-dir="-1">▲</button><button type="button" class="seed-move-btn" data-idx="1" data-dir="1">▼</button></div></div>
+      <div class="fg seed-row"><label>対局者 3</label><div class="seed-input-row"><input id="t-p2" type="text" class="seed-name" placeholder="名前"><select id="t-r2" class="seed-rank"><option value="">－</option><option value="初段">初段</option><option value="二段">二段</option><option value="三段">三段</option><option value="四段">四段</option><option value="五段">五段</option><option value="六段">六段</option><option value="七段">七段</option><option value="八段">八段</option><option value="九段">九段</option></select><button type="button" class="seed-move-btn" data-idx="2" data-dir="-1">▲</button><button type="button" class="seed-move-btn" data-idx="2" data-dir="1">▼</button></div></div>
+      <div class="fg seed-row"><label>対局者 4</label><div class="seed-input-row"><input id="t-p3" type="text" class="seed-name" placeholder="名前"><select id="t-r3" class="seed-rank"><option value="">－</option><option value="初段">初段</option><option value="二段">二段</option><option value="三段">三段</option><option value="四段">四段</option><option value="五段">五段</option><option value="六段">六段</option><option value="七段">七段</option><option value="八段">八段</option><option value="九段">九段</option></select><button type="button" class="seed-move-btn" data-idx="3" data-dir="-1">▲</button><button type="button" class="seed-move-btn" data-idx="3" data-dir="1">▼</button></div></div>
+      <div class="fg seed-row"><label>対局者 5</label><div class="seed-input-row"><input id="t-p4" type="text" class="seed-name" placeholder="名前"><select id="t-r4" class="seed-rank"><option value="">－</option><option value="初段">初段</option><option value="二段">二段</option><option value="三段">三段</option><option value="四段">四段</option><option value="五段">五段</option><option value="六段">六段</option><option value="七段">七段</option><option value="八段">八段</option><option value="九段">九段</option></select><button type="button" class="seed-move-btn" data-idx="4" data-dir="-1">▲</button><button type="button" class="seed-move-btn" data-idx="4" data-dir="1">▼</button></div></div>
+      <div class="fg seed-row"><label>対局者 6</label><div class="seed-input-row"><input id="t-p5" type="text" class="seed-name" placeholder="名前"><select id="t-r5" class="seed-rank"><option value="">－</option><option value="初段">初段</option><option value="二段">二段</option><option value="三段">三段</option><option value="四段">四段</option><option value="五段">五段</option><option value="六段">六段</option><option value="七段">七段</option><option value="八段">八段</option><option value="九段">九段</option></select><button type="button" class="seed-move-btn" data-idx="5" data-dir="-1">▲</button><button type="button" class="seed-move-btn" data-idx="5" data-dir="1">▼</button></div></div>
+      <div class="fg seed-row"><label>対局者 7</label><div class="seed-input-row"><input id="t-p6" type="text" class="seed-name" placeholder="名前"><select id="t-r6" class="seed-rank"><option value="">－</option><option value="初段">初段</option><option value="二段">二段</option><option value="三段">三段</option><option value="四段">四段</option><option value="五段">五段</option><option value="六段">六段</option><option value="七段">七段</option><option value="八段">八段</option><option value="九段">九段</option></select><button type="button" class="seed-move-btn" data-idx="6" data-dir="-1">▲</button><button type="button" class="seed-move-btn" data-idx="6" data-dir="1">▼</button></div></div>
+      <div class="fg seed-row"><label>対局者 8</label><div class="seed-input-row"><input id="t-p7" type="text" class="seed-name" placeholder="名前"><select id="t-r7" class="seed-rank"><option value="">－</option><option value="初段">初段</option><option value="二段">二段</option><option value="三段">三段</option><option value="四段">四段</option><option value="五段">五段</option><option value="六段">六段</option><option value="七段">七段</option><option value="八段">八段</option><option value="九段">九段</option></select><button type="button" class="seed-move-btn" data-idx="7" data-dir="-1">▲</button><button type="button" class="seed-move-btn" data-idx="7" data-dir="1" disabled>▼</button></div></div>
       <button class="btn" id="save-setup">保存して全員に同期</button>
 
       <div id="admin-toggle" style="margin-top:24px">
@@ -287,7 +285,7 @@ function emptyResults() {
   return { qf:[null,null,null,null], sf:[null,null], final:null, third:null, cLower:[null,null], fifth:null, seventh:null };
 }
 
-let state = { title:"", players:["","","","","","","",""], results: emptyResults() };
+let state = { title:"", players:["","","","","","","",""], ranks:["","","","","","","",""], results: emptyResults() };
 let stateRef = null, archiveRef = null;
 const isConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY";
 let editingSetup = false;
@@ -303,6 +301,7 @@ if (isConfigured) {
         state = {
           title:   typeof data.title === "string" ? data.title : "",
           players: Array.isArray(data.players) && data.players.length === 8 ? data.players : state.players,
+          ranks:   Array.isArray(data.ranks) && data.ranks.length === 8 ? data.ranks : state.ranks,
           results: data.results ? { ...emptyResults(), ...data.results } : emptyResults()
         };
         if (!editingSetup) fillSettingsInputs();
@@ -347,6 +346,13 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
 
 function escapeHtml(s) {
   return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+// 対局者名から、設定タブで入力された段位を引く（同姓同名がいる場合は最初に一致した枠を使う）
+function getPlayerRank(name) {
+  if (!name) return "";
+  const idx = state.players.indexOf(name);
+  return idx >= 0 ? (state.ranks[idx] || "") : "";
 }
 
 // ---------- 組み合わせロジック ----------
@@ -455,7 +461,7 @@ function setWinner(cat, idx, side) {
 // editable: true の場合、葉ボックス（対局者名）をタップして直接編集できる
 //   （本戦の1回戦＝対局者8名の入力に使う。3位/5位/7位決定戦の図は結果から自動計算される
 //   ため編集不可＝falseのまま呼び出す）
-function renderBracketDiagram(container, leaves, winnerSideLevels, winnerName, loserName, outputLabels, editableLeaves, onSlotClick) {
+function renderBracketDiagram(container, leaves, winnerSideLevels, winnerName, loserName, outputLabels, onSlotClick) {
   const n = leaves.length;
   const rounds = Math.log2(n);
   const rowH = 46, boxH = 34, gapOut = boxH + 12;
@@ -508,9 +514,8 @@ function renderBracketDiagram(container, leaves, winnerSideLevels, winnerName, l
   let baseLines = "", winLines = "", boxes = "";
 
   // レベルL（0〜rounds-1）ごとに名前ボックスを描画する。
-  // L=0は葉（本戦のみ対局者名の直接編集も兼ねる）。
-  // L>=1は、1つ前のラウンドの勝者＝次ラウンドの対局候補として表示され、
-  // 対になる2枠の名前が両方揃っていれば、タップでその対局の勝者を選べる。
+  // 対になる2枠の名前が両方揃っていれば、タップでその対局の勝者を選べる
+  // （対局者名の入力・修正は⚙️設定タブで行う）。
   for (let L = 0; L < rounds; L++) {
     const names = levelNames[L];
     const ys = levels[L];
@@ -520,17 +525,12 @@ function renderBracketDiagram(container, leaves, winnerSideLevels, winnerName, l
       const pairIdx = Math.floor(j / 2);
       const side = j % 2;
       const partner = names[side === 0 ? j + 1 : j - 1];
-      const isLeafEditable = (L === 0 && editableLeaves);
       const ready = !!name && !!partner;
       const isWinnerSide = winnerSideLevels[L] && winnerSideLevels[L][pairIdx] === side;
       let cls = "bd-box";
       let attrs = "";
-      const label = name ? escapeHtml(name) : (isLeafEditable ? `<span class="bd-placeholder">対局者${j+1}</span>` : "―");
-      if (isLeafEditable && !ready) {
-        // 名前が未入力、または対戦相手が未入力のうちは、タップで名前を編集
-        cls += " bd-editable";
-        attrs = ` data-leaf-idx="${j}"`;
-      } else if (ready && onSlotClick) {
+      const label = name ? escapeHtml(name) : "―";
+      if (ready && onSlotClick) {
         // 両者揃ったら、タップでその対局の勝者を選べる
         cls += " bd-pick";
         if (isWinnerSide) cls += " bd-slot-winner";
@@ -582,25 +582,11 @@ function renderBracketDiagram(container, leaves, winnerSideLevels, winnerName, l
     ${boxes}
   </div></div>`;
 
-  if (editableLeaves) {
-    container.querySelectorAll(".bd-editable").forEach(box => {
-      box.addEventListener("click", () => editLeafName(Number(box.dataset.leafIdx)));
-    });
-  }
   if (onSlotClick) {
     container.querySelectorAll(".bd-pick").forEach(box => {
       box.addEventListener("click", () => onSlotClick(Number(box.dataset.level), Number(box.dataset.pair), Number(box.dataset.side)));
     });
   }
-}
-
-// トーナメント図の葉ボックスをタップして対局者名を直接編集する
-function editLeafName(idx) {
-  const current = state.players[idx] || "";
-  const input = prompt(`対局者${idx+1}の名前を入力してください`, current);
-  if (input === null) return; // キャンセル
-  state.players[idx] = input.trim();
-  pushState();
 }
 
 // ---------- 描画 ----------
@@ -612,7 +598,7 @@ function renderBracket() {
 
   // ===== トーナメント図 =====
   html += `<h4 class="section-head">🖼 トーナメント表</h4>`;
-  html += `<p class="note" style="margin-top:-2px">対局者名は枠を直接タップして入力・修正できます。両者の名前が揃った枠は、タップするとその対局の勝者に選べます。</p>`;
+  html += `<p class="note" style="margin-top:-2px">両者の名前が揃った枠をタップすると、その対局の勝者に選べます。対局者名の入力・修正、並び順の変更は⚙️設定タブで行います。</p>`;
   html += `<div class="bracket-block"><div class="bracket-block-title">本戦</div><div id="bd-main"></div></div>`;
   html += `<div class="bracket-block"><div class="bracket-block-title">3位決定戦</div><div id="bd-third"></div></div>`;
   html += `<div class="bracket-divider"></div>`;
@@ -635,11 +621,17 @@ function renderBracket() {
     { rank: 8, medal: "8",  name: seventhR.loser },
   ];
   html += `<h4 class="section-head">🏅 順位</h4>`;
-  html += placements.map(p => `
+  html += placements.map(p => {
+    const rank = getPlayerRank(p.name);
+    const nameHTML = p.name
+      ? escapeHtml(p.name) + (rank ? ` <span style="font-weight:normal;color:#b89752;font-size:0.8rem">${escapeHtml(rank)}</span>` : "")
+      : '<span style="color:#bbb;font-weight:normal">未定</span>';
+    return `
     <div class="standings-row">
       <div class="standings-num">${p.medal}</div>
-      <div class="standings-name">${p.name ? escapeHtml(p.name) : '<span style="color:#bbb;font-weight:normal">未定</span>'}</div>
-    </div>`).join("");
+      <div class="standings-name">${nameHTML}</div>
+    </div>`;
+  }).join("");
 
   el.innerHTML = html;
 
@@ -649,7 +641,6 @@ function renderBracket() {
     state.players,
     [ state.results.qf, state.results.sf, [state.results.final] ],
     getFinalResult().winner, getFinalResult().loser, ["優勝", "準優勝"],
-    true,
     (L, pairIdx, side) => {
       const cat = L === 0 ? "qf" : L === 1 ? "sf" : "final";
       setWinner(cat, cat === "final" ? 0 : pairIdx, side);
@@ -660,7 +651,6 @@ function renderBracket() {
     getThirdPlayers(),
     [ [state.results.third] ],
     getThirdResult().winner, getThirdResult().loser, ["第3位", "第4位"],
-    false,
     (L, pairIdx, side) => setWinner("third", 0, side)
   );
   renderBracketDiagram(
@@ -668,7 +658,6 @@ function renderBracket() {
     [getQFResult(0).loser, getQFResult(1).loser, getQFResult(2).loser, getQFResult(3).loser],
     [ state.results.cLower, [state.results.fifth] ],
     getFifthResult().winner, getFifthResult().loser, ["第5位", "第6位"],
-    false,
     (L, pairIdx, side) => L === 0 ? setWinner("cLower", pairIdx, side) : setWinner("fifth", 0, side)
   );
   renderBracketDiagram(
@@ -676,7 +665,6 @@ function renderBracket() {
     getSeventhPlayers(),
     [ [state.results.seventh] ],
     getSeventhResult().winner, getSeventhResult().loser, ["第7位", "第8位"],
-    false,
     (L, pairIdx, side) => setWinner("seventh", 0, side)
   );
 }
@@ -687,33 +675,37 @@ function renderAll() { renderBracket(); }
 function fillSettingsInputs() {
   document.getElementById("t-title").value = state.title || "";
   state.players.forEach((name, i) => { document.getElementById("t-p"+i).value = name || ""; });
+  (state.ranks || []).forEach((rank, i) => { document.getElementById("t-r"+i).value = rank || ""; });
 }
 
-["t-title", ...[0,1,2,3,4,5,6,7].map(i=>"t-p"+i)].forEach(id => {
+["t-title", ...[0,1,2,3,4,5,6,7].map(i=>"t-p"+i), ...[0,1,2,3,4,5,6,7].map(i=>"t-r"+i)].forEach(id => {
   const el = document.getElementById(id);
   el.addEventListener("focus", () => editingSetup = true);
   el.addEventListener("blur",  () => editingSetup = false);
 });
 
-// 対局者の並び順（シード順）を▲▼ボタンで入れ替える。
-// Firebaseにはまだ書き込まず、「保存して全員に同期」を押した時点で反映される
-// （他の設定項目と同じ挙動に揃えている）。
+// 対局者の並び順（シード順）を▲▼ボタンで入れ替える。名前と段位は同じ人のものなので
+// セットで入れ替える。Firebaseにはまだ書き込まず、「保存して全員に同期」を押した
+// 時点で反映される（他の設定項目と同じ挙動に揃えている）。
 document.querySelectorAll(".seed-move-btn").forEach(btn => {
   btn.addEventListener("click", () => {
     const i = Number(btn.dataset.idx);
     const j = i + Number(btn.dataset.dir);
     if (j < 0 || j > 7) return;
-    const a = document.getElementById("t-p"+i);
-    const b = document.getElementById("t-p"+j);
-    const tmp = a.value;
-    a.value = b.value;
-    b.value = tmp;
+    ["t-p", "t-r"].forEach(prefix => {
+      const a = document.getElementById(prefix+i);
+      const b = document.getElementById(prefix+j);
+      const tmp = a.value;
+      a.value = b.value;
+      b.value = tmp;
+    });
   });
 });
 
 document.getElementById("save-setup").addEventListener("click", () => {
   state.title = document.getElementById("t-title").value.trim();
   state.players = [0,1,2,3,4,5,6,7].map(i => document.getElementById("t-p"+i).value.trim());
+  state.ranks   = [0,1,2,3,4,5,6,7].map(i => document.getElementById("t-r"+i).value.trim());
   pushState();
   showToast("設定を保存し、全員に同期しました！");
 });
@@ -738,9 +730,9 @@ document.getElementById("new-tournament").addEventListener("click", () => {
   if (archiveRef) {
     const now = new Date();
     const dateStr = `${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()}`;
-    archiveRef.push({ title: state.title, players: state.players, results: state.results, endDate: dateStr });
+    archiveRef.push({ title: state.title, players: state.players, ranks: state.ranks, results: state.results, endDate: dateStr });
   }
-  state = { title:"", players:["","","","","","","",""], results: emptyResults() };
+  state = { title:"", players:["","","","","","","",""], ranks:["","","","","","","",""], results: emptyResults() };
   pushState();
   fillSettingsInputs();
   showToast("新しい大会を開始しました");
