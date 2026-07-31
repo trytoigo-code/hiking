@@ -19,7 +19,8 @@
 
   対局者名の入力は、⚙️設定タブでまとめて入力する方法と、
   🖼トーナメント表の本戦の枠を直接タップして1人ずつ入力・修正する
-  方法の両方に対応する。
+  方法の両方に対応する。設定タブでは▲▼ボタンで対局者の並び順
+  （シード順）を入れ替えられる。
 
   結果の入力は、トーナメント図の名前枠を直接タップして行う。
   両者の名前が揃った枠をタップするとその対局の勝者に選べる
@@ -61,7 +62,8 @@
 
 【主な機能（現時点）】
   - 大会名・対局者8名の設定（⚙️設定タブでまとめて入力／トーナメント図の
-    本戦の枠を直接タップして1人ずつ入力・修正、の両方に対応）
+    本戦の枠を直接タップして1人ずつ入力・修正、の両方に対応。
+    設定タブでは▲▼ボタンで対局者の並び順を入れ替え可能）
   - 結果入力（トーナメント図の名前枠を直接タップして勝者選択。
     本戦だけでなく3位・5位・7位決定戦の図でも同様にタップで選択できる）
   - トーナメント図（罫線でつないだブラケット表示。本戦・3位決定戦・
@@ -132,6 +134,15 @@
     font-weight: bold; cursor: pointer; letter-spacing: 1px; margin-top: 4px;
   }
   .btn:active { opacity: 0.85; }
+
+  .seed-input-row { display: flex; gap: 6px; align-items: stretch; }
+  .seed-input-row input { flex: 1; min-width: 0; }
+  .seed-move-btn {
+    width: 34px; flex-shrink: 0; border: 1px solid #ddd8cc; border-radius: 6px;
+    background: #fff; color: #555; font-size: 0.85rem; cursor: pointer;
+  }
+  .seed-move-btn:active:not(:disabled) { background: #f0ede4; }
+  .seed-move-btn:disabled { opacity: 0.3; cursor: default; }
 
   #setup-banner {
     background: #fff3cd; border: 1px solid #ffc107; color: #856404;
@@ -227,16 +238,16 @@
       </div>
 
       <h3>大会設定</h3>
-      <p class="note">対局者名を入れて保存すると、シード順（1〜8）で1回戦の組み合わせが決まります。</p>
+      <p class="note">対局者名を入れて保存すると、シード順（1〜8）で1回戦の組み合わせが決まります。▲▼で並び順（シード順）を入れ替えられます。</p>
       <div class="fg"><label>大会名</label><input id="t-title" type="text" placeholder="例：大石道場杯"></div>
-      <div class="fg"><label>対局者 1</label><input id="t-p0" type="text"></div>
-      <div class="fg"><label>対局者 2</label><input id="t-p1" type="text"></div>
-      <div class="fg"><label>対局者 3</label><input id="t-p2" type="text"></div>
-      <div class="fg"><label>対局者 4</label><input id="t-p3" type="text"></div>
-      <div class="fg"><label>対局者 5</label><input id="t-p4" type="text"></div>
-      <div class="fg"><label>対局者 6</label><input id="t-p5" type="text"></div>
-      <div class="fg"><label>対局者 7</label><input id="t-p6" type="text"></div>
-      <div class="fg"><label>対局者 8</label><input id="t-p7" type="text"></div>
+      <div class="fg seed-row"><label>対局者 1</label><div class="seed-input-row"><input id="t-p0" type="text"><button type="button" class="seed-move-btn" data-idx="0" data-dir="-1" disabled>▲</button><button type="button" class="seed-move-btn" data-idx="0" data-dir="1">▼</button></div></div>
+      <div class="fg seed-row"><label>対局者 2</label><div class="seed-input-row"><input id="t-p1" type="text"><button type="button" class="seed-move-btn" data-idx="1" data-dir="-1">▲</button><button type="button" class="seed-move-btn" data-idx="1" data-dir="1">▼</button></div></div>
+      <div class="fg seed-row"><label>対局者 3</label><div class="seed-input-row"><input id="t-p2" type="text"><button type="button" class="seed-move-btn" data-idx="2" data-dir="-1">▲</button><button type="button" class="seed-move-btn" data-idx="2" data-dir="1">▼</button></div></div>
+      <div class="fg seed-row"><label>対局者 4</label><div class="seed-input-row"><input id="t-p3" type="text"><button type="button" class="seed-move-btn" data-idx="3" data-dir="-1">▲</button><button type="button" class="seed-move-btn" data-idx="3" data-dir="1">▼</button></div></div>
+      <div class="fg seed-row"><label>対局者 5</label><div class="seed-input-row"><input id="t-p4" type="text"><button type="button" class="seed-move-btn" data-idx="4" data-dir="-1">▲</button><button type="button" class="seed-move-btn" data-idx="4" data-dir="1">▼</button></div></div>
+      <div class="fg seed-row"><label>対局者 6</label><div class="seed-input-row"><input id="t-p5" type="text"><button type="button" class="seed-move-btn" data-idx="5" data-dir="-1">▲</button><button type="button" class="seed-move-btn" data-idx="5" data-dir="1">▼</button></div></div>
+      <div class="fg seed-row"><label>対局者 7</label><div class="seed-input-row"><input id="t-p6" type="text"><button type="button" class="seed-move-btn" data-idx="6" data-dir="-1">▲</button><button type="button" class="seed-move-btn" data-idx="6" data-dir="1">▼</button></div></div>
+      <div class="fg seed-row"><label>対局者 8</label><div class="seed-input-row"><input id="t-p7" type="text"><button type="button" class="seed-move-btn" data-idx="7" data-dir="-1">▲</button><button type="button" class="seed-move-btn" data-idx="7" data-dir="1" disabled>▼</button></div></div>
       <button class="btn" id="save-setup">保存して全員に同期</button>
 
       <div id="admin-toggle" style="margin-top:24px">
@@ -365,7 +376,44 @@ function getFifthResult()  { return pairResult(getFifthPlayers(), state.results.
 function getSeventhPlayers() { return [getCLowerResult(0).loser, getCLowerResult(1).loser]; }
 function getSeventhResult()  { return pairResult(getSeventhPlayers(), state.results.seventh); }
 
+// 指定した対局(cat, idx)の現在の選択値（0/1/null）を返す
+function getCurrentResultValue(cat, idx) {
+  if (cat === "qf")     return state.results.qf[idx];
+  if (cat === "sf")     return state.results.sf[idx];
+  if (cat === "cLower") return state.results.cLower[idx];
+  if (cat === "final")  return state.results.final;
+  if (cat === "third")  return state.results.third;
+  if (cat === "fifth")  return state.results.fifth;
+  if (cat === "seventh") return state.results.seventh;
+  return null;
+}
+
+// その対局を変更した場合に、自動でクリアされる下流の結果が
+// 実際に存在するかどうかを判定する（qf・sf・cLowerのみ下流あり）
+function hasDownstreamResults(cat, idx) {
+  if (cat === "qf") {
+    const sfIdx = Math.floor(idx / 2);
+    return state.results.sf[sfIdx] !== null || state.results.final !== null ||
+           state.results.third !== null || state.results.cLower[sfIdx] !== null ||
+           state.results.fifth !== null || state.results.seventh !== null;
+  }
+  if (cat === "sf")     return state.results.final !== null || state.results.third !== null;
+  if (cat === "cLower") return state.results.fifth !== null || state.results.seventh !== null;
+  return false;
+}
+
 function setWinner(cat, idx, side) {
+  const current = getCurrentResultValue(cat, idx);
+  if (current === side) return; // 変更なし
+
+  // すでに勝者が決まっている対局を変更しようとした場合は、誤タップ対策として確認する
+  if (current !== null) {
+    const msg = hasDownstreamResults(cat, idx)
+      ? "すでに決まっている結果を変更します。この対局に続く下位ラウンド・順位決定戦の結果は自動的にクリアされます。よろしいですか？"
+      : "すでに決まっている結果を変更しますか？";
+    if (!confirm(msg)) return;
+  }
+
   if (cat === "qf") {
     state.results.qf[idx] = side;
     const sfIdx = Math.floor(idx/2);
@@ -645,6 +693,22 @@ function fillSettingsInputs() {
   const el = document.getElementById(id);
   el.addEventListener("focus", () => editingSetup = true);
   el.addEventListener("blur",  () => editingSetup = false);
+});
+
+// 対局者の並び順（シード順）を▲▼ボタンで入れ替える。
+// Firebaseにはまだ書き込まず、「保存して全員に同期」を押した時点で反映される
+// （他の設定項目と同じ挙動に揃えている）。
+document.querySelectorAll(".seed-move-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const i = Number(btn.dataset.idx);
+    const j = i + Number(btn.dataset.dir);
+    if (j < 0 || j > 7) return;
+    const a = document.getElementById("t-p"+i);
+    const b = document.getElementById("t-p"+j);
+    const tmp = a.value;
+    a.value = b.value;
+    b.value = tmp;
+  });
 });
 
 document.getElementById("save-setup").addEventListener("click", () => {
