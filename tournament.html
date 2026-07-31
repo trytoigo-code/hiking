@@ -74,6 +74,7 @@
   - 3位決定戦・5位決定戦・7位決定戦の自動組み合わせ
   - 結果だけリセット（対局者名は保持）
   - 新しい大会にする（現在の大会をアーカイブして白紙に戻す）
+  - 完全リセット（現在の大会と過去のアーカイブをすべて消去して真っさらに戻す。テスト中のやり直し用）
   - 過去の大会アーカイブ表示
   - Firebase によるリアルタイム同期
 
@@ -260,6 +261,10 @@
         <h3 style="margin-top:24px">新しい大会にする</h3>
         <p class="note">現在の大会をアーカイブに保存してから、大会名・対局者・結果をすべて白紙に戻します。</p>
         <button class="btn" id="new-tournament" style="background:#e74c3c">現在の大会をアーカイブして新しく始める</button>
+
+        <h3 style="margin-top:24px">完全リセット</h3>
+        <p class="note">テスト中など、すべてをやり直したいときに使います。現在の大会と、過去のアーカイブをすべて消去して真っさらに戻します。</p>
+        <button class="btn" id="full-reset" style="background:#888">アーカイブごと完全リセット</button>
 
         <h3 style="margin-top:24px">過去の大会</h3>
         <div id="archive-list"></div>
@@ -818,6 +823,19 @@ document.getElementById("new-tournament").addEventListener("click", () => {
   pushState();
   fillSettingsInputs();
   showToast("新しい大会を開始しました");
+  renderArchive();
+});
+
+// ---------- 完全リセット ----------
+// 「新しい大会にする」とは異なり、現在の大会をアーカイブに保存せず、
+// 過去のアーカイブも含めてすべて消去する（テスト中のやり直し用）
+document.getElementById("full-reset").addEventListener("click", () => {
+  if (!confirm("現在の大会と、過去のアーカイブをすべて消去して真っさらに戻します。\nこの操作は取り消せません。本当によいですか？")) return;
+  if (archiveRef) archiveRef.remove();
+  state = { title:"", players:["","","","","","","",""], ranks:["","","","","","","",""], results: emptyResults() };
+  pushState();
+  fillSettingsInputs();
+  showToast("完全リセットしました。");
   renderArchive();
 });
 
