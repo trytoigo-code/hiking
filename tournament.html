@@ -387,6 +387,25 @@ function getPlayerRank(name) {
   return idx >= 0 ? (state.ranks[idx] || "") : "";
 }
 
+// 昇段・降段の計算（1・2位は昇段、7・8位は降段というルール専用）
+const RANK_LEVELS = ["初段","二段","三段","四段","五段","六段","七段","八段","九段"];
+function promoteRank(rank) {
+  const i = RANK_LEVELS.indexOf(rank);
+  if (i === -1) return rank || ""; // 段位未設定・未知の表記はそのまま
+  return RANK_LEVELS[Math.min(i + 1, RANK_LEVELS.length - 1)];
+}
+function demoteRank(rank) {
+  const i = RANK_LEVELS.indexOf(rank);
+  if (i === -1) return rank || "";
+  return RANK_LEVELS[Math.max(i - 1, 0)];
+}
+// 1・2位は昇段、7・8位は降段のバッジHTML（該当順位以外は空文字）
+function rankChangeBadgeHTML(rank) {
+  if (rank === 1 || rank === 2) return `<span style="display:inline-block;background:#c0392b;color:#fff;font-size:0.66rem;font-weight:bold;padding:1px 7px;border-radius:10px;margin-left:6px;vertical-align:middle;white-space:nowrap">⬆ 昇段</span>`;
+  if (rank === 7 || rank === 8) return `<span style="display:inline-block;background:#2980b9;color:#fff;font-size:0.66rem;font-weight:bold;padding:1px 7px;border-radius:10px;margin-left:6px;vertical-align:middle;white-space:nowrap">⬇ 降段</span>`;
+  return "";
+}
+
 // ---------- 組み合わせロジック ----------
 function pairResult(players, resultVal) {
   const [a, b] = players;
@@ -653,15 +672,46 @@ function renderBracket() {
     { rank: 8, medal: "8",  name: seventhR.loser },
   ];
   html += `<h4 class="section-head">🏅 順位</h4>`;
+  html += `<p class="note" style="margin-top:-2px">1・2位は昇段、7・8位は降段です。</p>`;
   html += placements.map(p => {
     const rank = getPlayerRank(p.name);
+    const badge = p.name ? rankChangeBadgeHTML(p.rank) : "";
     const nameHTML = p.name
-      ? escapeHtml(p.name) + (rank ? ` <span style="font-weight:normal;color:#b89752;font-size:0.8rem">${escapeHtml(rank)}</span>` : "")
+      ? escapeHtml(p.name) + (rank ? ` <span style="font-weight:normal;color:#b89752;font-size:0.8rem">${escapeHtml(rank)}</span>` : "") + badge
       : '<span style="color:#bbb;font-weight:normal">未定</span>';
     return `
     <div class="standings-row">
       <div class="standings-num">${p.medal}</div>
       <div class="standings-name">${nameHTML}</div>
+    </div>`;
+  }).join("");
+
+  // ===== 全員の次回段位 =====
+  // 順位が決まった対局者は1・2位＝昇段／7・8位＝降段／3〜6位＝変更なしを反映し、
+  // まだ順位が決まっていない対局者は「未定」と表示する。
+  function placementRankOf(name) {
+    const found = placements.find(p => p.name === name);
+    return found ? found.rank : null;
+  }
+  html += `<h4 class="section-head">🎓 全員の次回段位</h4>`;
+  html += `<p class="note" style="margin-top:-2px">3〜6位は段位の変更なし。順位が未定の対局者は「未定」と表示されます。</p>`;
+  html += state.players.map((name, i) => {
+    if (!name) return "";
+    const curRank = state.ranks[i] || "";
+    const pr = placementRankOf(name);
+    let nextHTML;
+    if (pr === null) {
+      nextHTML = '<span style="color:#bbb">未定</span>';
+    } else {
+      let nextRank = curRank;
+      if (pr <= 2) nextRank = promoteRank(curRank);
+      else if (pr >= 7) nextRank = demoteRank(curRank);
+      nextHTML = (nextRank ? escapeHtml(nextRank) : '<span style="color:#bbb">－</span>') + rankChangeBadgeHTML(pr);
+    }
+    return `
+    <div class="standings-row">
+      <div class="standings-name" style="flex:1">${escapeHtml(name)}</div>
+      <div style="font-size:0.84rem;color:#666;white-space:nowrap;flex-shrink:0">${curRank ? escapeHtml(curRank) : "－"} → ${nextHTML}</div>
     </div>`;
   }).join("");
 
