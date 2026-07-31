@@ -285,6 +285,38 @@ function emptyResults() {
   return { qf:[null,null,null,null], sf:[null,null], final:null, third:null, cLower:[null,null], fifth:null, seventh:null };
 }
 
+// Firebase Realtime Databaseは配列中のnullを保存時に取り除くため、
+// [0,null,null,null]のような配列が {0:0} のようなオブジェクトとして
+// 返ってくることがある。そのままだと未決定マス（qf[1]など）が
+// null ではなく undefined になり、「すでに決まっている」との
+// 誤判定（意図しない確認メッセージ）を招くため、読み込み時に
+// 必ず正しい長さ・null埋めの配列／値へ正規化する。
+function normResultVal(v) { return (v === 0 || v === 1) ? v : null; }
+function normResultArr(v, len) {
+  const arr = new Array(len).fill(null);
+  if (Array.isArray(v)) {
+    v.forEach((x, i) => { if (i < len) arr[i] = normResultVal(x); });
+  } else if (v && typeof v === "object") {
+    Object.keys(v).forEach(k => {
+      const i = Number(k);
+      if (Number.isInteger(i) && i >= 0 && i < len) arr[i] = normResultVal(v[k]);
+    });
+  }
+  return arr;
+}
+function normalizeResults(data) {
+  if (!data) return emptyResults();
+  return {
+    qf:      normResultArr(data.qf, 4),
+    sf:      normResultArr(data.sf, 2),
+    final:   normResultVal(data.final),
+    third:   normResultVal(data.third),
+    cLower:  normResultArr(data.cLower, 2),
+    fifth:   normResultVal(data.fifth),
+    seventh: normResultVal(data.seventh),
+  };
+}
+
 let state = { title:"", players:["","","","","","","",""], ranks:["","","","","","","",""], results: emptyResults() };
 let stateRef = null, archiveRef = null;
 const isConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY";
@@ -302,7 +334,7 @@ if (isConfigured) {
           title:   typeof data.title === "string" ? data.title : "",
           players: Array.isArray(data.players) && data.players.length === 8 ? data.players : state.players,
           ranks:   Array.isArray(data.ranks) && data.ranks.length === 8 ? data.ranks : state.ranks,
-          results: data.results ? { ...emptyResults(), ...data.results } : emptyResults()
+          results: normalizeResults(data.results)
         };
         if (!editingSetup) fillSettingsInputs();
         renderAll();
