@@ -81,8 +81,9 @@
     開催回・開催日は毎回入力し直す。月1開催などの継続的な運用を想定）
   - 完全リセット（現在の大会と過去のアーカイブをすべて消去して真っさらに戻す。テスト中のやり直し用）
   - 過去の大会アーカイブ表示（「結果を見る」でトーナメント図・順位を今の画面と同じ形式で展開表示。読み取り専用。
-    直近6件のみ表示し、「もっと見る」で全件展開）
+    新しい大会順に表示。直近6件のみ表示し、「もっと見る」で全件展開）
   - Firebase によるリアルタイム同期
+  - データエクスポート（設定タブからJSONファイルとしてダウンロード。日付入りファイル名で保存）
 
 【今後の改良候補】
   - 人数を可変にする（4人・16人など）
@@ -272,6 +273,10 @@
         <h3 style="margin-top:24px">完全リセット</h3>
         <p class="note">テスト中など、すべてをやり直したいときに使います。現在の大会と、過去のアーカイブをすべて消去して真っさらに戻します。</p>
         <button class="btn" id="full-reset" style="background:#888">アーカイブごと完全リセット</button>
+
+        <h3 style="margin-top:24px">データエクスポート</h3>
+        <p class="note">Firebaseのデータをファイルとして保存します。万が一のバックアップに使ってください。</p>
+        <button class="btn" id="export-btn" style="background:#2c3e50">JSONでダウンロード</button>
 
         <h3 style="margin-top:24px">過去の大会</h3>
         <div id="archive-list"></div>
@@ -909,7 +914,11 @@ function renderArchive() {
   archiveRef.once("value", snap => {
     const data = snap.val();
     if (!data) { el.innerHTML = `<p class="note" style="margin:0">まだアーカイブされた大会はありません。</p>`; return; }
-    const list = Object.values(data).reverse();
+    // Firebaseのpushキーは生成順に文字列として比較可能なため、キーの降順（新しい→古い）に
+    // 明示的にソートする（オブジェクトの列挙順に依存しない）
+    const list = Object.entries(data)
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([, v]) => v);
     const showCount = archiveShowAll ? list.length : Math.min(ARCHIVE_PAGE_SIZE, list.length);
     const visible = list.slice(0, showCount);
 
@@ -1017,6 +1026,25 @@ function renderArchivedTournament(container, t) {
     seventhR.winner, seventhR.loser, ["第7位", "第8位"]
   );
 }
+
+// ---------- データエクスポート ----------
+document.getElementById("export-btn").addEventListener("click", () => {
+  if (!isConfigured) { showToast("データベースに接続されていません"); return; }
+  firebase.database().ref("tournament").once("value", snap => {
+    const data = snap.val();
+    if (!data) { showToast("エクスポートするデータがありません"); return; }
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const date = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `tournament_backup_${date}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast("エクスポートしました");
+  });
+});
 
 // ---------- トースト ----------
 let toastTimer = null;
