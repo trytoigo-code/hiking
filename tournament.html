@@ -342,7 +342,8 @@
 
         <h3 style="margin-top:24px">過去の大会記録を追加（人数を問わない簡易記録）</h3>
         <p class="note">今の8人形式になる前の大会など、人数が異なる過去の記録を追加できます。トーナメント図は作れませんが、対局者ごとの勝敗数だけ入力しておけば「📚過去の大会」タブの全期間の通算成績に反映されます。参加者は対局者名簿から選びます（名簿にいない人は先に名簿へ追加してください）。</p>
-        <div class="fg"><label>大会名（任意）</label><input id="legacy-title" type="text" placeholder="例：大石道場杯（形式変更前）"></div>
+        <div class="fg"><label>開催回（任意・分かれば入力。通常の大会と同じ「大石道場杯 第◯回」表示になります）</label><input id="legacy-edition" type="number" min="1" inputmode="numeric" placeholder="例：1"></div>
+        <div class="fg"><label>大会名メモ（任意・開催回が分からない場合の表示名）</label><input id="legacy-title" type="text" placeholder="例：大石道場杯（形式変更前）"></div>
         <div class="fg"><label>開催日（任意）</label><input id="legacy-date" type="date"></div>
         <div id="legacy-rows"></div>
         <button type="button" class="btn" id="legacy-add-row" style="background:#f1f0ea;color:#2c3e50">＋ 参加者を追加</button>
@@ -1300,15 +1301,32 @@ function renderAllTimeRecord(archiveList) {
     </div>`).join("");
 }
 
+// 開催日（eventDate優先、無ければendDate）を比較可能な数値に変換する。
+// 過去の記録を後からまとめて登録しても、実際の開催日順に正しく並ぶようにするため。
+function archiveDateValue(t) {
+  if (t.eventDate) {
+    const [y, m, d] = t.eventDate.split("-").map(Number);
+    if (y && m && d) return y * 10000 + m * 100 + d;
+  }
+  if (t.endDate) {
+    const parts = t.endDate.split("/").map(Number);
+    if (parts.length === 3 && !parts.some(isNaN)) return parts[0] * 10000 + parts[1] * 100 + parts[2];
+  }
+  return 0;
+}
+
 function renderArchive() {
   const el = document.getElementById("archive-list");
   if (!el || !archiveRef) return;
   archiveRef.once("value", snap => {
     const data = snap.val();
-    // Firebaseのpushキーは生成順に文字列として比較可能なため、キーの降順（新しい→古い）に
-    // 明示的にソートする（オブジェクトの列挙順に依存しない）
+    // 実際の開催日の新しい順に並べる（同日・日付不明の場合はFirebaseのpushキー＝登録順で補う）。
+    // 過去分をあとからまとめて登録しても、登録順ではなく開催日順で正しく並ぶようにするため。
     const list = data
-      ? Object.entries(data).sort((a, b) => b[0].localeCompare(a[0])).map(([, v]) => v)
+      ? Object.entries(data).sort((a, b) => {
+          const dv = archiveDateValue(b[1]) - archiveDateValue(a[1]);
+          return dv !== 0 ? dv : b[0].localeCompare(a[0]);
+        }).map(([, v]) => v)
       : [];
 
     renderAllTimeRecord(list);
@@ -1470,10 +1488,12 @@ function addLegacyRow() {
 }
 
 function resetLegacyForm() {
+  const editionEl = document.getElementById("legacy-edition");
   const titleEl = document.getElementById("legacy-title");
   const dateEl  = document.getElementById("legacy-date");
   const wrap    = document.getElementById("legacy-rows");
-  if (!titleEl || !dateEl || !wrap) return;
+  if (!editionEl || !titleEl || !dateEl || !wrap) return;
+  editionEl.value = "";
   titleEl.value = "";
   dateEl.value  = "";
   wrap.innerHTML = "";
@@ -1486,6 +1506,7 @@ if (legacyAddRowBtn) legacyAddRowBtn.addEventListener("click", addLegacyRow);
 
 const legacySaveBtn = document.getElementById("legacy-save");
 if (legacySaveBtn) legacySaveBtn.addEventListener("click", () => {
+  const edition = document.getElementById("legacy-edition").value.trim();
   const title = document.getElementById("legacy-title").value.trim();
   const dateVal = document.getElementById("legacy-date").value;
   const rows = [...document.querySelectorAll("#legacy-rows .legacy-row")];
@@ -1506,8 +1527,10 @@ if (legacySaveBtn) legacySaveBtn.addEventListener("click", () => {
     ? formatDateDisplay(dateVal)
     : (() => { const now = new Date(); return `${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()}`; })();
 
+  // 開催回が分かれば、通常の大会と同じ「大石道場杯 第◯回」表示になるようedition優先で保存する
+  // （archiveDisplayInfo()はt.editionがあればそちらを優先して表示する）
   if (archiveRef) {
-    archiveRef.push({ legacy: true, title: title || "過去の記録", eventDate: dateVal, endDate, records });
+    archiveRef.push({ legacy: true, edition, title: title || "過去の記録", eventDate: dateVal, endDate, records });
   }
   resetLegacyForm();
   showToast("記録を追加しました");
