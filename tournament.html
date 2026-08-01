@@ -80,8 +80,8 @@
     今回の昇段・降段結果を反映した大石道場杯段位は自動で引き継がれる。
     開催回・開催日は毎回入力し直す。月1開催などの継続的な運用を想定）
   - 完全リセット（現在の大会と過去のアーカイブをすべて消去して真っさらに戻す。テスト中のやり直し用）
-  - 過去の大会アーカイブ表示（「結果を見る」でトーナメント図・順位を今の画面と同じ形式で展開表示。読み取り専用。
-    新しい大会順に表示。直近6件のみ表示し、「もっと見る」で全件展開）
+  - 📚過去の大会タブ（誰でも閲覧可能。「結果を見る」でトーナメント図・順位を今の画面と同じ形式で
+    展開表示。読み取り専用。新しい大会順に表示。直近6件のみ表示し、「もっと見る」で全件展開）
   - Firebase によるリアルタイム同期
   - データエクスポート（設定タブからJSONファイルとしてダウンロード。日付入りファイル名で保存）
 
@@ -237,12 +237,19 @@
 
   <div id="nav">
     <button class="tab-btn active" data-tab="bracket">🏆トーナメント</button>
+    <button class="tab-btn" data-tab="archive">📚過去の大会</button>
     <button class="tab-btn" data-tab="setup">⚙️設定</button>
   </div>
 
   <div id="content">
 
     <div class="panel active" id="panel-bracket"></div>
+
+    <div class="panel" id="panel-archive">
+      <h3>過去の大会</h3>
+      <p class="note">これまでの大会結果を、今の画面と同じ形式で見られます（読み取り専用）。</p>
+      <div id="archive-list"></div>
+    </div>
 
     <div class="panel" id="panel-setup">
       <div id="setup-banner">
@@ -280,9 +287,6 @@
         <h3 style="margin-top:24px">データエクスポート</h3>
         <p class="note">Firebaseのデータをファイルとして保存します。万が一のバックアップに使ってください。</p>
         <button class="btn" id="export-btn" style="background:#2c3e50">JSONでダウンロード</button>
-
-        <h3 style="margin-top:24px">過去の大会</h3>
-        <div id="archive-list"></div>
       </div>
     </div>
 
@@ -394,6 +398,7 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
     document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
     btn.classList.add("active");
     document.getElementById("panel-" + btn.dataset.tab).classList.add("active");
+    if (btn.dataset.tab === "archive") { archiveShowAll = false; renderArchive(); }
   });
 });
 
