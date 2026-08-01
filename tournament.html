@@ -17,10 +17,12 @@
         下位準決勝の勝者2名 → 5位決定戦 → 5位・6位
         下位準決勝の敗者2名 → 7位決定戦 → 7位・8位
 
-  対局者名の入力・修正は⚙️設定タブで行う。各対局者の大石道場杯段位も設定タブで
-  入力でき、順位表に表示される。各行右端の☰ハンドルを長押ししてドラッグすると
-  対局者の並び順（シード順）を入れ替えられる。大会名は「大石道場杯」固定で、
-  開催回（第◯回）と開催日を設定タブで入力する。
+  対局者は⚙️設定タブの「対局者名簿」（ID付きで名前・大石道場杯段位を管理する
+  名簿）にあらかじめ登録しておき、大会ごとの8人はその名簿から選ぶ。名前を後から
+  打ち直しても同一人物として通算成績が引き継がれるよう、名前ではなくIDで対局者を
+  識別する。各行右端の☰ハンドルを長押ししてドラッグすると対局者の並び順（シード順）
+  を入れ替えられる。大会名は「大石道場杯」固定で、開催回（第◯回）と開催日を
+  設定タブで入力する。
 
   結果の入力は、トーナメント図の名前枠を直接タップして行う。
   両者の名前が揃った枠をタップするとその対局の勝者に選べる
@@ -61,10 +63,11 @@
   ・機能を追加・変更したら「主な機能」と「今後の改良候補」を合わせて更新する
 
 【主な機能（現時点）】
+  - 対局者名簿（⚙️設定タブ。ID付きで名前・大石道場杯段位を登録・編集・削除できる。
+    大会をまたいで同一人物として扱われるための土台。誰でも編集可能）
   - 大会設定（大会名は「大石道場杯」固定。⚙️設定タブで開催回（第◯回）・
-    開催日・対局者8名をまとめて入力。各対局者の大石道場杯段位も
-    初段〜九段から選択可能。各行右端の☰ハンドルを長押ししてドラッグすると
-    対局者の並び順（シード順）を入れ替え可能。並び替え時は名前と大石道場杯段位がセットで移動する）
+    開催日を入力し、対局者8名は名簿から選ぶ。各行右端の☰ハンドルを長押しして
+    ドラッグすると対局者の並び順（シード順）を入れ替え可能）
   - 結果入力（トーナメント図の名前枠を直接タップして勝者選択。
     本戦だけでなく3位・5位・7位決定戦の図でも同様にタップで選択できる）
   - トーナメント図（罫線でつないだブラケット表示。本戦・3位決定戦・
@@ -73,15 +76,25 @@
     負けた側はグレーのまま残るので、誰が勝ったかが一目でわかる）
   - 順位表示（トーナメント図の下に優勝〜8位を一覧表示。各対局者の大石道場杯段位も
     併記される。未定の順位は「未定」。1・2位は昇段、7・8位は降段のバッジ表示）
-  - 全員の次回大石道場杯段位一覧（1・2位＝昇段／7・8位＝降段／3〜6位＝変更なしを反映）
+  - 今回の成績（🏆トーナメントタブ。今大会での対局者ごとの勝敗数・勝率を表示。
+    決着済みの対局のみを集計し、勝ち数が多い順に並ぶ）
+  - 全員の次回大石道場杯段位一覧（1・2位＝昇段／7・8位＝降段／3〜6位＝変更なしを反映。
+    「新しい大会にする」時に名簿へ直接反映される）
   - 3位決定戦・5位決定戦・7位決定戦の自動組み合わせ
-  - 結果だけリセット（対局者名は保持）
-  - 新しい大会にする（現在の大会をアーカイブして白紙に戻す。対局者名と、
-    今回の昇段・降段結果を反映した大石道場杯段位は自動で引き継がれる。
+  - 結果だけリセット（対局者は保持）
+  - 新しい大会にする（現在の大会をアーカイブして白紙に戻す。対局者と、
+    今回の昇段・降段結果を反映した大石道場杯段位は名簿を通じて自動で引き継がれる。
     開催回・開催日は毎回入力し直す。月1開催などの継続的な運用を想定）
-  - 完全リセット（現在の大会と過去のアーカイブをすべて消去して真っさらに戻す。テスト中のやり直し用）
-  - 📚過去の大会タブ（誰でも閲覧可能。「結果を見る」でトーナメント図・順位を今の画面と同じ形式で
-    展開表示。読み取り専用。新しい大会順に表示。直近6件のみ表示し、「もっと見る」で全件展開）
+  - 完全リセット（現在の大会と過去のアーカイブをすべて消去して真っさらに戻す。
+    対局者名簿は保持される。テスト中のやり直し用）
+  - 過去の大会記録の簡易追加（⚙️設定タブの管理者の仕事。8人固定のブラケット形式に
+    なる前など、人数が異なる過去大会のための機能。トーナメント図は作らず、
+    対局者ごとの勝敗数だけを名簿から選んで入力する。全期間の通算成績に合算される）
+  - 📚過去の大会タブ（誰でも閲覧可能）
+      全期間の通算成績（過去の全アーカイブ＋進行中の大会を合算し、対局者ごとに勝敗数・勝率を集計。
+      名簿IDが分かる大会はIDで、この機能導入前の古いアーカイブは名前の完全一致でフォールバック集計）
+      過去の大会結果一覧（「結果を見る」でトーナメント図・順位を今の画面と同じ形式で
+      展開表示。読み取り専用。新しい大会順に表示。直近6件のみ表示し、「もっと見る」で全件展開）
   - Firebase によるリアルタイム同期
   - データエクスポート（設定タブからJSONファイルとしてダウンロード。日付入りファイル名で保存）
 
@@ -151,14 +164,41 @@
   }
   .seed-item.dragging { background: #fdf8ee; border-color: #b89752; box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
   .seed-num { width: 18px; text-align: center; color: #999; font-weight: bold; font-size: 0.8rem; flex-shrink: 0; }
-  .seed-item input.seed-name { flex: 1; min-width: 0; padding: 8px; }
-  .seed-item select.seed-rank { width: 66px; flex-shrink: 0; padding: 0 2px; font-size: 0.74rem; box-sizing: border-box; }
+  .seed-item select.seed-player { flex: 1; min-width: 0; padding: 8px; }
   .seed-handle {
     width: 32px; height: 32px; flex-shrink: 0; display: flex;
     align-items: center; justify-content: center;
     color: #bbb; font-size: 1.2rem; cursor: grab; touch-action: none;
   }
   .seed-handle:active { color: #555; cursor: grabbing; }
+
+  #roster-list { margin-bottom: 4px; }
+  .roster-item {
+    display: flex; align-items: center; gap: 6px;
+    background: #fff; border: 1px solid #ddd8cc; border-radius: 8px;
+    padding: 6px 8px; margin-bottom: 6px;
+  }
+  .roster-item input.roster-name { flex: 1; min-width: 0; padding: 8px; }
+  .roster-item select.roster-rank { width: 70px; flex-shrink: 0; padding: 0 2px; font-size: 0.76rem; box-sizing: border-box; }
+  .roster-del-btn {
+    width: 30px; height: 30px; flex-shrink: 0; border: none; border-radius: 6px;
+    background: #f0ede4; color: #999; font-size: 0.9rem; cursor: pointer;
+  }
+  .roster-del-btn:active { background: #e74c3c; color: #fff; }
+
+  #legacy-rows { margin-bottom: 4px; }
+  .legacy-row {
+    display: flex; align-items: center; gap: 6px;
+    background: #fff; border: 1px solid #ddd8cc; border-radius: 8px;
+    padding: 6px 8px; margin-bottom: 6px;
+  }
+  .legacy-row select.legacy-player { flex: 1; min-width: 0; padding: 8px; }
+  .legacy-row input.legacy-wl { width: 50px; flex-shrink: 0; padding: 6px 4px; text-align: center; }
+  .legacy-row-del {
+    width: 30px; height: 30px; flex-shrink: 0; border: none; border-radius: 6px;
+    background: #f0ede4; color: #999; font-size: 0.9rem; cursor: pointer;
+  }
+  .legacy-row-del:active { background: #e74c3c; color: #fff; }
 
   #setup-banner {
     background: #fff3cd; border: 1px solid #ffc107; color: #856404;
@@ -248,6 +288,12 @@
     <div class="panel" id="panel-archive">
       <h3>過去の大会</h3>
       <p class="note">これまでの大会結果を、今の画面と同じ形式で見られます（読み取り専用）。</p>
+
+      <h4 class="section-head" style="margin-top:0">🏅 全期間の通算成績</h4>
+      <p class="note" style="margin-top:-2px">進行中の大会も含めた、これまでの全対局の通算勝敗です（対局者名簿のIDをもとに集計するため、名前を打ち直しても同一人物としてまとまります。この機能導入前の古いアーカイブのみ、名前の完全一致で集計しています）。</p>
+      <div id="alltime-record"></div>
+
+      <h4 class="section-head">📜 大会ごとの結果</h4>
       <div id="archive-list"></div>
     </div>
 
@@ -257,8 +303,18 @@
         全員でリアルタイム共有するには <code>firebaseConfig</code> を設定してください。
       </div>
 
-      <h3>大会設定</h3>
-      <p class="note">大会名は「大石道場杯」固定です。開催回と開催日を入力してください。対局者名を入れて保存すると、シード順（1〜8）で1回戦の組み合わせが決まります。右端の☰を長押ししてドラッグすると並び順（シード順）を入れ替えられます（名前と大石道場杯段位は一緒に移動します）。大石道場杯段位は順位表に表示されます。</p>
+      <h3>対局者名簿</h3>
+      <p class="note">大会に参加しうる人をあらかじめ登録しておきます。名前と大石道場杯段位はここで一括管理し、下の「対局者（順に1〜8）」ではこの名簿から選びます（名前を打ち直しても同一人物として通算成績が引き継がれます）。</p>
+      <div id="roster-list"></div>
+      <div class="fg" style="display:flex;gap:8px;align-items:flex-end;margin-top:10px">
+        <div style="flex:1"><label>名前</label><input id="roster-new-name" type="text" placeholder="名前"></div>
+        <div style="width:78px"><label>段位</label><select id="roster-new-rank"><option value="">－</option><option value="初段">初段</option><option value="二段">二段</option><option value="三段">三段</option><option value="四段">四段</option><option value="五段">五段</option><option value="六段">六段</option><option value="七段">七段</option><option value="八段">八段</option><option value="九段">九段</option></select></div>
+        <button class="btn" id="roster-add-btn" style="width:auto;padding:10px 16px;margin:0;flex-shrink:0">追加</button>
+      </div>
+      <button class="btn" id="roster-save-btn" style="background:#b89752;margin-top:12px">名簿の変更を保存して同期</button>
+
+      <h3 style="margin-top:28px">大会設定</h3>
+      <p class="note">大会名は「大石道場杯」固定です。開催回と開催日を入力してください。対局者を名簿から選ぶと、シード順（1〜8）で1回戦の組み合わせが決まります。右端の☰を長押ししてドラッグすると並び順（シード順）を入れ替えられます。大石道場杯段位（名簿側の値）は順位表に表示されます。</p>
       <div class="fg"><label>開催回</label><input id="t-edition" type="number" min="1" inputmode="numeric" placeholder="例：5"></div>
       <div class="fg"><label>開催日</label><input id="t-event-date" type="date"></div>
       <div class="fg">
@@ -277,12 +333,20 @@
         <button class="btn" id="reset-results" style="background:#e67e22">結果だけリセット</button>
 
         <h3 style="margin-top:24px">新しい大会にする</h3>
-        <p class="note">現在の大会をアーカイブに保存してから、開催回・開催日・結果を白紙に戻します（対局者名と大石道場杯段位は引き継がれます）。</p>
+        <p class="note">現在の大会をアーカイブに保存してから、開催回・開催日・結果を白紙に戻します（対局者と、今回の昇段・降段結果を反映した名簿の段位は引き継がれます）。</p>
         <button class="btn" id="new-tournament" style="background:#e74c3c">現在の大会をアーカイブして新しく始める</button>
 
         <h3 style="margin-top:24px">完全リセット</h3>
-        <p class="note">テスト中など、すべてをやり直したいときに使います。現在の大会と、過去のアーカイブをすべて消去して真っさらに戻します。</p>
+        <p class="note">テスト中など、すべてをやり直したいときに使います。現在の大会と、過去のアーカイブをすべて消去して真っさらに戻します（対局者名簿は保持されます）。</p>
         <button class="btn" id="full-reset" style="background:#888">アーカイブごと完全リセット</button>
+
+        <h3 style="margin-top:24px">過去の大会記録を追加（人数を問わない簡易記録）</h3>
+        <p class="note">今の8人形式になる前の大会など、人数が異なる過去の記録を追加できます。トーナメント図は作れませんが、対局者ごとの勝敗数だけ入力しておけば「📚過去の大会」タブの全期間の通算成績に反映されます。参加者は対局者名簿から選びます（名簿にいない人は先に名簿へ追加してください）。</p>
+        <div class="fg"><label>大会名（任意）</label><input id="legacy-title" type="text" placeholder="例：大石道場杯（形式変更前）"></div>
+        <div class="fg"><label>開催日（任意）</label><input id="legacy-date" type="date"></div>
+        <div id="legacy-rows"></div>
+        <button type="button" class="btn" id="legacy-add-row" style="background:#f1f0ea;color:#2c3e50">＋ 参加者を追加</button>
+        <button class="btn" id="legacy-save" style="background:#b89752;margin-top:10px">この記録を保存</button>
 
         <h3 style="margin-top:24px">データエクスポート</h3>
         <p class="note">Firebaseのデータをファイルとして保存します。万が一のバックアップに使ってください。</p>
@@ -341,30 +405,39 @@ function normalizeResults(data) {
   };
 }
 
-let state = { edition:"", eventDate:"", players:["","","","","","","",""], ranks:["","","","","","","",""], results: emptyResults() };
-let stateRef = null, archiveRef = null;
+let state = { edition:"", eventDate:"", playerIds:["","","","","","","",""], players:["","","","","","","",""], ranks:["","","","","","","",""], results: emptyResults() };
+let roster = {}; // { id: { name, rank } } 対局者名簿
+let stateRef = null, archiveRef = null, rosterRef = null;
 const isConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY";
 let editingSetup = false;
+let editingRoster = false;
+let stateLoaded = false, rosterLoaded = false;
 
 if (isConfigured) {
   try {
     firebase.initializeApp(firebaseConfig);
     stateRef   = firebase.database().ref("tournament/state");
     archiveRef = firebase.database().ref("tournament/archive");
+    rosterRef  = firebase.database().ref("tournament/roster");
     stateRef.on("value", snap => {
       const data = snap.val();
       if (data) {
         state = {
           edition:   typeof data.edition === "string" ? data.edition : "",
           eventDate: typeof data.eventDate === "string" ? data.eventDate : "",
+          playerIds: Array.isArray(data.playerIds) && data.playerIds.length === 8 ? data.playerIds : null,
           players: Array.isArray(data.players) && data.players.length === 8 ? data.players : state.players,
           ranks:   Array.isArray(data.ranks) && data.ranks.length === 8 ? data.ranks : state.ranks,
           results: normalizeResults(data.results)
         };
-        if (!editingSetup) fillSettingsInputs();
-        renderAll();
       }
-      setSyncStatus(true);
+      stateLoaded = true;
+      onStateOrRosterReady();
+    }, () => setSyncStatus(false));
+    rosterRef.on("value", snap => {
+      roster = snap.val() || {};
+      rosterLoaded = true;
+      onStateOrRosterReady();
     }, () => setSyncStatus(false));
     renderArchive();
   } catch(e) {
@@ -374,8 +447,51 @@ if (isConfigured) {
 } else {
   document.getElementById("setup-banner").style.display = "block";
   setSyncStatus(false);
+  state.playerIds = ["","","","","","","",""];
   fillSettingsInputs();
   renderAll();
+}
+
+// state・rosterの両方が揃うたびに呼ばれる。旧形式（playerIds未保存）からの移行、
+// state.players/ranksの再計算、画面の再描画をまとめて行う。
+function onStateOrRosterReady() {
+  if (!stateLoaded || !rosterLoaded) return; // 両方揃うまで待つ
+  migrateStateToPlayerIds();
+  syncDerivedFromRoster();
+  if (!editingSetup) fillSettingsInputs();
+  if (!editingRoster) renderRosterList();
+  renderAll();
+  setSyncStatus(true);
+}
+
+// 旧形式（対局者名を直接テキストで保存していた形式）のデータに対して、
+// 名簿（roster）へ自動登録した上でplayerIdsを補完する（打ち直し不要にするための後方互換処理）。
+let migratedOnce = false;
+function migrateStateToPlayerIds() {
+  if (Array.isArray(state.playerIds)) return; // すでに新形式
+  if (migratedOnce) return;
+  migratedOnce = true;
+  const ids = state.players.map((name, i) => {
+    if (!name) return "";
+    let foundId = Object.keys(roster).find(id => (roster[id].name || "") === name);
+    if (!foundId) {
+      foundId = crypto.randomUUID();
+      roster[foundId] = { name, rank: state.ranks[i] || "" };
+    }
+    return foundId;
+  });
+  state.playerIds = ids;
+  if (rosterRef) rosterRef.set(roster);
+  if (stateRef)  stateRef.set(state);
+}
+
+// playerIds（名簿ID）から、表示・既存ロジック用のstate.players/ranksを再計算する。
+// 大会中の判定（勝敗の集計など）は従来通りstate.players（名前文字列）ベースのまま動くため、
+// 名簿の名前・段位が変わったら常にここで再同期する。
+function syncDerivedFromRoster() {
+  if (!Array.isArray(state.playerIds)) return;
+  state.players = state.playerIds.map(id => (id && roster[id] && roster[id].name) || "");
+  state.ranks   = state.playerIds.map(id => (id && roster[id] && roster[id].rank) || "");
 }
 
 function pushState() { if (stateRef) stateRef.set(state); renderAll(); }
@@ -489,6 +605,35 @@ function computePlacements(players = state.players, results = state.results) {
     { rank: 8, medal: "8",  name: seventhR.loser },
   ];
 }
+
+// 1つの大会分の、対局者ごとの勝敗数を集計する。
+// 本戦（1回戦・準決勝・決勝）・3位決定戦・下位準決勝・5位決定戦・7位決定戦の
+// 全12対局のうち、決着済みの対局だけを対象にする。
+function tallyTournamentRecord(players = state.players, results = state.results) {
+  const tally = {};
+  const add = (r) => {
+    if (!r || !r.winner || !r.loser) return;
+    if (!tally[r.winner]) tally[r.winner] = { wins: 0, losses: 0 };
+    if (!tally[r.loser])  tally[r.loser]  = { wins: 0, losses: 0 };
+    tally[r.winner].wins++;
+    tally[r.loser].losses++;
+  };
+  for (let i = 0; i < 4; i++) add(getQFResult(i, players, results));
+  for (let i = 0; i < 2; i++) add(getSFResult(i, players, results));
+  add(getFinalResult(players, results));
+  add(getThirdResult(players, results));
+  for (let i = 0; i < 2; i++) add(getCLowerResult(i, players, results));
+  add(getFifthResult(players, results));
+  add(getSeventhResult(players, results));
+  return tally;
+}
+
+function winRateStr(w, l) {
+  const total = w + l;
+  if (total === 0) return "";
+  return `（${(w / total).toFixed(2)}）`;
+}
+
 // 指定した対局者名の順位（1〜8）を返す。順位未定ならnull
 function placementRankOf(placements, name) {
   const found = placements.find(p => p.name === name);
@@ -727,7 +872,7 @@ function renderBracket() {
 
   // ===== トーナメント図 =====
   html += `<h4 class="section-head">🖼 トーナメント表</h4>`;
-  html += `<p class="note" style="margin-top:-2px">両者の名前が揃った枠をタップすると、その対局の勝者に選べます。対局者名の入力・修正、並び順の変更は⚙️設定タブで行います。</p>`;
+  html += `<p class="note" style="margin-top:-2px">両者の名前が揃った枠をタップすると、その対局の勝者に選べます。対局者の変更・並び順の変更は⚙️設定タブで行います。</p>`;
   html += `<div class="bracket-block"><div class="bracket-block-title">本戦</div><div id="bd-main"></div></div>`;
   html += `<div class="bracket-block"><div class="bracket-block-title">3位決定戦</div><div id="bd-third"></div></div>`;
   html += `<div class="bracket-divider"></div>`;
@@ -750,6 +895,23 @@ function renderBracket() {
       <div class="standings-name">${nameHTML}</div>
     </div>`;
   }).join("");
+
+  // ===== 今回の成績（勝敗数） =====
+  const tally = tallyTournamentRecord(state.players, state.results);
+  const tallyRows = state.players.filter(p => p).map(p => {
+    const t = tally[p] || { wins: 0, losses: 0 };
+    return { name: p, wins: t.wins, losses: t.losses };
+  }).sort((a, b) => b.wins - a.wins || a.losses - b.losses);
+  html += `<h4 class="section-head">🥊 今回の成績</h4>`;
+  if (tallyRows.every(r => r.wins === 0 && r.losses === 0)) {
+    html += `<p style="color:#999;font-size:0.88rem">まだ対局結果がありません。</p>`;
+  } else {
+    html += tallyRows.map(r => `
+    <div class="standings-row">
+      <div class="standings-name" style="flex:1">${escapeHtml(r.name)}</div>
+      <div style="font-size:0.86rem;color:#666;white-space:nowrap;flex-shrink:0">${r.wins}勝 ${r.losses}敗${winRateStr(r.wins, r.losses)}</div>
+    </div>`).join("");
+  }
 
   // ===== 全員の次回大石道場杯段位 =====
   // 順位が決まった対局者は1・2位＝昇段／7・8位＝降段／3〜6位＝変更なしを反映し、
@@ -824,15 +986,95 @@ document.getElementById("t-edition").addEventListener("blur",  () => editingSetu
 document.getElementById("t-event-date").addEventListener("focus", () => editingSetup = true);
 document.getElementById("t-event-date").addEventListener("blur",  () => editingSetup = false);
 
-// 対局者リスト（名前・大石道場杯段位・ドラッグハンドル）を1行ずつ生成する
-function seedItemHTML(i, name, rank) {
-  const opts = ["","初段","二段","三段","四段","五段","六段","七段","八段","九段"]
-    .map(r => `<option value="${r}"${rank===r?" selected":""}>${r || "－"}</option>`).join("");
+const RANK_SELECT_OPTIONS = ["","初段","二段","三段","四段","五段","六段","七段","八段","九段"];
+
+// 名簿（roster）を名前順に並べたID配列
+function rosterIdsSorted() {
+  return Object.keys(roster).sort((a, b) => (roster[a].name || "").localeCompare((roster[b].name || ""), "ja"));
+}
+
+// ---------- 対局者名簿 ----------
+function rosterItemHTML(id) {
+  const p = roster[id] || { name: "", rank: "" };
+  const opts = RANK_SELECT_OPTIONS.map(r => `<option value="${r}"${p.rank===r?" selected":""}>${r || "－"}</option>`).join("");
+  return `
+    <div class="roster-item" data-id="${id}">
+      <input type="text" class="roster-name" value="${escapeHtml(p.name || "")}" placeholder="名前">
+      <select class="roster-rank">${opts}</select>
+      <button type="button" class="roster-del-btn" data-id="${id}">✕</button>
+    </div>`;
+}
+
+function renderRosterList() {
+  const el = document.getElementById("roster-list");
+  if (!el) return;
+  const ids = rosterIdsSorted();
+  el.innerHTML = ids.length
+    ? ids.map(rosterItemHTML).join("")
+    : `<p class="note" style="margin:0">まだ登録された対局者がいません。下のフォームから追加してください。</p>`;
+
+  el.querySelectorAll(".roster-name, .roster-rank").forEach(input => {
+    input.addEventListener("focus", () => editingRoster = true);
+    input.addEventListener("blur",  () => editingRoster = false);
+  });
+  el.querySelectorAll(".roster-del-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.id;
+      const name = (roster[id] && roster[id].name) || "この対局者";
+      if (!confirm(`${name}を名簿から削除しますか？（過去の大会結果には影響しません）`)) return;
+      delete roster[id];
+      if (rosterRef) rosterRef.set(roster);
+      // 現在の対局者選択に含まれていれば外す
+      if (Array.isArray(state.playerIds)) {
+        state.playerIds = state.playerIds.map(pid => pid === id ? "" : pid);
+        syncDerivedFromRoster();
+        if (stateRef) stateRef.set(state);
+      }
+      showToast(`${name}を削除しました`);
+    });
+  });
+}
+
+document.getElementById("roster-add-btn").addEventListener("click", () => {
+  const nameInput = document.getElementById("roster-new-name");
+  const rankSelect = document.getElementById("roster-new-rank");
+  const name = nameInput.value.trim();
+  if (!name) { showToast("名前を入力してください"); return; }
+  const id = crypto.randomUUID();
+  roster[id] = { name, rank: rankSelect.value };
+  if (rosterRef) rosterRef.set(roster);
+  nameInput.value = "";
+  rankSelect.value = "";
+  renderRosterList();
+  showToast(`${name}を名簿に追加しました`);
+});
+
+document.getElementById("roster-save-btn").addEventListener("click", () => {
+  document.querySelectorAll("#roster-list .roster-item").forEach(el => {
+    const id = el.dataset.id;
+    const name = el.querySelector(".roster-name").value.trim();
+    const rank = el.querySelector(".roster-rank").value;
+    if (roster[id]) roster[id] = { name, rank };
+  });
+  if (rosterRef) rosterRef.set(roster);
+  syncDerivedFromRoster();
+  if (stateRef) stateRef.set(state);
+  buildSeedList();
+  showToast("名簿の変更を保存し、全員に同期しました！");
+});
+
+// ---------- 対局者（1〜8）選択：名簿から選ぶドロップダウン ----------
+function seedItemHTML(i, selectedId) {
+  const ids = rosterIdsSorted();
+  const opts = `<option value="">（未定）</option>` + ids.map(id => {
+    const p = roster[id];
+    const label = p.rank ? `${p.name}（${p.rank}）` : p.name;
+    return `<option value="${id}"${id===selectedId?" selected":""}>${escapeHtml(label)}</option>`;
+  }).join("");
   return `
     <div class="seed-item">
       <div class="seed-num">${i+1}</div>
-      <input type="text" class="seed-name" value="${escapeHtml(name)}" placeholder="名前">
-      <select class="seed-rank">${opts}</select>
+      <select class="seed-player">${opts}</select>
       <div class="seed-handle" title="ドラッグで並び替え">☰</div>
     </div>`;
 }
@@ -840,14 +1082,15 @@ function seedItemHTML(i, name, rank) {
 function buildSeedList() {
   const list = document.getElementById("seed-list");
   if (!list) return;
-  list.innerHTML = state.players.map((name, i) => seedItemHTML(i, name || "", (state.ranks || [])[i] || "")).join("");
+  const ids = Array.isArray(state.playerIds) ? state.playerIds : ["","","","","","","",""];
+  list.innerHTML = ids.map((id, i) => seedItemHTML(i, id || "")).join("");
   attachSeedListEvents();
 }
 
 function attachSeedListEvents() {
   const list = document.getElementById("seed-list");
   if (!list) return;
-  list.querySelectorAll(".seed-name, .seed-rank").forEach(el => {
+  list.querySelectorAll(".seed-player").forEach(el => {
     el.addEventListener("focus", () => editingSetup = true);
     el.addEventListener("blur",  () => editingSetup = false);
   });
@@ -857,9 +1100,8 @@ function attachSeedListEvents() {
 }
 
 // 対局者の並び順（シード順）を、行右端の☰ハンドルを長押ししてドラッグすることで
-// 入れ替える。名前と大石道場杯段位は同じ行（同じ人）としてセットで移動する。
-// Firebaseにはまだ書き込まず、「保存して全員に同期」を押した時点で反映される
-// （他の設定項目と同じ挙動に揃えている）。
+// 入れ替える。Firebaseにはまだ書き込まず、「保存して全員に同期」を押した時点で
+// 反映される（他の設定項目と同じ挙動に揃えている）。
 let seedDrag = null;
 
 function onSeedDragStart(e) {
@@ -910,14 +1152,19 @@ function renumberSeedList() {
 }
 
 document.getElementById("save-setup").addEventListener("click", () => {
+  const items = [...document.querySelectorAll("#seed-list .seed-item")];
+  const ids = items.map(el => el.querySelector(".seed-player").value);
+  const nonEmpty = ids.filter(id => id);
+  if (new Set(nonEmpty).size !== nonEmpty.length) { showToast("同じ対局者が複数選ばれています"); return; }
+
   state.edition   = document.getElementById("t-edition").value.trim();
   state.eventDate = document.getElementById("t-event-date").value;
-  const items = [...document.querySelectorAll("#seed-list .seed-item")];
-  state.players = items.map(el => el.querySelector(".seed-name").value.trim());
-  state.ranks   = items.map(el => el.querySelector(".seed-rank").value);
+  state.playerIds = ids;
+  syncDerivedFromRoster();
   pushState();
   showToast("設定を保存し、全員に同期しました！");
 });
+
 
 document.getElementById("admin-toggle").addEventListener("click", () => {
   const body = document.getElementById("admin-body");
@@ -935,7 +1182,7 @@ document.getElementById("reset-results").addEventListener("click", () => {
 });
 
 document.getElementById("new-tournament").addEventListener("click", () => {
-  if (!confirm("現在の大会をアーカイブし、新しい大会を始めます。対局者と大石道場杯段位は、今回の昇段・降段結果を反映して引き継がれます（設定タブで編集できます）。開催回・開催日は入力し直してください。よろしいですか？")) return;
+  if (!confirm("現在の大会をアーカイブし、新しい大会を始めます。対局者と大石道場杯段位は、今回の昇段・降段結果を反映して名簿に引き継がれます（設定タブで編集できます）。開催回・開催日は入力し直してください。よろしいですか？")) return;
   if (archiveRef) {
     const endDate = state.eventDate
       ? formatDateDisplay(state.eventDate)
@@ -945,11 +1192,19 @@ document.getElementById("new-tournament").addEventListener("click", () => {
       edition: state.edition,
       eventDate: state.eventDate,
       endDate,
+      playerIds: Array.isArray(state.playerIds) ? state.playerIds : null,
       players: state.players, ranks: state.ranks, results: state.results
     });
   }
+  // 昇段・降段結果を、対局者名簿（roster）側に直接反映する
   const nextRanks = computeNextRanks(state.players, state.ranks, state.results);
-  state = { edition:"", eventDate:"", players: [...state.players], ranks: nextRanks, results: emptyResults() };
+  if (Array.isArray(state.playerIds)) {
+    state.playerIds.forEach((id, i) => {
+      if (id && roster[id]) roster[id] = { ...roster[id], rank: nextRanks[i] || "" };
+    });
+    if (rosterRef) rosterRef.set(roster);
+  }
+  state = { edition:"", eventDate:"", playerIds: Array.isArray(state.playerIds) ? [...state.playerIds] : ["","","","","","","",""], players: [...state.players], ranks: nextRanks, results: emptyResults() };
   pushState();
   fillSettingsInputs();
   showToast("対局者・大石道場杯段位を引き継いで新しい大会を開始しました");
@@ -958,11 +1213,12 @@ document.getElementById("new-tournament").addEventListener("click", () => {
 
 // ---------- 完全リセット ----------
 // 「新しい大会にする」とは異なり、現在の大会をアーカイブに保存せず、
-// 過去のアーカイブも含めてすべて消去する（テスト中のやり直し用）
+// 過去のアーカイブも含めてすべて消去する（テスト中のやり直し用）。
+// 対局者名簿（roster）は人の登録情報なので、ここでは消去しない。
 document.getElementById("full-reset").addEventListener("click", () => {
-  if (!confirm("現在の大会と、過去のアーカイブをすべて消去して真っさらに戻します。\nこの操作は取り消せません。本当によいですか？")) return;
+  if (!confirm("現在の大会と、過去のアーカイブをすべて消去して真っさらに戻します（対局者名簿は残ります）。\nこの操作は取り消せません。本当によいですか？")) return;
   if (archiveRef) archiveRef.remove();
-  state = { edition:"", eventDate:"", players:["","","","","","","",""], ranks:["","","","","","","",""], results: emptyResults() };
+  state = { edition:"", eventDate:"", playerIds:["","","","","","","",""], players:["","","","","","","",""], ranks:["","","","","","","",""], results: emptyResults() };
   pushState();
   fillSettingsInputs();
   showToast("完全リセットしました。");
@@ -982,22 +1238,103 @@ function archiveDisplayInfo(t) {
   return { title, dateStr };
 }
 
+// 全期間の通算成績（アーカイブ済みの全大会＋簡易記録＋進行中の現在の大会）を対局者ごとに集計して表示する。
+// 名簿ID（playerIds）が保存されている大会はIDで集計するため、名前を打ち直しても同一人物として
+// 引き継がれる。IDが無い旧データ（この機能導入前のアーカイブ）は、従来通り名前文字列の完全一致で
+// フォールバック集計する。人数が8人と異なる過去大会は、legacy:trueの簡易記録（名前ごとの勝敗数のみ）
+// として別途登録でき、それもここで合算する。
+function renderAllTimeRecord(archiveList) {
+  const el = document.getElementById("alltime-record");
+  if (!el) return;
+
+  const tally = {};       // key: "id:xxx" または "name:xxx"
+  const displayName = {}; // key -> 表示する名前
+
+  function mergeTournament(players, results, playerIds) {
+    const nameTally = tallyTournamentRecord(players, results);
+    Object.keys(nameTally).forEach(name => {
+      const idx = players.indexOf(name);
+      const id = (Array.isArray(playerIds) && idx !== -1) ? playerIds[idx] : null;
+      const key = id ? `id:${id}` : `name:${name}`;
+      if (!tally[key]) tally[key] = { wins: 0, losses: 0 };
+      tally[key].wins   += nameTally[name].wins;
+      tally[key].losses += nameTally[name].losses;
+      // 表示名は、IDが分かればその時点の名簿の名前を優先する（改名しても最新表記でまとまる）
+      displayName[key] = (id && roster[id] && roster[id].name) ? roster[id].name : name;
+    });
+  }
+
+  function mergeLegacy(records) {
+    (records || []).forEach(r => {
+      if (!r || !r.id) return;
+      const key = `id:${r.id}`;
+      if (!tally[key]) tally[key] = { wins: 0, losses: 0 };
+      tally[key].wins   += r.wins   || 0;
+      tally[key].losses += r.losses || 0;
+      displayName[key] = (roster[r.id] && roster[r.id].name) || r.name || "";
+    });
+  }
+
+  archiveList.forEach(t => {
+    if (t.legacy) { mergeLegacy(t.records); return; }
+    const players = Array.isArray(t.players) && t.players.length === 8 ? t.players : ["","","","","","","",""];
+    mergeTournament(players, normalizeResults(t.results), t.playerIds);
+  });
+  mergeTournament(state.players, state.results, state.playerIds); // 進行中の大会も合算する
+
+  const rows = Object.keys(tally)
+    .map(key => ({ name: displayName[key] || "", wins: tally[key].wins, losses: tally[key].losses }))
+    .filter(r => r.name)
+    .sort((a, b) => b.wins - a.wins || a.losses - b.losses);
+
+  if (rows.length === 0) {
+    el.innerHTML = `<p style="color:#999;font-size:0.88rem">まだ対局結果がありません。</p>`;
+    return;
+  }
+  const medals = ["🥇","🥈","🥉"];
+  el.innerHTML = rows.map((r, i) => `
+    <div class="standings-row">
+      <div class="standings-num">${medals[i] || (i + 1)}</div>
+      <div class="standings-name" style="flex:1">${escapeHtml(r.name)}</div>
+      <div style="font-size:0.86rem;color:#666;white-space:nowrap;flex-shrink:0">${r.wins}勝 ${r.losses}敗${winRateStr(r.wins, r.losses)}</div>
+    </div>`).join("");
+}
+
 function renderArchive() {
   const el = document.getElementById("archive-list");
   if (!el || !archiveRef) return;
   archiveRef.once("value", snap => {
     const data = snap.val();
-    if (!data) { el.innerHTML = `<p class="note" style="margin:0">まだアーカイブされた大会はありません。</p>`; return; }
     // Firebaseのpushキーは生成順に文字列として比較可能なため、キーの降順（新しい→古い）に
     // 明示的にソートする（オブジェクトの列挙順に依存しない）
-    const list = Object.entries(data)
-      .sort((a, b) => b[0].localeCompare(a[0]))
-      .map(([, v]) => v);
+    const list = data
+      ? Object.entries(data).sort((a, b) => b[0].localeCompare(a[0])).map(([, v]) => v)
+      : [];
+
+    renderAllTimeRecord(list);
+
+    if (!list.length) { el.innerHTML = `<p class="note" style="margin:0">まだアーカイブされた大会はありません。</p>`; return; }
     const showCount = archiveShowAll ? list.length : Math.min(ARCHIVE_PAGE_SIZE, list.length);
     const visible = list.slice(0, showCount);
 
     let html = visible.map((t, i) => {
       const info = archiveDisplayInfo(t);
+      if (t.legacy) {
+        const recordsHTML = (t.records || []).map(r =>
+          `<div style="display:flex;justify-content:space-between;font-size:0.84rem;padding:3px 0">
+            <span>${escapeHtml((roster[r.id] && roster[r.id].name) || r.name || "")}</span>
+            <span style="color:#666">${r.wins}勝 ${r.losses}敗${winRateStr(r.wins, r.losses)}</span>
+          </div>`
+        ).join("");
+        return `
+        <div class="archive-card">
+          <div>
+            <strong>${escapeHtml(info.title)}</strong>（${escapeHtml(info.dateStr)}）
+            <span style="display:inline-block;background:#b89752;color:#fff;font-size:0.66rem;font-weight:bold;padding:1px 7px;border-radius:10px;margin-left:6px;vertical-align:middle">簡易記録</span>
+          </div>
+          <div style="margin-top:8px;border-top:1px dashed #ddd8cc;padding-top:6px">${recordsHTML}</div>
+        </div>`;
+      }
       return `
       <div class="archive-card">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
@@ -1100,6 +1437,84 @@ function renderArchivedTournament(container, t) {
     seventhR.winner, seventhR.loser, ["第7位", "第8位"]
   );
 }
+
+// ---------- 過去の大会記録（人数を問わない簡易記録） ----------
+// 8人固定のブラケット形式になる前など、人数が異なる過去大会のために、
+// トーナメント図なしで対局者ごとの勝敗数だけを記録できる簡易フォーム。
+// 保存先はarchiveRefに legacy:true として積まれ、通常のアーカイブと同じ一覧に並ぶ。
+let legacyRowSeq = 0;
+
+function legacyRowHTML(key) {
+  const ids = rosterIdsSorted();
+  const opts = `<option value="">（選択してください）</option>` + ids.map(id => {
+    const p = roster[id];
+    const label = p.rank ? `${p.name}（${p.rank}）` : p.name;
+    return `<option value="${id}">${escapeHtml(label)}</option>`;
+  }).join("");
+  return `
+    <div class="legacy-row" data-key="${key}">
+      <select class="legacy-player">${opts}</select>
+      <input type="number" class="legacy-wl legacy-wins" min="0" inputmode="numeric" placeholder="勝">
+      <input type="number" class="legacy-wl legacy-losses" min="0" inputmode="numeric" placeholder="敗">
+      <button type="button" class="legacy-row-del">✕</button>
+    </div>`;
+}
+
+function addLegacyRow() {
+  const wrap = document.getElementById("legacy-rows");
+  if (!wrap) return;
+  const key = `r${legacyRowSeq++}`;
+  wrap.insertAdjacentHTML("beforeend", legacyRowHTML(key));
+  const row = wrap.querySelector(`.legacy-row[data-key="${key}"]`);
+  row.querySelector(".legacy-row-del").addEventListener("click", () => row.remove());
+}
+
+function resetLegacyForm() {
+  const titleEl = document.getElementById("legacy-title");
+  const dateEl  = document.getElementById("legacy-date");
+  const wrap    = document.getElementById("legacy-rows");
+  if (!titleEl || !dateEl || !wrap) return;
+  titleEl.value = "";
+  dateEl.value  = "";
+  wrap.innerHTML = "";
+  legacyRowSeq = 0;
+  for (let i = 0; i < 4; i++) addLegacyRow(); // 初期4行（＋ボタンで追加可能）
+}
+
+const legacyAddRowBtn = document.getElementById("legacy-add-row");
+if (legacyAddRowBtn) legacyAddRowBtn.addEventListener("click", addLegacyRow);
+
+const legacySaveBtn = document.getElementById("legacy-save");
+if (legacySaveBtn) legacySaveBtn.addEventListener("click", () => {
+  const title = document.getElementById("legacy-title").value.trim();
+  const dateVal = document.getElementById("legacy-date").value;
+  const rows = [...document.querySelectorAll("#legacy-rows .legacy-row")];
+  const records = [];
+  for (const row of rows) {
+    const id = row.querySelector(".legacy-player").value;
+    if (!id) continue;
+    const wins   = parseInt(row.querySelector(".legacy-wins").value, 10)   || 0;
+    const losses = parseInt(row.querySelector(".legacy-losses").value, 10) || 0;
+    if (wins === 0 && losses === 0) continue; // 未入力の行は無視
+    records.push({ id, name: (roster[id] && roster[id].name) || "", wins, losses });
+  }
+  if (records.length === 0) { showToast("参加者と勝敗数を入力してください"); return; }
+  const dupIds = records.map(r => r.id);
+  if (new Set(dupIds).size !== dupIds.length) { showToast("同じ対局者が複数の行に入力されています"); return; }
+
+  const endDate = dateVal
+    ? formatDateDisplay(dateVal)
+    : (() => { const now = new Date(); return `${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()}`; })();
+
+  if (archiveRef) {
+    archiveRef.push({ legacy: true, title: title || "過去の記録", eventDate: dateVal, endDate, records });
+  }
+  resetLegacyForm();
+  showToast("記録を追加しました");
+  renderArchive();
+});
+
+resetLegacyForm();
 
 // ---------- データエクスポート ----------
 document.getElementById("export-btn").addEventListener("click", () => {
