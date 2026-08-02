@@ -89,8 +89,9 @@
     開催回・開催日は毎回入力し直す。月1開催などの継続的な運用を想定）
   - 完全リセット（現在の大会と過去のアーカイブをすべて消去して真っさらに戻す。
     対局者名簿は保持される。テスト中のやり直し用）
-  - 過去の大会記録の簡易追加（⚙️設定タブの管理者の仕事。8人固定のブラケット形式に
-    なる前など、人数が異なる過去大会のための機能。トーナメント図は作らず、
+  - 8人以外の大会記録の簡易追加（⚙️設定タブの管理者の仕事。8人固定のブラケット形式に
+    当てはまらない大会のための機能。今の形式になる前の過去大会だけでなく、参加人数が
+    8人と異なる今後の大会にも使える。トーナメント図は作らず、
     対局者ごとの勝敗数だけを名簿から選んで入力する。全期間の通算成績に合算される）
   - 📚過去の大会タブ（誰でも閲覧可能）
       全期間の通算成績（過去の全アーカイブ＋進行中の大会を合算し、対局者ごとに勝敗数・勝率を集計。
@@ -344,8 +345,8 @@
         <p class="note">テスト中など、すべてをやり直したいときに使います。現在の大会と、過去のアーカイブをすべて消去して真っさらに戻します（対局者名簿は保持されます）。</p>
         <button class="btn" id="full-reset" style="background:#888">アーカイブごと完全リセット</button>
 
-        <h3 style="margin-top:24px">過去の大会記録を追加（人数を問わない簡易記録）</h3>
-        <p class="note">今の8人形式になる前の大会など、人数が異なる過去の記録を追加できます。トーナメント図は作れませんが、対局者ごとの勝敗数だけ入力しておけば「📚過去の大会」タブの全期間の通算成績に反映されます。参加者は対局者名簿から選びます（名簿にいない人は先に名簿へ追加してください）。</p>
+        <h3 style="margin-top:24px">8人以外の大会記録を追加（簡易記録）</h3>
+        <p class="note">8人固定のブラケット形式に当てはまらない大会（今の形式になる前の過去大会だけでなく、参加人数が8人と異なる今後の大会も含みます）の記録を追加できます。トーナメント図は作れませんが、対局者ごとの勝敗数だけ入力しておけば「📚過去の大会」タブの全期間の通算成績に反映されます。参加者は対局者名簿から選びます（名簿にいない人は先に名簿へ追加してください）。</p>
         <div class="fg"><label>開催回（任意・分かれば入力。通常の大会と同じ「大石道場杯 第◯回」表示になります）</label><input id="legacy-edition" type="number" min="1" inputmode="numeric" placeholder="例：1"></div>
         <div class="fg"><label>大会名メモ（任意・開催回が分からない場合の表示名）</label><input id="legacy-title" type="text" placeholder="例：大石道場杯（形式変更前）"></div>
         <div class="fg"><label>開催日（任意）</label><input id="legacy-date" type="date"></div>
@@ -1253,7 +1254,7 @@ function archiveDisplayInfo(t) {
 // 全期間の通算成績（アーカイブ済みの全大会＋簡易記録＋進行中の現在の大会）を対局者ごとに集計して表示する。
 // 名簿ID（playerIds）が保存されている大会はIDで集計するため、名前を打ち直しても同一人物として
 // 引き継がれる。IDが無い旧データ（この機能導入前のアーカイブ）は、従来通り名前文字列の完全一致で
-// フォールバック集計する。人数が8人と異なる過去大会は、legacy:trueの簡易記録（名前ごとの勝敗数のみ）
+// フォールバック集計する。8人以外の大会は、legacy:trueの簡易記録（名前ごとの勝敗数のみ）
 // として別途登録でき、それもここで合算する。
 function renderAllTimeRecord(archiveList) {
   const el = document.getElementById("alltime-record");
@@ -1357,11 +1358,14 @@ function renderArchive() {
         ).join("");
         return `
         <div class="archive-card">
-          <div>
-            <strong>${escapeHtml(info.title)}</strong>（${escapeHtml(info.dateStr)}）
-            <span style="display:inline-block;background:#b89752;color:#fff;font-size:0.66rem;font-weight:bold;padding:1px 7px;border-radius:10px;margin-left:6px;vertical-align:middle">簡易記録</span>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+            <div>
+              <strong>${escapeHtml(info.title)}</strong>（${escapeHtml(info.dateStr)}）
+              <span style="display:inline-block;background:#b89752;color:#fff;font-size:0.66rem;font-weight:bold;padding:1px 7px;border-radius:10px;margin-left:6px;vertical-align:middle">簡易記録</span>
+            </div>
+            <button type="button" class="archive-view-btn" data-idx="${i}" style="background:#fff;border:1px solid #ddd8cc;border-radius:6px;padding:5px 10px;font-size:0.78rem;cursor:pointer;flex-shrink:0;white-space:nowrap">結果を見る</button>
           </div>
-          <div style="margin-top:8px;border-top:1px dashed #ddd8cc;padding-top:6px">${recordsHTML}</div>
+          <div class="archive-detail" data-idx="${i}" data-type="legacy" style="display:none;margin-top:12px;border-top:1px dashed #ddd8cc;padding-top:6px">${recordsHTML}</div>
         </div>`;
       }
       return `
@@ -1373,7 +1377,7 @@ function renderArchive() {
           </div>
           <button type="button" class="archive-view-btn" data-idx="${i}" style="background:#fff;border:1px solid #ddd8cc;border-radius:6px;padding:5px 10px;font-size:0.78rem;cursor:pointer;flex-shrink:0;white-space:nowrap">結果を見る</button>
         </div>
-        <div class="archive-detail" data-idx="${i}" style="display:none;margin-top:12px"></div>
+        <div class="archive-detail" data-idx="${i}" data-type="bracket" style="display:none;margin-top:12px"></div>
       </div>`;
     }).join("");
 
@@ -1393,7 +1397,7 @@ function renderArchive() {
           btn.textContent = "結果を見る";
         } else {
           detail.style.display = ""; // 先に表示してから描画（幅計算のため）
-          renderArchivedTournament(detail, visible[i]);
+          if (detail.dataset.type === "bracket") renderArchivedTournament(detail, visible[i]);
           btn.textContent = "閉じる";
         }
       });
@@ -1467,9 +1471,9 @@ function renderArchivedTournament(container, t) {
   );
 }
 
-// ---------- 過去の大会記録（人数を問わない簡易記録） ----------
-// 8人固定のブラケット形式になる前など、人数が異なる過去大会のために、
-// トーナメント図なしで対局者ごとの勝敗数だけを記録できる簡易フォーム。
+// ---------- 8人以外の大会記録（人数を問わない簡易記録） ----------
+// 8人固定のブラケット形式に当てはまらない大会（過去大会・人数の異なる今後の大会の
+// どちらも）のために、トーナメント図なしで対局者ごとの勝敗数だけを記録できる簡易フォーム。
 // 保存先はarchiveRefに legacy:true として積まれ、通常のアーカイブと同じ一覧に並ぶ。
 let legacyRowSeq = 0;
 
