@@ -1316,12 +1316,21 @@ function renderAllTimeRecord(archiveList) {
     return;
   }
   const medals = ["🥇","🥈","🥉"];
-  el.innerHTML = rows.map((r, i) => `
+  // 同じ勝敗数（＝同じ勝率）のプレイヤーは同じ順位として表示する
+  // （例：2勝2敗が5人並んだ場合は全員「4位」、次に違う成績の人が来たら「9位」に飛ぶ）。
+  let displayRank = 0, prevWins = null, prevLosses = null;
+  el.innerHTML = rows.map((r, i) => {
+    if (r.wins !== prevWins || r.losses !== prevLosses) {
+      displayRank = i + 1;
+      prevWins = r.wins; prevLosses = r.losses;
+    }
+    return `
     <div class="standings-row">
-      <div class="standings-num">${medals[i] || (i + 1)}</div>
+      <div class="standings-num">${medals[displayRank - 1] || displayRank}</div>
       <div class="standings-name" style="flex:1">${escapeHtml(r.name)}</div>
       <div style="font-size:0.86rem;color:#666;white-space:nowrap;flex-shrink:0">${r.wins}勝 ${r.losses}敗${winRateStr(r.wins, r.losses)}</div>
-    </div>`).join("");
+    </div>`;
+  }).join("");
 }
 
 // 開催日（eventDate優先、無ければendDate）を比較可能な数値に変換する。
