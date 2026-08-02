@@ -91,8 +91,8 @@
     対局者名簿は保持される。テスト中のやり直し用）
   - 8人以外の大会記録の簡易追加（⚙️設定タブの管理者の仕事。8人固定のブラケット形式に
     当てはまらない大会のための機能。今の形式になる前の過去大会だけでなく、参加人数が
-    8人と異なる今後の大会にも使える。トーナメント図は作らず、
-    対局者ごとの勝敗数だけを名簿から選んで入力する。全期間の通算成績に合算される）
+    8人と異なる今後の大会にも使える。大会名は「大石道場杯」固定。トーナメント図は作らず、
+    対局者ごとの勝敗数（任意で順位も）を名簿から選んで入力する。全期間の通算成績に合算される）
   - 📚過去の大会タブ（誰でも閲覧可能）
       全期間の通算成績（過去の全アーカイブ＋進行中の大会を合算し、対局者ごとに勝敗数・勝率を集計。
       名簿IDが分かる大会はIDで、この機能導入前の古いアーカイブは名前の完全一致でフォールバック集計）
@@ -193,12 +193,16 @@
 
   #legacy-rows { margin-bottom: 4px; }
   .legacy-row {
-    display: flex; align-items: center; gap: 6px;
+    display: flex; flex-direction: column; gap: 6px;
     background: #fff; border: 1px solid #ddd8cc; border-radius: 8px;
-    padding: 6px 8px; margin-bottom: 6px;
+    padding: 8px; margin-bottom: 6px;
   }
+  .legacy-row-top { display: flex; align-items: center; gap: 6px; }
   .legacy-row select.legacy-player { flex: 1; min-width: 0; padding: 8px; }
-  .legacy-row input.legacy-wl { width: 50px; flex-shrink: 0; padding: 6px 4px; text-align: center; }
+  .legacy-fields { display: flex; gap: 6px; }
+  .legacy-field { flex: 1; min-width: 0; }
+  .legacy-field label { display: block; font-size: 0.68rem; font-weight: normal; color: #999; margin-bottom: 2px; }
+  .legacy-field input { width: 100%; padding: 6px 4px; text-align: center; box-sizing: border-box; }
   .legacy-row-del {
     width: 30px; height: 30px; flex-shrink: 0; border: none; border-radius: 6px;
     background: #f0ede4; color: #999; font-size: 0.9rem; cursor: pointer;
@@ -346,9 +350,8 @@
         <button class="btn" id="full-reset" style="background:#888">アーカイブごと完全リセット</button>
 
         <h3 style="margin-top:24px">8人以外の大会記録を追加（簡易記録）</h3>
-        <p class="note">8人固定のブラケット形式に当てはまらない大会（今の形式になる前の過去大会だけでなく、参加人数が8人と異なる今後の大会も含みます）の記録を追加できます。トーナメント図は作れませんが、対局者ごとの勝敗数だけ入力しておけば「📚過去の大会」タブの全期間の通算成績に反映されます。参加者は対局者名簿から選びます（名簿にいない人は先に名簿へ追加してください）。</p>
+        <p class="note">8人固定のブラケット形式に当てはまらない大会（今の形式になる前の過去大会だけでなく、参加人数が8人と異なる今後の大会も含みます）の記録を追加できます。大会名は「大石道場杯」固定です。トーナメント図は作れませんが、対局者ごとの勝敗数（任意で順位も）を入力しておけば「📚過去の大会」タブの全期間の通算成績に反映されます。参加者は対局者名簿から選びます（名簿にいない人は先に名簿へ追加してください）。</p>
         <div class="fg"><label>開催回（任意・分かれば入力。通常の大会と同じ「大石道場杯 第◯回」表示になります）</label><input id="legacy-edition" type="number" min="1" inputmode="numeric" placeholder="例：1"></div>
-        <div class="fg"><label>大会名メモ（任意・開催回が分からない場合の表示名）</label><input id="legacy-title" type="text" placeholder="例：大石道場杯（形式変更前）"></div>
         <div class="fg"><label>開催日（任意）</label><input id="legacy-date" type="date"></div>
         <div id="legacy-rows"></div>
         <button type="button" class="btn" id="legacy-add-row" style="background:#f1f0ea;color:#2c3e50">＋ 参加者を追加</button>
@@ -639,6 +642,14 @@ function winRateStr(w, l) {
   const total = w + l;
   if (total === 0) return "";
   return `（${(w / total).toFixed(2)}）`;
+}
+
+// 8人以外の大会記録（簡易記録）で入力された順位の表示ラベル。
+// 1〜3位はメダル絵文字、それ以外は数字＋「位」、未入力ならなし。
+function legacyRankLabel(rank) {
+  if (!rank) return "";
+  const medals = { 1: "🥇", 2: "🥈", 3: "🥉" };
+  return medals[rank] || `${rank}位`;
 }
 
 // 指定した対局者名の順位（1〜8）を返す。順位未定ならnull
@@ -1350,10 +1361,16 @@ function renderArchive() {
     let html = visible.map((t, i) => {
       const info = archiveDisplayInfo(t);
       if (t.legacy) {
-        const recordsHTML = (t.records || []).map(r =>
-          `<div style="display:flex;justify-content:space-between;font-size:0.84rem;padding:3px 0">
-            <span>${escapeHtml((roster[r.id] && roster[r.id].name) || r.name || "")}</span>
-            <span style="color:#666">${r.wins}勝 ${r.losses}敗${winRateStr(r.wins, r.losses)}</span>
+        // 順位が入力されている行を優先して昇順に並べる（未入力は元の登録順のまま後ろへ）
+        const sortedRecords = (t.records || []).map((r, ri) => ({ r, ri })).sort((a, b) => {
+          const ra = a.r.rank || Infinity, rb = b.r.rank || Infinity;
+          return ra !== rb ? ra - rb : a.ri - b.ri;
+        }).map(x => x.r);
+        const recordsHTML = sortedRecords.map(r =>
+          `<div style="display:flex;align-items:center;gap:8px;font-size:0.84rem;padding:3px 0">
+            <span style="width:28px;flex-shrink:0;text-align:center;color:#b89752;font-weight:bold">${legacyRankLabel(r.rank)}</span>
+            <span style="flex:1;min-width:0">${escapeHtml((roster[r.id] && roster[r.id].name) || r.name || "")}</span>
+            <span style="color:#666;white-space:nowrap;flex-shrink:0">${r.wins}勝 ${r.losses}敗${winRateStr(r.wins, r.losses)}</span>
           </div>`
         ).join("");
         return `
@@ -1486,10 +1503,15 @@ function legacyRowHTML(key) {
   }).join("");
   return `
     <div class="legacy-row" data-key="${key}">
-      <select class="legacy-player">${opts}</select>
-      <input type="number" class="legacy-wl legacy-wins" min="0" inputmode="numeric" placeholder="勝">
-      <input type="number" class="legacy-wl legacy-losses" min="0" inputmode="numeric" placeholder="敗">
-      <button type="button" class="legacy-row-del">✕</button>
+      <div class="legacy-row-top">
+        <select class="legacy-player">${opts}</select>
+        <button type="button" class="legacy-row-del">✕</button>
+      </div>
+      <div class="legacy-fields">
+        <div class="legacy-field"><label>順位（任意）</label><input type="number" class="legacy-rank" min="1" inputmode="numeric" placeholder="例：1"></div>
+        <div class="legacy-field"><label>勝</label><input type="number" class="legacy-wins" min="0" inputmode="numeric" placeholder="0"></div>
+        <div class="legacy-field"><label>敗</label><input type="number" class="legacy-losses" min="0" inputmode="numeric" placeholder="0"></div>
+      </div>
     </div>`;
 }
 
@@ -1522,12 +1544,10 @@ function refreshLegacyRowOptions() {
 
 function resetLegacyForm() {
   const editionEl = document.getElementById("legacy-edition");
-  const titleEl = document.getElementById("legacy-title");
   const dateEl  = document.getElementById("legacy-date");
   const wrap    = document.getElementById("legacy-rows");
-  if (!editionEl || !titleEl || !dateEl || !wrap) return;
+  if (!editionEl || !dateEl || !wrap) return;
   editionEl.value = "";
-  titleEl.value = "";
   dateEl.value  = "";
   wrap.innerHTML = "";
   legacyRowSeq = 0;
@@ -1540,7 +1560,6 @@ if (legacyAddRowBtn) legacyAddRowBtn.addEventListener("click", addLegacyRow);
 const legacySaveBtn = document.getElementById("legacy-save");
 if (legacySaveBtn) legacySaveBtn.addEventListener("click", () => {
   const edition = document.getElementById("legacy-edition").value.trim();
-  const title = document.getElementById("legacy-title").value.trim();
   const dateVal = document.getElementById("legacy-date").value;
   const rows = [...document.querySelectorAll("#legacy-rows .legacy-row")];
   const records = [];
@@ -1549,10 +1568,12 @@ if (legacySaveBtn) legacySaveBtn.addEventListener("click", () => {
     if (!id) continue;
     const wins   = parseInt(row.querySelector(".legacy-wins").value, 10)   || 0;
     const losses = parseInt(row.querySelector(".legacy-losses").value, 10) || 0;
-    if (wins === 0 && losses === 0) continue; // 未入力の行は無視
-    records.push({ id, name: (roster[id] && roster[id].name) || "", wins, losses });
+    const rankRaw = row.querySelector(".legacy-rank").value.trim();
+    const rank = rankRaw ? (parseInt(rankRaw, 10) || null) : null;
+    if (wins === 0 && losses === 0 && !rank) continue; // 未入力の行は無視
+    records.push({ id, name: (roster[id] && roster[id].name) || "", wins, losses, rank });
   }
-  if (records.length === 0) { showToast("参加者と勝敗数を入力してください"); return; }
+  if (records.length === 0) { showToast("参加者と勝敗数（または順位）を入力してください"); return; }
   const dupIds = records.map(r => r.id);
   if (new Set(dupIds).size !== dupIds.length) { showToast("同じ対局者が複数の行に入力されています"); return; }
 
@@ -1560,10 +1581,11 @@ if (legacySaveBtn) legacySaveBtn.addEventListener("click", () => {
     ? formatDateDisplay(dateVal)
     : (() => { const now = new Date(); return `${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()}`; })();
 
-  // 開催回が分かれば、通常の大会と同じ「大石道場杯 第◯回」表示になるようedition優先で保存する
-  // （archiveDisplayInfo()はt.editionがあればそちらを優先して表示する）
+  // 大会名は「大石道場杯」固定（tournamentTitle()が開催回の有無に応じて組み立てる）。
+  // 開催回が分かれば、通常の大会と同じ「大石道場杯 第◯回」表示になる
+  // （archiveDisplayInfo()はt.editionがあればそちらを優先して表示する）。
   if (archiveRef) {
-    archiveRef.push({ legacy: true, edition, title: title || "過去の記録", eventDate: dateVal, endDate, records });
+    archiveRef.push({ legacy: true, edition, eventDate: dateVal, endDate, records });
   }
   resetLegacyForm();
   showToast("記録を追加しました");
