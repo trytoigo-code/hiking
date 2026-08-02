@@ -17,10 +17,11 @@
         下位準決勝の勝者2名 → 5位決定戦 → 5位・6位
         下位準決勝の敗者2名 → 7位決定戦 → 7位・8位
 
-  対局者は⚙️設定タブの「対局者名簿」（ID付きで名前・大石道場杯段位を管理する
-  名簿）にあらかじめ登録しておき、大会ごとの8人はその名簿から選ぶ。名前を後から
-  打ち直しても同一人物として通算成績が引き継がれるよう、名前ではなくIDで対局者を
-  識別する。各行右端の☰ハンドルを長押ししてドラッグすると対局者の並び順（シード順）
+  対局者は⚙️設定タブ→管理者の仕事内の「対局者名簿」（名前・大石道場杯段位・
+  管理用ID＜先頭8文字を表示＞を管理する名簿。管理者のみ編集可能）にあらかじめ
+  登録しておき、大会ごとの8人はその名簿から選ぶ。名前を後から打ち直しても同一人物
+  として通算成績が引き継がれるよう、名前ではなくIDで対局者を識別する。各行右端の
+  ☰ハンドルを長押ししてドラッグすると対局者の並び順（シード順）
   を入れ替えられる。大会名は「大石道場杯」固定で、開催回（第◯回）と開催日を
   設定タブで入力する。
 
@@ -63,8 +64,9 @@
   ・機能を追加・変更したら「主な機能」と「今後の改良候補」を合わせて更新する
 
 【主な機能（現時点）】
-  - 対局者名簿（⚙️設定タブ。ID付きで名前・大石道場杯段位を登録・編集・削除できる。
-    大会をまたいで同一人物として扱われるための土台。誰でも編集可能）
+  - 対局者名簿（⚙️設定タブ→管理者の仕事内。名前・大石道場杯段位を登録・編集・削除
+    できる。各行に管理用ID（先頭8文字を表示）を併記。大会をまたいで同一人物として
+    扱われるための土台。管理者のみ編集可能）
   - 大会設定（大会名は「大石道場杯」固定。⚙️設定タブで開催回（第◯回）・
     開催日を入力し、対局者8名は名簿から選ぶ。各行右端の☰ハンドルを長押しして
     ドラッグすると対局者の並び順（シード順）を入れ替え可能）
@@ -178,7 +180,9 @@
     background: #fff; border: 1px solid #ddd8cc; border-radius: 8px;
     padding: 6px 8px; margin-bottom: 6px;
   }
-  .roster-item input.roster-name { flex: 1; min-width: 0; padding: 8px; }
+  .roster-name-wrap { flex: 1; min-width: 0; }
+  .roster-item input.roster-name { width: 100%; padding: 8px; box-sizing: border-box; }
+  .roster-id { font-size: 0.66rem; color: #bbb; font-family: monospace; margin: 3px 0 0 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .roster-item select.roster-rank { width: 70px; flex-shrink: 0; padding: 0 2px; font-size: 0.76rem; box-sizing: border-box; }
   .roster-del-btn {
     width: 30px; height: 30px; flex-shrink: 0; border: none; border-radius: 6px;
@@ -303,18 +307,8 @@
         全員でリアルタイム共有するには <code>firebaseConfig</code> を設定してください。
       </div>
 
-      <h3>対局者名簿</h3>
-      <p class="note">大会に参加しうる人をあらかじめ登録しておきます。名前と大石道場杯段位はここで一括管理し、下の「対局者（順に1〜8）」ではこの名簿から選びます（名前を打ち直しても同一人物として通算成績が引き継がれます）。</p>
-      <div id="roster-list"></div>
-      <div class="fg" style="display:flex;gap:8px;align-items:flex-end;margin-top:10px">
-        <div style="flex:1"><label>名前</label><input id="roster-new-name" type="text" placeholder="名前"></div>
-        <div style="width:78px"><label>段位</label><select id="roster-new-rank"><option value="">－</option><option value="初段">初段</option><option value="二段">二段</option><option value="三段">三段</option><option value="四段">四段</option><option value="五段">五段</option><option value="六段">六段</option><option value="七段">七段</option><option value="八段">八段</option><option value="九段">九段</option></select></div>
-        <button class="btn" id="roster-add-btn" style="width:auto;padding:10px 16px;margin:0;flex-shrink:0">追加</button>
-      </div>
-      <button class="btn" id="roster-save-btn" style="background:#b89752;margin-top:12px">名簿の変更を保存して同期</button>
-
-      <h3 style="margin-top:28px">大会設定</h3>
-      <p class="note">大会名は「大石道場杯」固定です。開催回と開催日を入力してください。対局者を名簿から選ぶと、シード順（1〜8）で1回戦の組み合わせが決まります。右端の☰を長押ししてドラッグすると並び順（シード順）を入れ替えられます。大石道場杯段位（名簿側の値）は順位表に表示されます。</p>
+      <h3>大会設定</h3>
+      <p class="note">大会名は「大石道場杯」固定です。開催回と開催日を入力してください。対局者を名簿から選ぶと、シード順（1〜8）で1回戦の組み合わせが決まります。右端の☰を長押ししてドラッグすると並び順（シード順）を入れ替えられます。大石道場杯段位（名簿側の値）は順位表に表示されます。対局者名簿の登録・編集は下の「管理者の仕事」内で行います。</p>
       <div class="fg"><label>開催回</label><input id="t-edition" type="number" min="1" inputmode="numeric" placeholder="例：5"></div>
       <div class="fg"><label>開催日</label><input id="t-event-date" type="date"></div>
       <div class="fg">
@@ -328,7 +322,17 @@
         <span>管理者の仕事</span>
       </div>
       <div id="admin-body" style="display:none;margin-top:16px">
-        <h3>結果のリセット</h3>
+        <h3>対局者名簿</h3>
+        <p class="note">大会に参加しうる人をあらかじめ登録しておきます。名前と大石道場杯段位はここで一括管理し、上の「対局者（順に1〜8）」ではこの名簿から選びます（名前を打ち直しても同一人物として通算成績が引き継がれます）。各行のIDは、対局者を名前ではなく識別するための管理用の番号です（先頭8文字を表示）。</p>
+        <div id="roster-list"></div>
+        <div class="fg" style="display:flex;gap:8px;align-items:flex-end;margin-top:10px">
+          <div style="flex:1"><label>名前</label><input id="roster-new-name" type="text" placeholder="名前"></div>
+          <div style="width:78px"><label>段位</label><select id="roster-new-rank"><option value="">－</option><option value="初段">初段</option><option value="二段">二段</option><option value="三段">三段</option><option value="四段">四段</option><option value="五段">五段</option><option value="六段">六段</option><option value="七段">七段</option><option value="八段">八段</option><option value="九段">九段</option></select></div>
+          <button class="btn" id="roster-add-btn" style="width:auto;padding:10px 16px;margin:0;flex-shrink:0">追加</button>
+        </div>
+        <button class="btn" id="roster-save-btn" style="background:#b89752;margin-top:12px">名簿の変更を保存して同期</button>
+
+        <h3 style="margin-top:24px">結果のリセット</h3>
         <p class="note">対局者名はそのまま残し、勝敗記録だけ消去します。入力ミスの修正にお使いください。</p>
         <button class="btn" id="reset-results" style="background:#e67e22">結果だけリセット</button>
 
@@ -461,6 +465,7 @@ function onStateOrRosterReady() {
   syncDerivedFromRoster();
   if (!editingSetup) fillSettingsInputs();
   if (!editingRoster) renderRosterList();
+  refreshLegacyRowOptions();
   renderAll();
   setSyncStatus(true);
 }
@@ -1000,7 +1005,10 @@ function rosterItemHTML(id) {
   const opts = RANK_SELECT_OPTIONS.map(r => `<option value="${r}"${p.rank===r?" selected":""}>${r || "－"}</option>`).join("");
   return `
     <div class="roster-item" data-id="${id}">
-      <input type="text" class="roster-name" value="${escapeHtml(p.name || "")}" placeholder="名前">
+      <div class="roster-name-wrap">
+        <input type="text" class="roster-name" value="${escapeHtml(p.name || "")}" placeholder="名前">
+        <div class="roster-id" title="${id}">ID: ${id.slice(0, 8)}</div>
+      </div>
       <select class="roster-rank">${opts}</select>
       <button type="button" class="roster-del-btn" data-id="${id}">✕</button>
     </div>`;
@@ -1031,6 +1039,7 @@ function renderRosterList() {
         syncDerivedFromRoster();
         if (stateRef) stateRef.set(state);
       }
+      refreshLegacyRowOptions();
       showToast(`${name}を削除しました`);
     });
   });
@@ -1047,6 +1056,7 @@ document.getElementById("roster-add-btn").addEventListener("click", () => {
   nameInput.value = "";
   rankSelect.value = "";
   renderRosterList();
+  refreshLegacyRowOptions();
   showToast(`${name}を名簿に追加しました`);
 });
 
@@ -1061,6 +1071,7 @@ document.getElementById("roster-save-btn").addEventListener("click", () => {
   syncDerivedFromRoster();
   if (stateRef) stateRef.set(state);
   buildSeedList();
+  refreshLegacyRowOptions();
   showToast("名簿の変更を保存し、全員に同期しました！");
 });
 
@@ -1485,6 +1496,24 @@ function addLegacyRow() {
   wrap.insertAdjacentHTML("beforeend", legacyRowHTML(key));
   const row = wrap.querySelector(`.legacy-row[data-key="${key}"]`);
   row.querySelector(".legacy-row-del").addEventListener("click", () => row.remove());
+}
+
+// 過去大会記録フォームの行は、Firebaseから名簿（roster）が届く前に
+// 初期4行が作られてしまうことがあり、その場合は参加者の選択肢が
+// 「（選択してください）」しか無い状態になってしまう。
+// 名簿の読み込み・更新のたびに呼び、既存の行を壊さずに選択肢だけを
+// 最新の名簿に合わせて作り直す（選択済みの値があれば維持する）。
+function refreshLegacyRowOptions() {
+  document.querySelectorAll("#legacy-rows .legacy-player").forEach(sel => {
+    const current = sel.value;
+    const ids = rosterIdsSorted();
+    const opts = `<option value="">（選択してください）</option>` + ids.map(id => {
+      const p = roster[id];
+      const label = p.rank ? `${p.name}（${p.rank}）` : p.name;
+      return `<option value="${id}"${id===current?" selected":""}>${escapeHtml(label)}</option>`;
+    }).join("");
+    sel.innerHTML = opts;
+  });
 }
 
 function resetLegacyForm() {
