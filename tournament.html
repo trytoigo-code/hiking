@@ -92,7 +92,8 @@
   - 8人以外の大会記録の簡易追加（⚙️設定タブの管理者の仕事。8人固定のブラケット形式に
     当てはまらない大会のための機能。今の形式になる前の過去大会だけでなく、参加人数が
     8人と異なる今後の大会にも使える。大会名は「大石道場杯」固定。トーナメント図は作らず、
-    対局者ごとの勝敗数（任意で順位も）を名簿から選んで入力する。全期間の通算成績に合算される）
+    対局者ごとの勝敗数（任意で順位も）を名簿から選んで入力する。全期間の通算成績に合算される。
+    登録済みの記録は同じ設定タブから一覧で確認でき、入力ミスがあれば編集・削除できる）
   - 📚過去の大会タブ（誰でも閲覧可能）
       全期間の通算成績（過去の全アーカイブ＋進行中の大会を合算し、対局者ごとに勝敗数・勝率を集計。
       名簿IDが分かる大会はIDで、この機能導入前の古いアーカイブは名前の完全一致でフォールバック集計）
@@ -355,7 +356,15 @@
         <div class="fg"><label>開催日（任意）</label><input id="legacy-date" type="date"></div>
         <div id="legacy-rows"></div>
         <button type="button" class="btn" id="legacy-add-row" style="background:#f1f0ea;color:#2c3e50">＋ 参加者を追加</button>
-        <button class="btn" id="legacy-save" style="background:#b89752;margin-top:10px">この記録を保存</button>
+        <div id="legacy-editing-note" style="display:none;font-size:0.82rem;color:#b03a2e;font-weight:bold;margin-top:10px">✎ 既存の記録を編集中です</div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="btn" id="legacy-save" style="background:#b89752;margin:0">この記録を保存</button>
+          <button type="button" class="btn" id="legacy-cancel-edit" style="display:none;background:#f1f0ea;color:#2c3e50;margin:0;width:auto;flex-shrink:0;padding:12px 16px">編集をやめる</button>
+        </div>
+
+        <h3 style="margin-top:24px">登録済みの簡易記録の修正・削除</h3>
+        <p class="note">入力ミスがあった簡易記録を、あとから編集・削除できます。「編集」を押すと上のフォームに内容が読み込まれるので、直してから「この記録を保存」を押してください。</p>
+        <div id="legacy-manage-list"></div>
 
         <h3 style="margin-top:24px">データエクスポート</h3>
         <p class="note">Firebaseのデータをファイルとして保存します。万が一のバックアップに使ってください。</p>
@@ -1196,6 +1205,7 @@ document.getElementById("admin-toggle").addEventListener("click", () => {
   const isOpen = body.style.display !== "none";
   body.style.display = isOpen ? "none" : "";
   arrow.textContent = isOpen ? "▶" : "▼";
+  if (!isOpen) renderLegacyManageList();
 });
 
 document.getElementById("reset-results").addEventListener("click", () => {
@@ -1503,13 +1513,17 @@ function renderArchivedTournament(container, t) {
 // 保存先はarchiveRefに legacy:true として積まれ、通常のアーカイブと同じ一覧に並ぶ。
 let legacyRowSeq = 0;
 
-function legacyRowHTML(key) {
+function legacyRowHTML(key, initial) {
   const ids = rosterIdsSorted();
+  const selId = (initial && initial.id) || "";
   const opts = `<option value="">（選択してください）</option>` + ids.map(id => {
     const p = roster[id];
     const label = p.rank ? `${p.name}（${p.rank}）` : p.name;
-    return `<option value="${id}">${escapeHtml(label)}</option>`;
+    return `<option value="${id}"${id===selId?" selected":""}>${escapeHtml(label)}</option>`;
   }).join("");
+  const rankVal   = (initial && initial.rank)   ? initial.rank   : "";
+  const winsVal   = (initial && initial.wins)   ? initial.wins   : "";
+  const lossesVal = (initial && initial.losses) ? initial.losses : "";
   return `
     <div class="legacy-row" data-key="${key}">
       <div class="legacy-row-top">
@@ -1517,18 +1531,19 @@ function legacyRowHTML(key) {
         <button type="button" class="legacy-row-del">✕</button>
       </div>
       <div class="legacy-fields">
-        <div class="legacy-field"><label>順位（任意）</label><input type="number" class="legacy-rank" min="1" inputmode="numeric" placeholder="例：1"></div>
-        <div class="legacy-field"><label>勝</label><input type="number" class="legacy-wins" min="0" inputmode="numeric" placeholder="0"></div>
-        <div class="legacy-field"><label>敗</label><input type="number" class="legacy-losses" min="0" inputmode="numeric" placeholder="0"></div>
+        <div class="legacy-field"><label>順位（任意）</label><input type="number" class="legacy-rank" min="1" inputmode="numeric" placeholder="例：1" value="${rankVal}"></div>
+        <div class="legacy-field"><label>勝</label><input type="number" class="legacy-wins" min="0" inputmode="numeric" placeholder="0" value="${winsVal}"></div>
+        <div class="legacy-field"><label>敗</label><input type="number" class="legacy-losses" min="0" inputmode="numeric" placeholder="0" value="${lossesVal}"></div>
       </div>
     </div>`;
 }
 
-function addLegacyRow() {
+// initial（{id, wins, losses, rank}）を渡すと、既存の値が入った状態で行を追加する（編集読み込み用）
+function addLegacyRow(initial) {
   const wrap = document.getElementById("legacy-rows");
   if (!wrap) return;
   const key = `r${legacyRowSeq++}`;
-  wrap.insertAdjacentHTML("beforeend", legacyRowHTML(key));
+  wrap.insertAdjacentHTML("beforeend", legacyRowHTML(key, initial));
   const row = wrap.querySelector(`.legacy-row[data-key="${key}"]`);
   row.querySelector(".legacy-row-del").addEventListener("click", () => row.remove());
 }
@@ -1564,7 +1579,23 @@ function resetLegacyForm() {
 }
 
 const legacyAddRowBtn = document.getElementById("legacy-add-row");
-if (legacyAddRowBtn) legacyAddRowBtn.addEventListener("click", addLegacyRow);
+if (legacyAddRowBtn) legacyAddRowBtn.addEventListener("click", () => addLegacyRow());
+
+// 編集中の簡易記録のFirebaseキー（新規追加時はnull）
+let editingLegacyKey = null;
+
+function exitLegacyEditMode() {
+  editingLegacyKey = null;
+  document.getElementById("legacy-save").textContent = "この記録を保存";
+  document.getElementById("legacy-editing-note").style.display = "none";
+  document.getElementById("legacy-cancel-edit").style.display = "none";
+}
+
+const legacyCancelEditBtn = document.getElementById("legacy-cancel-edit");
+if (legacyCancelEditBtn) legacyCancelEditBtn.addEventListener("click", () => {
+  exitLegacyEditMode();
+  resetLegacyForm();
+});
 
 const legacySaveBtn = document.getElementById("legacy-save");
 if (legacySaveBtn) legacySaveBtn.addEventListener("click", () => {
@@ -1593,15 +1624,95 @@ if (legacySaveBtn) legacySaveBtn.addEventListener("click", () => {
   // 大会名は「大石道場杯」固定（tournamentTitle()が開催回の有無に応じて組み立てる）。
   // 開催回が分かれば、通常の大会と同じ「大石道場杯 第◯回」表示になる
   // （archiveDisplayInfo()はt.editionがあればそちらを優先して表示する）。
+  const payload = { legacy: true, edition, eventDate: dateVal, endDate, records };
+  const wasEditing = !!editingLegacyKey;
   if (archiveRef) {
-    archiveRef.push({ legacy: true, edition, eventDate: dateVal, endDate, records });
+    if (editingLegacyKey) archiveRef.child(editingLegacyKey).set(payload);
+    else archiveRef.push(payload);
   }
+  exitLegacyEditMode();
   resetLegacyForm();
-  showToast("記録を追加しました");
+  showToast(wasEditing ? "記録を更新しました" : "記録を追加しました");
   renderArchive();
+  renderLegacyManageList();
 });
 
+// ---------- 登録済みの簡易記録の修正・削除 ----------
+// 上のフォーム（8人以外の大会記録を追加）に既存データを読み込んで編集できるようにする。
+// 通常のアーカイブ一覧（renderArchive）はFirebaseのキーを保持しないため、
+// 編集・削除にはキーが必要なこの専用の一覧を別途取得する。
+function renderLegacyManageList() {
+  const el = document.getElementById("legacy-manage-list");
+  if (!el || !archiveRef) return;
+  archiveRef.once("value", snap => {
+    const data = snap.val();
+    const entries = data
+      ? Object.entries(data).filter(([, v]) => v && v.legacy).sort((a, b) => {
+          const dv = archiveDateValue(b[1]) - archiveDateValue(a[1]);
+          return dv !== 0 ? dv : b[0].localeCompare(a[0]);
+        })
+      : [];
+
+    if (!entries.length) {
+      el.innerHTML = `<p class="note" style="margin:0">まだ簡易記録は登録されていません。</p>`;
+      return;
+    }
+
+    el.innerHTML = entries.map(([key, t]) => {
+      const info = archiveDisplayInfo(t);
+      const names = (t.records || []).map(r => (roster[r.id] && roster[r.id].name) || r.name || "").filter(Boolean).join("・");
+      return `
+      <div class="archive-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="min-width:0">
+            <strong>${escapeHtml(info.title)}</strong>（${escapeHtml(info.dateStr)}）
+            <div style="font-size:0.76rem;color:#888;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(names)}</div>
+          </div>
+          <div style="display:flex;gap:6px;flex-shrink:0">
+            <button type="button" class="legacy-edit-btn" data-key="${key}" style="background:#fff;border:1px solid #ddd8cc;border-radius:6px;padding:5px 10px;font-size:0.78rem;cursor:pointer">編集</button>
+            <button type="button" class="legacy-delete-btn" data-key="${key}" style="background:#fdf1ef;border:1px solid #e0b3ac;color:#b03a2e;border-radius:6px;padding:5px 10px;font-size:0.78rem;cursor:pointer">削除</button>
+          </div>
+        </div>
+      </div>`;
+    }).join("");
+
+    el.querySelectorAll(".legacy-edit-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const key = btn.dataset.key;
+        const entry = entries.find(([k]) => k === key);
+        if (!entry) return;
+        const t = entry[1];
+        editingLegacyKey = key;
+        document.getElementById("legacy-edition").value = t.edition || "";
+        document.getElementById("legacy-date").value = t.eventDate || "";
+        const wrap = document.getElementById("legacy-rows");
+        wrap.innerHTML = "";
+        legacyRowSeq = 0;
+        const recs = (t.records && t.records.length) ? t.records : [null];
+        recs.forEach(r => addLegacyRow(r));
+        document.getElementById("legacy-save").textContent = "この記録を更新する";
+        document.getElementById("legacy-editing-note").style.display = "";
+        document.getElementById("legacy-cancel-edit").style.display = "";
+        document.getElementById("legacy-edition").scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    });
+
+    el.querySelectorAll(".legacy-delete-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const key = btn.dataset.key;
+        if (!confirm("この簡易記録を削除します。この操作は取り消せません。よろしいですか？")) return;
+        if (archiveRef) archiveRef.child(key).remove();
+        if (editingLegacyKey === key) { exitLegacyEditMode(); resetLegacyForm(); }
+        showToast("記録を削除しました");
+        renderArchive();
+        renderLegacyManageList();
+      });
+    });
+  });
+}
+
 resetLegacyForm();
+renderLegacyManageList();
 
 // ---------- データエクスポート ----------
 document.getElementById("export-btn").addEventListener("click", () => {
