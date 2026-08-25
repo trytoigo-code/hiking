@@ -41,26 +41,31 @@
   ・機能を追加・変更したら「主な機能」を合わせて更新する
 
 【主な機能（現時点）】
-  - タブ構成：💬みんなの投稿（最初に表示）／📖読み物／⚙️設定
-  - 💬みんなの投稿タブ
-      投稿者（グループごとのメンバーリストから選択）・カテゴリ（複数選択可：
-      🎯棋力向上／💭忘れられない思い出／📖学び・気づき／🎉報告／💬その他）・
-      本文（自動で高さが伸びるtextarea）を入力して投稿。
+  - タブ構成：💬みんなの投稿（一覧・最初に表示）／✏️投稿する／📖読み物／⚙️設定
+  - 💬みんなの投稿タブ：新着順の一覧表示。カテゴリピルで複数選択フィルター
+      （何も選ばなければ全件表示）。各投稿は誰でも修正・削除可能（確認ダイアログ＋
+      インライン編集フォーム）。リアクション機能（👍😄😮🔥の4種。誰が押したか
+      Firebaseで全員に同期）。
+  - ✏️投稿するタブ：投稿者（グループごとのメンバーリストから選択）・カテゴリ
+      （複数選択可・設定タブで自由に編集可能）・本文（自動で高さが伸びるtextarea）
+      を入力して投稿。投稿すると自動的に「みんなの投稿」タブに切り替わる。
       下書き機能：投稿者を選ぶとFirebase上の下書きを自動読込。入力中は自動保存
       （デバウンス）＋明示的な「下書き保存」ボタンあり。投稿確定で下書きは削除される。
-      一覧は新着順。カテゴリピルで複数選択フィルター（何も選ばなければ全件表示）。
-      各投稿は誰でも修正・削除可能（確認ダイアログ＋インライン編集フォーム）。
-      リアクション機能（👍😄😮🔥の4種。誰が押したかFirebaseで全員に同期）。
       データはグループごとに分離（dangi-posts/${group}/...）。
   - 📖読み物タブ（既存）：全グループ共通表示。生成AIとの対話から生まれた
       読み物・考察をアコーディオン形式で掲載。西さんが編集して追加する想定。
-  - ⚙️設定タブ：投稿者名簿の管理（管理者の仕事内。グループごとに独立、
-      ashiato.html/tournament.htmlと同じUIパターン）
+  - ⚙️設定タブ（管理者の仕事内、グループごとに独立）
+      投稿者名簿：名前を直接書き換え・削除可能（過去の投稿の表示名は変わらない）
+      カテゴリ設定：ラベル（絵文字含む）を自由に追加・書き換え・削除可能
+      （初期値：🎯棋力向上／💭忘れられない思い出／📖学び・気づき／🎉報告／💬その他。
+      過去の投稿に付いたカテゴリ名は変わらない）
+  - データエクスポート（設定タブからJSONファイルとしてダウンロード。日付・グループ名
+      入りファイル名で保存。dangi-posts/${group} 配下＝そのグループの投稿・下書き・
+      設定をまとめて出力）
   - Firebase によるリアルタイム同期・同期ステータス表示・トースト通知
 
 【今後の改良候補】
   - 読み物の追加
-  - データエクスポート機能
   - 各グループのポータル（ぶんかのかい・遠足クラブ・大石＆平野用など）から
     ?group=〇〇 付きでリンクされているか要確認
 ================================================================================
@@ -260,16 +265,18 @@
       color: #7a5c3a; font-weight: bold; font-size: 1rem; border-bottom: 1px solid #e0dbcd;
     }
     #admin-body { display: none; margin-top: 16px; }
-    .member-list-admin { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
-    .member-pill {
-      background: #f0ede4; border: 1px solid #ddd; border-radius: 20px;
-      padding: 4px 10px; font-size: 0.82rem; display: inline-flex;
-      align-items: center; gap: 6px; font-family: sans-serif;
+    .member-list-admin, .admin-edit-list { margin-bottom: 10px; }
+    .admin-edit-row {
+      display: flex; align-items: center; gap: 6px;
+      background: #fff; border: 1px solid #ddd8cc; border-radius: 8px;
+      padding: 6px 8px; margin-bottom: 6px;
     }
-    .member-pill button {
-      background: none; border: none; color: #aaa; cursor: pointer;
-      font-size: 0.8rem; padding: 0;
+    .admin-edit-row input { flex: 1; padding: 8px; }
+    .admin-edit-del-btn {
+      width: 30px; height: 30px; flex-shrink: 0; border: none; border-radius: 6px;
+      background: #f0ede4; color: #999; font-size: 0.9rem; cursor: pointer;
     }
+    .admin-edit-del-btn:active { background: #e74c3c; color: #fff; }
 
     /* トースト */
     #toast {
@@ -305,7 +312,8 @@
     <div id="header-sub">考える、感じる、そして打つ。</div>
     <div id="sync-row"><span id="sync-dot"></span><span id="sync-label">接続中...</span></div>
     <div id="nav">
-      <button class="tab-btn active" data-tab="posts">💬投稿</button>
+      <button class="tab-btn active" data-tab="view">💬みんなの投稿</button>
+      <button class="tab-btn" data-tab="write">✏️投稿する</button>
       <button class="tab-btn" data-tab="yomimono">📖読み物</button>
       <button class="tab-btn" data-tab="settings">⚙️設定</button>
     </div>
@@ -313,8 +321,15 @@
 
   <div id="content">
 
-    <!-- 💬みんなの投稿パネル -->
-    <div class="panel active" id="panel-posts">
+    <!-- 💬みんなの投稿（一覧）パネル -->
+    <div class="panel active" id="panel-view">
+      <h3>みんなの投稿</h3>
+      <div class="post-filter-row" id="post-filter-row"></div>
+      <div id="post-list"></div>
+    </div>
+
+    <!-- ✏️投稿するパネル -->
+    <div class="panel" id="panel-write">
       <h3>投稿する</h3>
       <p class="note">囲碁に関することなら何でも。棋力向上の取り組み、忘れられない思い出、ふと思ったことなど、気軽にどうぞ。</p>
 
@@ -335,10 +350,6 @@
         <button class="btn-primary" id="post-submit">投稿する</button>
         <button class="btn-secondary" id="post-draft-save">下書き保存</button>
       </div>
-
-      <h3 style="margin-top:28px">みんなの投稿</h3>
-      <div class="post-filter-row" id="post-filter-row"></div>
-      <div id="post-list"></div>
     </div>
 
     <!-- 📖読み物パネル -->
@@ -415,12 +426,26 @@
       </div>
       <div id="admin-body">
         <h3 style="margin-top:14px">投稿者名簿</h3>
-        <p class="note">このグループで投稿できる人をあらかじめ登録しておきます。変更すると全員の画面に反映されます。</p>
-        <div class="member-list-admin" id="member-list-admin"></div>
-        <div style="display:flex;gap:8px">
+        <p class="note">このグループで投稿できる人をあらかじめ登録しておきます。名前は直接書き換えられます（過去の投稿の表示名は変わりません）。変更すると全員の画面に反映されます。</p>
+        <div class="admin-edit-list" id="member-list-admin"></div>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
           <input type="text" id="new-member-input" placeholder="名前を入力">
           <button id="add-member-btn" style="background:#7a5c3a;color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:0.88rem;font-family:inherit;cursor:pointer;flex-shrink:0">追加</button>
         </div>
+        <button id="save-members-btn" style="width:100%;background:#b89752;color:#fff;border:none;border-radius:8px;padding:12px;font-size:0.9rem;font-family:inherit;cursor:pointer">名前の変更を保存して同期</button>
+
+        <h3 style="margin-top:24px">カテゴリ設定</h3>
+        <p class="note">投稿・フィルターで使うカテゴリを設定します。絵文字も含めて自由に書き換えられます（過去の投稿に付いたカテゴリ名は変わりません）。</p>
+        <div class="admin-edit-list" id="category-list-admin"></div>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <input type="text" id="new-category-input" placeholder="例：🀄麻雀の話">
+          <button id="add-category-btn" style="background:#7a5c3a;color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:0.88rem;font-family:inherit;cursor:pointer;flex-shrink:0">追加</button>
+        </div>
+        <button id="save-categories-btn" style="width:100%;background:#b89752;color:#fff;border:none;border-radius:8px;padding:12px;font-size:0.9rem;font-family:inherit;cursor:pointer">カテゴリの変更を保存して同期</button>
+
+        <h3 style="margin-top:24px">データエクスポート</h3>
+        <p class="note">Firebaseのデータ（このグループの投稿・下書き・設定）をファイルとして保存します。万が一のバックアップに使ってください。</p>
+        <button id="export-btn" style="width:100%;background:#2c3e50;color:#fff;border:none;border-radius:8px;padding:12px;font-size:0.9rem;font-family:inherit;cursor:pointer">JSONでダウンロード</button>
       </div>
     </div>
 
@@ -440,14 +465,10 @@ const firebaseConfig = {
   appId:             "1:1066293850319:web:94409f01b194d5afe7c7ba"
 };
 
-const CATEGORIES = [
-  { key: "jouzu",   label: "🎯棋力向上" },
-  { key: "omoide",  label: "💭忘れられない思い出" },
-  { key: "manabi",  label: "📖学び・気づき" },
-  { key: "houkoku", label: "🎉報告" },
-  { key: "other",   label: "💬その他" },
-];
-const CAT_LABEL = {}; CATEGORIES.forEach(c => CAT_LABEL[c.key] = c.label);
+const DEFAULT_CATEGORIES = ["🎯棋力向上", "💭忘れられない思い出", "📖学び・気づき", "🎉報告", "💬その他"];
+// 旧バージョン（カテゴリがkey/label形式だった頃）の投稿を表示するためのフォールバック
+const LEGACY_CAT_LABELS = { jouzu:"🎯棋力向上", omoide:"💭忘れられない思い出", manabi:"📖学び・気づき", houkoku:"🎉報告", other:"💬その他" };
+function catLabel(c) { return LEGACY_CAT_LABELS[c] || c; }
 const REACTION_EMOJIS = ["👍","😄","😮","🔥"];
 
 // ---------- グループ判定 ----------
@@ -457,13 +478,16 @@ const title  = params.get("title");
 if (title) document.getElementById("group-label").textContent = decodeURIComponent(title);
 
 // ---------- State ----------
-let posts   = {};
-let members = [];
+let posts      = {};
+let members    = [];
+let categories = DEFAULT_CATEGORIES.slice();
 let selectedFormCats = new Set();
 let selectedFilterCats = new Set();
 let currentAuthor = "";
 let draftDirty = false;
 let draftSaveTimer = null;
+let editingMembers = false;
+let editingCategories = false;
 let postsRef = null, configRef = null, draftsRef = null;
 
 const isConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY";
@@ -477,14 +501,20 @@ if (isConfigured) {
     postsRef.on("value", snap => {
       posts = snap.val() || {};
       renderPostList();
-    });
+      setSyncStatus(true);
+    }, err => { console.error("postsRef read failed:", err); setSyncStatus(false); });
     configRef.on("value", snap => {
       const cfg = snap.val() || {};
       members = cfg.members || [];
-      renderMemberAdmin();
+      categories = (cfg.categories && cfg.categories.length) ? cfg.categories : DEFAULT_CATEGORIES.slice();
+      if (!editingMembers) renderMemberAdmin();
+      if (!editingCategories) renderCategoryAdmin();
       buildAuthorSelect();
-    }, () => setSyncStatus(false));
-    setSyncStatus(true);
+      buildFormCatPills();
+      renderPostFilter();
+      renderPostList();
+      setSyncStatus(true);
+    }, err => { console.error("configRef read failed:", err); setSyncStatus(false); });
   } catch(e) {
     console.error("Firebase init failed:", e);
     setSyncStatus(false);
@@ -503,12 +533,12 @@ function setSyncStatus(online) {
 // ---------- カテゴリピル（投稿フォーム） ----------
 function buildFormCatPills() {
   const wrap = document.getElementById("post-cats");
-  wrap.innerHTML = CATEGORIES.map(c =>
-    `<button type="button" class="pill-btn ${selectedFormCats.has(c.key)?"selected":""}" data-key="${c.key}">${c.label}</button>`
+  wrap.innerHTML = categories.map(c =>
+    `<button type="button" class="pill-btn ${selectedFormCats.has(c)?"selected":""}" data-cat="${escapeHtml(c)}">${escapeHtml(c)}</button>`
   ).join("");
   wrap.querySelectorAll(".pill-btn").forEach(btn => {
     btn.addEventListener("click", () => {
-      const key = btn.dataset.key;
+      const key = btn.dataset.cat;
       if (selectedFormCats.has(key)) selectedFormCats.delete(key);
       else selectedFormCats.add(key);
       btn.classList.toggle("selected");
@@ -621,19 +651,20 @@ document.getElementById("post-submit").addEventListener("click", () => {
   buildFormCatPills();
   setDraftStatus("");
   showToast("投稿しました！");
+  switchTab("view");
 });
 
 // ---------- 投稿フィルター ----------
 function renderPostFilter() {
   const wrap = document.getElementById("post-filter-row");
-  wrap.innerHTML = `<button type="button" class="pill-btn ${selectedFilterCats.size===0?"filter-active":""}" data-key="all">すべて</button>` +
-    CATEGORIES.map(c =>
-      `<button type="button" class="pill-btn ${selectedFilterCats.has(c.key)?"filter-active":""}" data-key="${c.key}">${c.label}</button>`
+  wrap.innerHTML = `<button type="button" class="pill-btn ${selectedFilterCats.size===0?"filter-active":""}" data-cat="__all__">すべて</button>` +
+    categories.map(c =>
+      `<button type="button" class="pill-btn ${selectedFilterCats.has(c)?"filter-active":""}" data-cat="${escapeHtml(c)}">${escapeHtml(c)}</button>`
     ).join("");
   wrap.querySelectorAll(".pill-btn").forEach(btn => {
     btn.addEventListener("click", () => {
-      const key = btn.dataset.key;
-      if (key === "all") { selectedFilterCats.clear(); }
+      const key = btn.dataset.cat;
+      if (key === "__all__") { selectedFilterCats.clear(); }
       else {
         if (selectedFilterCats.has(key)) selectedFilterCats.delete(key);
         else selectedFilterCats.add(key);
@@ -675,7 +706,7 @@ function renderPostList() {
 }
 
 function postCardHTML(id, p, editOpen) {
-  const cats = (p.categories || []).map(k => `<span class="post-cat-badge">${CAT_LABEL[k] || k}</span>`).join("");
+  const cats = (p.categories || []).map(k => `<span class="post-cat-badge">${escapeHtml(catLabel(k))}</span>`).join("");
   const reactions = p.reactions || {};
   const pills = REACTION_EMOJIS.map(e => {
     const names = reactions[e] || [];
@@ -688,8 +719,8 @@ function postCardHTML(id, p, editOpen) {
   const nameBtns = members.map(m =>
     `<button type="button" class="reaction-name-btn" data-id="${id}" data-name="${m}">${m}</button>`
   ).join("");
-  const catCheckBtns = CATEGORIES.map(c =>
-    `<button type="button" class="pill-btn ${(p.categories||[]).includes(c.key)?"selected":""}" data-key="${c.key}">${c.label}</button>`
+  const catCheckBtns = categories.map(c =>
+    `<button type="button" class="pill-btn ${(p.categories||[]).includes(c)?"selected":""}" data-cat="${escapeHtml(c)}">${escapeHtml(c)}</button>`
   ).join("");
 
   return `
@@ -757,7 +788,7 @@ function bindPostListEvents(listEl) {
       const form = listEl.querySelector(`.inline-edit-form[data-id="${id}"]`);
       const body = form.querySelector(".edit-body").value.trim();
       if (!body) { showToast("本文を入力してください"); return; }
-      const cats = [...form.querySelectorAll(".edit-cats .pill-btn.selected")].map(b => b.dataset.key);
+      const cats = [...form.querySelectorAll(".edit-cats .pill-btn.selected")].map(b => b.dataset.cat);
       if (postsRef) postsRef.child(id).update({ body, categories: cats });
       showToast("更新しました");
     });
@@ -827,14 +858,34 @@ document.getElementById("admin-toggle").addEventListener("click", () => {
   arrow.textContent  = isOpen ? "▶" : "▼";
 });
 
+function adminEditRowHTML(value, idx, placeholder) {
+  return `
+    <div class="admin-edit-row" data-idx="${idx}">
+      <input type="text" value="${escapeHtml(value)}" placeholder="${placeholder||""}">
+      <button type="button" class="admin-edit-del-btn" data-idx="${idx}">✕</button>
+    </div>`;
+}
+
 function renderMemberAdmin() {
   const wrap = document.getElementById("member-list-admin");
   if (!wrap) return;
-  wrap.innerHTML = members.map(m =>
-    `<span class="member-pill">${escapeHtml(m)}<button data-name="${escapeHtml(m)}">✕</button></span>`
-  ).join("") || `<p class="note" style="margin:0">まだ登録された投稿者がいません。</p>`;
-  wrap.querySelectorAll("button").forEach(btn => {
-    btn.addEventListener("click", () => removeMember(btn.dataset.name));
+  wrap.innerHTML = members.length
+    ? members.map((m, i) => adminEditRowHTML(m, i)).join("")
+    : `<p class="note" style="margin:0">まだ登録された投稿者がいません。</p>`;
+
+  wrap.querySelectorAll(".admin-edit-row input").forEach(input => {
+    input.addEventListener("focus", () => editingMembers = true);
+    input.addEventListener("blur",  () => editingMembers = false);
+  });
+  wrap.querySelectorAll(".admin-edit-del-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.dataset.idx);
+      const name = members[idx] || "この投稿者";
+      if (!confirm(`${name}を投稿者名簿から削除しますか？（過去の投稿には影響しません）`)) return;
+      members = members.filter((_, i) => i !== idx);
+      if (configRef) configRef.update({ members });
+      showToast(`${name}を削除しました`);
+    });
   });
 }
 
@@ -849,20 +900,89 @@ document.getElementById("add-member-btn").addEventListener("click", () => {
   showToast(`${name}を追加しました`);
 });
 
-function removeMember(name) {
-  if (!confirm(`${name}を投稿者名簿から削除しますか？（過去の投稿には影響しません）`)) return;
-  if (configRef) configRef.update({ members: members.filter(m => m !== name) });
-  showToast(`${name}を削除しました`);
+document.getElementById("save-members-btn").addEventListener("click", () => {
+  const names = [...document.querySelectorAll("#member-list-admin .admin-edit-row input")]
+    .map(el => el.value.trim())
+    .filter(Boolean);
+  if (new Set(names).size !== names.length) { showToast("同じ名前が複数あります"); return; }
+  members = names;
+  editingMembers = false;
+  if (configRef) configRef.update({ members });
+  showToast("投稿者名簿を保存し、全員に同期しました！");
+});
+
+// ---------- 設定タブ：カテゴリ ----------
+function renderCategoryAdmin() {
+  const wrap = document.getElementById("category-list-admin");
+  if (!wrap) return;
+  wrap.innerHTML = categories.length
+    ? categories.map((c, i) => adminEditRowHTML(c, i)).join("")
+    : `<p class="note" style="margin:0">カテゴリがありません。下のフォームから追加してください。</p>`;
+
+  wrap.querySelectorAll(".admin-edit-row input").forEach(input => {
+    input.addEventListener("focus", () => editingCategories = true);
+    input.addEventListener("blur",  () => editingCategories = false);
+  });
+  wrap.querySelectorAll(".admin-edit-del-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.dataset.idx);
+      const cat = categories[idx] || "このカテゴリ";
+      if (!confirm(`「${cat}」を削除しますか？（過去の投稿に付いたカテゴリ名は変わりません）`)) return;
+      categories = categories.filter((_, i) => i !== idx);
+      if (configRef) configRef.update({ categories });
+      showToast(`「${cat}」を削除しました`);
+    });
+  });
 }
 
-// ---------- タブ切り替え ----------
-document.querySelectorAll(".tab-btn").forEach(btn => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
-    document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
-    btn.classList.add("active");
-    document.getElementById("panel-" + btn.dataset.tab).classList.add("active");
+document.getElementById("add-category-btn").addEventListener("click", () => {
+  const input = document.getElementById("new-category-input");
+  const cat = input.value.trim();
+  if (!cat) return;
+  if (categories.includes(cat)) { showToast("すでに登録されています"); return; }
+  const newCategories = [...categories, cat];
+  if (configRef) configRef.update({ categories: newCategories });
+  input.value = "";
+  showToast(`「${cat}」を追加しました`);
+});
+
+document.getElementById("save-categories-btn").addEventListener("click", () => {
+  const cats = [...document.querySelectorAll("#category-list-admin .admin-edit-row input")]
+    .map(el => el.value.trim())
+    .filter(Boolean);
+  if (new Set(cats).size !== cats.length) { showToast("同じカテゴリが複数あります"); return; }
+  categories = cats;
+  editingCategories = false;
+  if (configRef) configRef.update({ categories });
+  showToast("カテゴリを保存し、全員に同期しました！");
+});
+
+// ---------- データエクスポート ----------
+document.getElementById("export-btn").addEventListener("click", () => {
+  if (!isConfigured) { showToast("データベースに接続されていません"); return; }
+  firebase.database().ref(`dangi-posts/${group}`).once("value", snap => {
+    const data = snap.val();
+    if (!data) { showToast("エクスポートするデータがありません"); return; }
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const date = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `dangi_${group}_backup_${date}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast("エクスポートしました");
   });
+});
+
+// ---------- タブ切り替え ----------
+function switchTab(tab) {
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+  document.querySelectorAll(".panel").forEach(p => p.classList.toggle("active", p.id === "panel-" + tab));
+}
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.addEventListener("click", () => switchTab(btn.dataset.tab));
 });
 
 // ---------- 共通ユーティリティ ----------
