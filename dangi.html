@@ -5,21 +5,32 @@
 ================================================================================
 
 【アプリの目的】
-  囲碁に関する読み物を収録するページ。
-  生成AIとの対話から生まれた文章や、囲碁にまつわる考察を掲載する。
+  囲碁に関することを、メンバーが自由に書き込める掲示板と、
+  西さんが編集する読み物・考察を収録するページ。
+  「みんなの投稿」は棋力向上の取り組みや忘れられない思い出など、
+  カテゴリを付けて気軽に書き込める場。「読み物」は生成AIとの対話から
+  生まれた文章など、まとまった考察を掲載する場として役割を分けている。
+
+  複数のグループ（山あるき・大石道場など）で共用し、URLの ?group= パラメータで
+  「みんなの投稿」のデータを切り替える（各グループのメンバーは異なるため）。
+  「読み物」タブは西さん編集のコンテンツなので、グループに関わらず共通表示。
 
 【利用環境】
   - スマホ利用を最優先とする（モバイルファースト）
   - GitHub Pages でホスティング（単一 dangi.html で完結）
-  - index.htmlからリンク
+  - Firebase Realtime Database によるリアルタイム同期（みんなの投稿タブのみ）
+  - 各グループの index.html から ?group=〇〇 付きでリンク
+  - 単独起動時は ?group= なしで起動（testデータを参照）
 
 【技術構成】
   - バニラJS（React・Babel 不使用）
+  - Firebase Realtime Database（igo.html/goroku.html等と同じプロジェクトを使用）
+  - Google Fonts（Noto Sans JP）読みやすさのため使用
   - 外部ライブラリなし・ビルド不要・1ファイル完結
   - 新技術の導入より、継続して利用しやすい構成を優先する
 
 【セキュリティ】
-  - 合言葉認証あり（goroku.htmlと同じ合言葉）
+  - 合言葉認証あり（他アプリと共通の合言葉）
   - 認証情報はブラウザのlocalStorageに保存される
 
 【共同編集の進め方】
@@ -27,13 +38,31 @@
   ・変更の意図と影響範囲を共有しながら進める
   ・小さな積み重ねを大切にし、一度に大きく変えない
   ・既存の操作感や雰囲気はできるだけ引き継ぐ
-  ・読み物を追加・変更したら「収録コンテンツ」を合わせて更新する
+  ・機能を追加・変更したら「主な機能」を合わせて更新する
 
-【収録コンテンツ（現時点）】
-  - 生成AIとの対話から生まれた囲碁談義
+【主な機能（現時点）】
+  - タブ構成：💬みんなの投稿（最初に表示）／📖読み物／⚙️設定
+  - 💬みんなの投稿タブ
+      投稿者（グループごとのメンバーリストから選択）・カテゴリ（複数選択可：
+      🎯棋力向上／💭忘れられない思い出／📖学び・気づき／🎉報告／💬その他）・
+      本文（自動で高さが伸びるtextarea）を入力して投稿。
+      下書き機能：投稿者を選ぶとFirebase上の下書きを自動読込。入力中は自動保存
+      （デバウンス）＋明示的な「下書き保存」ボタンあり。投稿確定で下書きは削除される。
+      一覧は新着順。カテゴリピルで複数選択フィルター（何も選ばなければ全件表示）。
+      各投稿は誰でも修正・削除可能（確認ダイアログ＋インライン編集フォーム）。
+      リアクション機能（👍😄😮🔥の4種。誰が押したかFirebaseで全員に同期）。
+      データはグループごとに分離（dangi-posts/${group}/...）。
+  - 📖読み物タブ（既存）：全グループ共通表示。生成AIとの対話から生まれた
+      読み物・考察をアコーディオン形式で掲載。西さんが編集して追加する想定。
+  - ⚙️設定タブ：投稿者名簿の管理（管理者の仕事内。グループごとに独立、
+      ashiato.html/tournament.htmlと同じUIパターン）
+  - Firebase によるリアルタイム同期・同期ステータス表示・トースト通知
 
 【今後の改良候補】
   - 読み物の追加
+  - データエクスポート機能
+  - 各グループのポータル（ぶんかのかい・遠足クラブ・大石＆平野用など）から
+    ?group=〇〇 付きでリンクされているか要確認
 ================================================================================
 -->
 <!DOCTYPE html>
@@ -46,6 +75,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
   <style>
     :root { color-scheme: light; }
     * { box-sizing: border-box; }
@@ -61,16 +92,126 @@
     /* ヘッダー */
     #header {
       background: #7a5c3a; color: #fdf5e8;
-      padding: 14px 18px 16px;
+      padding: 14px 18px 0;
       position: sticky; top: 0; z-index: 101;
     }
+    #group-label { font-size: 0.72rem; color: #c8a87a; font-family: sans-serif; letter-spacing: 0.08em; margin-bottom: 2px; }
     #header h1 { margin: 0; font-size: 1.2rem; letter-spacing: 0.05em; color: #fdf5e8; }
-    #header-sub { font-size: 0.78rem; color: #c8a87a; margin: 3px 0 0; font-family: sans-serif; }
+    #header-sub { font-size: 0.78rem; color: #c8a87a; margin: 3px 0 8px; font-family: sans-serif; }
+    #sync-row { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; font-size: 0.72rem; color: #c8a87a; font-family: sans-serif; }
+    #sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; display: inline-block; flex-shrink: 0; }
+
+    /* タブ */
+    #nav { display: flex; background: #f1f0ea; border-bottom: 1px solid #e0dbcd; position: sticky; top: 0; z-index: 100; }
+    .tab-btn {
+      flex: 1; background: none; border: none;
+      border-bottom: 3px solid transparent;
+      color: #888; padding: 10px 2px;
+      font-size: 0.78rem; font-family: inherit; cursor: pointer;
+      white-space: nowrap;
+    }
+    .tab-btn.active { color: #7a5c3a; border-bottom-color: #e8c040; font-weight: bold; background: #fff; }
 
     /* コンテンツ */
     #content { padding: 16px; }
+    .panel { display: none; }
+    .panel.active { display: block; }
 
-    /* アコーディオン */
+    h3 { border-left: 4px solid #e8c040; padding-left: 8px; margin: 0 0 12px; color: #2c3e50; font-size: 1rem; }
+    .note { font-size: 0.8rem; color: #888; margin: -6px 0 14px; line-height: 1.6; }
+
+    /* フォーム */
+    .fg { margin-bottom: 12px; }
+    .fg label { font-size: 0.8rem; color: #666; font-family: sans-serif; display: block; margin-bottom: 4px; }
+    .fg select, .fg textarea, .fg input {
+      width: 100%; border: 1px solid #ddd; border-radius: 6px;
+      padding: 10px 12px; font-size: 0.95rem; font-family: inherit;
+      background: #fff; color: #333; box-sizing: border-box;
+    }
+    .fg textarea { resize: vertical; overflow: hidden; line-height: 1.8; }
+
+    .pill-group { display: flex; flex-wrap: wrap; gap: 6px; }
+    .pill-btn {
+      background: #f0ede4; border: 1px solid #ddd;
+      border-radius: 20px; padding: 6px 13px;
+      font-size: 0.8rem; cursor: pointer;
+      font-family: inherit; color: #666;
+    }
+    .pill-btn.selected { background: #7a5c3a; color: #fff; border-color: #7a5c3a; }
+    .pill-btn.filter-active { background: #b89040; color: #fff; border-color: #b89040; }
+
+    .draft-status { font-size: 0.72rem; color: #b89040; font-family: sans-serif; min-height: 1.2em; margin: -6px 0 10px; }
+
+    .btn-row { display: flex; gap: 8px; margin-top: 4px; }
+    .btn-primary {
+      flex: 1; background: #7a5c3a; color: #fdf5e8; border: none;
+      border-radius: 8px; padding: 12px; font-size: 0.9rem;
+      font-family: inherit; cursor: pointer;
+    }
+    .btn-secondary {
+      background: #f0ede4; border: 1px solid #ddd; color: #666;
+      border-radius: 8px; padding: 12px 16px; font-size: 0.85rem;
+      font-family: inherit; cursor: pointer;
+    }
+
+    /* 投稿一覧 */
+    .post-filter-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+    .post-card {
+      background: #fff; border: 1px solid #e0dbcd; border-radius: 10px;
+      padding: 14px; margin-bottom: 12px;
+    }
+    .post-cats { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+    .post-cat-badge {
+      font-size: 0.68rem; background: #fdf5e8; color: #7a5c3a;
+      border: 1px solid #e8c040; border-radius: 10px; padding: 2px 9px;
+      font-family: sans-serif;
+    }
+    .post-body {
+      font-size: 0.9rem; line-height: 1.85; color: #333;
+      white-space: pre-wrap; word-break: break-word; margin-bottom: 10px;
+    }
+    .post-meta {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 0.74rem; color: #999; font-family: sans-serif; margin-bottom: 8px;
+    }
+    .post-btn-row { display: flex; justify-content: flex-end; gap: 6px; margin-bottom: 8px; }
+    .edit-btn-sm {
+      background: #b89752; color: #fff; border: none;
+      padding: 5px 10px; border-radius: 4px; font-size: 0.76rem;
+      cursor: pointer; font-family: inherit;
+    }
+    .del-btn-sm {
+      background: #e74c3c; color: #fff; border: none;
+      padding: 5px 10px; border-radius: 4px; font-size: 0.76rem;
+      cursor: pointer; font-family: inherit;
+    }
+    .inline-edit-form {
+      display: none; margin-top: 10px; padding: 10px;
+      background: #faf8f0; border: 1px solid #e0dbcd; border-radius: 8px;
+    }
+    .inline-edit-form.open { display: block; }
+
+    /* リアクション */
+    .reaction-row { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+    .reaction-pill {
+      display: inline-flex; align-items: center; gap: 3px;
+      background: #f0ede4; border: 1px solid #e0dbcd; border-radius: 12px;
+      padding: 2px 8px; font-size: 0.78rem; cursor: default;
+    }
+    .reaction-emoji-btn {
+      background: none; border: 1px solid #e0dbcd; border-radius: 8px;
+      padding: 2px 6px; font-size: 0.88rem; cursor: pointer; line-height: 1.4;
+    }
+    .reaction-picker {
+      display: none; margin-top: 6px; padding: 8px;
+      background: #faf8f0; border: 1px solid #e0dbcd; border-radius: 8px;
+    }
+    .reaction-name-btn {
+      background: #f0ede4; border: 1px solid #ddd; border-radius: 6px;
+      padding: 3px 10px; font-size: 0.8rem; cursor: pointer; font-family: inherit;
+    }
+
+    /* アコーディオン（読み物） */
     .piece-toggle {
       width: 100%; border: 1px solid #e0dbcd;
       border-radius: 10px; padding: 14px 16px;
@@ -97,37 +238,37 @@
     }
     .piece-body.open { display: block; }
 
-    /* 読み物本文 */
     .piece-lead {
       font-size: 0.8rem; color: #888; font-family: sans-serif;
       margin: 0 0 14px; line-height: 1.6;
       padding-bottom: 12px; border-bottom: 1px solid #f0ede4;
     }
 
-    .dangi-item {
-      padding: 12px 0;
-      border-bottom: 1px solid #f0ede4;
-    }
+    .dangi-item { padding: 12px 0; border-bottom: 1px solid #f0ede4; }
     .dangi-item:last-child { border-bottom: none; padding-bottom: 0; }
-
     .dangi-thesis {
       font-size: 0.92rem; font-weight: bold;
       color: #2c3e50; line-height: 1.6;
       border-left: 3px solid #e8c040;
       padding-left: 10px; margin-bottom: 6px;
     }
-    .dangi-reason {
-      font-size: 0.82rem; color: #666;
-      line-height: 1.7; padding-left: 13px;
-    }
+    .dangi-reason { font-size: 0.82rem; color: #666; line-height: 1.7; padding-left: 13px; }
 
-    .piece-closing {
-      margin-top: 14px; padding-top: 12px;
-      border-top: 1px solid #f0ede4;
-      font-size: 0.82rem; color: #555;
-      line-height: 1.8; font-style: normal;
-      border-left: 3px solid #e0dbcd;
-      padding-left: 10px;
+    /* 設定タブ・管理者メニュー */
+    #admin-toggle {
+      cursor: pointer; padding: 12px 0; display: flex; align-items: center; gap: 8px;
+      color: #7a5c3a; font-weight: bold; font-size: 1rem; border-bottom: 1px solid #e0dbcd;
+    }
+    #admin-body { display: none; margin-top: 16px; }
+    .member-list-admin { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+    .member-pill {
+      background: #f0ede4; border: 1px solid #ddd; border-radius: 20px;
+      padding: 4px 10px; font-size: 0.82rem; display: inline-flex;
+      align-items: center; gap: 6px; font-family: sans-serif;
+    }
+    .member-pill button {
+      background: none; border: none; color: #aaa; cursor: pointer;
+      font-size: 0.8rem; padding: 0;
     }
 
     /* トースト */
@@ -159,72 +300,129 @@
 <div id="app">
 
   <div id="header">
+    <div id="group-label"></div>
     <h1>囲碁読み物</h1>
     <div id="header-sub">考える、感じる、そして打つ。</div>
+    <div id="sync-row"><span id="sync-dot"></span><span id="sync-label">接続中...</span></div>
+    <div id="nav">
+      <button class="tab-btn active" data-tab="posts">💬投稿</button>
+      <button class="tab-btn" data-tab="yomimono">📖読み物</button>
+      <button class="tab-btn" data-tab="settings">⚙️設定</button>
+    </div>
   </div>
 
   <div id="content">
 
-    <!-- 読み物1：囲碁談義 -->
-    <button class="piece-toggle" data-id="dangi">
-      <div>
-        <div class="piece-toggle-label">生成AIとの対話から</div>
-        <div class="piece-toggle-title">囲碁談義</div>
-        <div class="piece-toggle-sub">囲碁上達の秘訣を考える</div>
-      </div>
-      <span class="piece-arrow">▶</span>
-    </button>
-    <div class="piece-body" data-id="dangi">
-      <div class="piece-lead">生成AIとの対話から生まれた、囲碁上達についての逆説的な考察。</div>
+    <!-- 💬みんなの投稿パネル -->
+    <div class="panel active" id="panel-posts">
+      <h3>投稿する</h3>
+      <p class="note">囲碁に関することなら何でも。棋力向上の取り組み、忘れられない思い出、ふと思ったことなど、気軽にどうぞ。</p>
 
-      <div class="dangi-item">
-        <div class="dangi-thesis">強くなりたいなら、好みの打ち方を疑う。</div>
-        <div class="dangi-reason">なぜなら、局面が求める手と、自分が打ちたい手は同じとは限らないから。</div>
+      <div class="fg">
+        <label>投稿者</label>
+        <select id="post-author"><option value="">（選択してください）</option></select>
       </div>
-      <div class="dangi-item">
-        <div class="dangi-thesis">自由に打ちたいなら、基本を学ぶ。</div>
-        <div class="dangi-reason">なぜなら、知らない選択肢は選ぶことも捨てることもできないから。</div>
+      <div class="fg">
+        <label>カテゴリ（複数選択可）</label>
+        <div class="pill-group" id="post-cats"></div>
       </div>
-      <div class="dangi-item">
-        <div class="dangi-thesis">次の一手に迷ったら、まず情勢判断をする。</div>
-        <div class="dangi-reason">なぜなら、石の強弱や力関係が分かれば、どこで戦うべきかが見えてくるから。</div>
+      <div class="fg">
+        <label>本文</label>
+        <textarea id="post-body" rows="4" placeholder="書きたいことをどうぞ…"></textarea>
       </div>
-      <div class="dangi-item">
-        <div class="dangi-thesis">大局観を養いたいなら、小さな差を大切にする。</div>
-        <div class="dangi-reason">なぜなら、大局は小さな価値の積み重ねによって形づくられるから。</div>
-      </div>
-      <div class="dangi-item">
-        <div class="dangi-thesis">良い形を求めるなら、形より働きを見る。</div>
-        <div class="dangi-reason">なぜなら、石の価値は見た目ではなく、局面への貢献によって決まるから。</div>
-      </div>
-      <div class="dangi-item">
-        <div class="dangi-thesis">感覚を磨きたいなら、まず読む。</div>
-        <div class="dangi-reason">なぜなら、確かな感覚は経験と読みによって育てられるから。</div>
-      </div>
-      <div class="dangi-item">
-        <div class="dangi-thesis">大きな構想を描きたいなら、形勢を知る。</div>
-        <div class="dangi-reason">なぜなら、現在地が分からなければ進むべき方向も定まらないから。</div>
-      </div>
-      <div class="dangi-item">
-        <div class="dangi-thesis">局面を動かしたいなら、まず相手に委ねる。</div>
-        <div class="dangi-reason">なぜなら、相手の狙いを正しく受け止めてこそ、自分の打つべき手が見えてくるから。</div>
-      </div>
-      <div class="dangi-item">
-        <div class="dangi-thesis">自分らしい碁を打ちたいなら、自分らしさにこだわりすぎない。</div>
-        <div class="dangi-reason">なぜなら、盤上が求める手を受け入れた先に、その人らしさは自然に現れるから。</div>
-      </div>
-      <div class="dangi-item">
-        <div class="dangi-thesis">勝ちにこだわりたくないなら、まず勝ちを目指す。</div>
-        <div class="dangi-reason">なぜなら、本気で勝とうとして初めて、負けから学ぶことができるから。</div>
+      <div class="draft-status" id="draft-status"></div>
+      <div class="btn-row">
+        <button class="btn-primary" id="post-submit">投稿する</button>
+        <button class="btn-secondary" id="post-draft-save">下書き保存</button>
       </div>
 
-      <div class="dangi-item">
-        <div class="dangi-thesis">美しい碁を打とうとするより、良い手を打とうとする。</div>
-        <div class="dangi-reason">なぜなら、美しさは目的ではなく、一手一手を積み重ねた先に現れる結果だから。</div>
-      </div>
+      <h3 style="margin-top:28px">みんなの投稿</h3>
+      <div class="post-filter-row" id="post-filter-row"></div>
+      <div id="post-list"></div>
     </div>
 
-    <!-- 読み物はここに追加 -->
+    <!-- 📖読み物パネル -->
+    <div class="panel" id="panel-yomimono">
+
+      <!-- 読み物1：囲碁談義 -->
+      <button class="piece-toggle" data-id="dangi">
+        <div>
+          <div class="piece-toggle-label">生成AIとの対話から</div>
+          <div class="piece-toggle-title">囲碁談義</div>
+          <div class="piece-toggle-sub">囲碁上達の秘訣を考える</div>
+        </div>
+        <span class="piece-arrow">▶</span>
+      </button>
+      <div class="piece-body" data-id="dangi">
+        <div class="piece-lead">生成AIとの対話から生まれた、囲碁上達についての逆説的な考察。</div>
+
+        <div class="dangi-item">
+          <div class="dangi-thesis">強くなりたいなら、好みの打ち方を疑う。</div>
+          <div class="dangi-reason">なぜなら、局面が求める手と、自分が打ちたい手は同じとは限らないから。</div>
+        </div>
+        <div class="dangi-item">
+          <div class="dangi-thesis">自由に打ちたいなら、基本を学ぶ。</div>
+          <div class="dangi-reason">なぜなら、知らない選択肢は選ぶことも捨てることもできないから。</div>
+        </div>
+        <div class="dangi-item">
+          <div class="dangi-thesis">次の一手に迷ったら、まず情勢判断をする。</div>
+          <div class="dangi-reason">なぜなら、石の強弱や力関係が分かれば、どこで戦うべきかが見えてくるから。</div>
+        </div>
+        <div class="dangi-item">
+          <div class="dangi-thesis">大局観を養いたいなら、小さな差を大切にする。</div>
+          <div class="dangi-reason">なぜなら、大局は小さな価値の積み重ねによって形づくられるから。</div>
+        </div>
+        <div class="dangi-item">
+          <div class="dangi-thesis">良い形を求めるなら、形より働きを見る。</div>
+          <div class="dangi-reason">なぜなら、石の価値は見た目ではなく、局面への貢献によって決まるから。</div>
+        </div>
+        <div class="dangi-item">
+          <div class="dangi-thesis">感覚を磨きたいなら、まず読む。</div>
+          <div class="dangi-reason">なぜなら、確かな感覚は経験と読みによって育てられるから。</div>
+        </div>
+        <div class="dangi-item">
+          <div class="dangi-thesis">大きな構想を描きたいなら、形勢を知る。</div>
+          <div class="dangi-reason">なぜなら、現在地が分からなければ進むべき方向も定まらないから。</div>
+        </div>
+        <div class="dangi-item">
+          <div class="dangi-thesis">局面を動かしたいなら、まず相手に委ねる。</div>
+          <div class="dangi-reason">なぜなら、相手の狙いを正しく受け止めてこそ、自分の打つべき手が見えてくるから。</div>
+        </div>
+        <div class="dangi-item">
+          <div class="dangi-thesis">自分らしい碁を打ちたいなら、自分らしさにこだわりすぎない。</div>
+          <div class="dangi-reason">なぜなら、盤上が求める手を受け入れた先に、その人らしさは自然に現れるから。</div>
+        </div>
+        <div class="dangi-item">
+          <div class="dangi-thesis">勝ちにこだわりたくないなら、まず勝ちを目指す。</div>
+          <div class="dangi-reason">なぜなら、本気で勝とうとして初めて、負けから学ぶことができるから。</div>
+        </div>
+
+        <div class="dangi-item">
+          <div class="dangi-thesis">美しい碁を打とうとするより、良い手を打とうとする。</div>
+          <div class="dangi-reason">なぜなら、美しさは目的ではなく、一手一手を積み重ねた先に現れる結果だから。</div>
+        </div>
+      </div>
+
+      <!-- 読み物はここに追加 -->
+
+    </div>
+
+    <!-- ⚙️設定パネル -->
+    <div class="panel" id="panel-settings">
+      <div id="admin-toggle">
+        <span id="admin-arrow">▶</span>
+        <span>管理者の仕事</span>
+      </div>
+      <div id="admin-body">
+        <h3 style="margin-top:14px">投稿者名簿</h3>
+        <p class="note">このグループで投稿できる人をあらかじめ登録しておきます。変更すると全員の画面に反映されます。</p>
+        <div class="member-list-admin" id="member-list-admin"></div>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="new-member-input" placeholder="名前を入力">
+          <button id="add-member-btn" style="background:#7a5c3a;color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:0.88rem;font-family:inherit;cursor:pointer;flex-shrink:0">追加</button>
+        </div>
+      </div>
+    </div>
 
   </div>
 </div>
@@ -232,6 +430,385 @@
 <div id="toast"></div>
 
 <script>
+const firebaseConfig = {
+  apiKey:            "AIzaSyBSrQkPMPc-icuph244VBorNqRf2yP-U7Y",
+  authDomain:        "hiking-558a9.firebaseapp.com",
+  databaseURL:       "https://hiking-558a9-default-rtdb.firebaseio.com",
+  projectId:         "hiking-558a9",
+  storageBucket:     "hiking-558a9.firebasestorage.app",
+  messagingSenderId: "1066293850319",
+  appId:             "1:1066293850319:web:94409f01b194d5afe7c7ba"
+};
+
+const CATEGORIES = [
+  { key: "jouzu",   label: "🎯棋力向上" },
+  { key: "omoide",  label: "💭忘れられない思い出" },
+  { key: "manabi",  label: "📖学び・気づき" },
+  { key: "houkoku", label: "🎉報告" },
+  { key: "other",   label: "💬その他" },
+];
+const CAT_LABEL = {}; CATEGORIES.forEach(c => CAT_LABEL[c.key] = c.label);
+const REACTION_EMOJIS = ["👍","😄","😮","🔥"];
+
+// ---------- グループ判定 ----------
+const params = new URLSearchParams(location.search);
+const group  = params.get("group") || "test";
+const title  = params.get("title");
+if (title) document.getElementById("group-label").textContent = decodeURIComponent(title);
+
+// ---------- State ----------
+let posts   = {};
+let members = [];
+let selectedFormCats = new Set();
+let selectedFilterCats = new Set();
+let currentAuthor = "";
+let draftDirty = false;
+let draftSaveTimer = null;
+let postsRef = null, configRef = null, draftsRef = null;
+
+const isConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY";
+if (isConfigured) {
+  try {
+    firebase.initializeApp(firebaseConfig);
+    postsRef  = firebase.database().ref(`dangi-posts/${group}/posts`);
+    configRef = firebase.database().ref(`dangi-posts/${group}/config`);
+    draftsRef = firebase.database().ref(`dangi-posts/${group}/drafts`);
+
+    postsRef.on("value", snap => {
+      posts = snap.val() || {};
+      renderPostList();
+    });
+    configRef.on("value", snap => {
+      const cfg = snap.val() || {};
+      members = cfg.members || [];
+      renderMemberAdmin();
+      buildAuthorSelect();
+    }, () => setSyncStatus(false));
+    setSyncStatus(true);
+  } catch(e) {
+    console.error("Firebase init failed:", e);
+    setSyncStatus(false);
+  }
+} else {
+  setSyncStatus(false);
+}
+
+function setSyncStatus(online) {
+  const dot = document.getElementById("sync-dot");
+  const lbl = document.getElementById("sync-label");
+  if (online) { dot.style.background = "#4caf50"; lbl.textContent = "リアルタイム同期中"; }
+  else        { dot.style.background = "#e74c3c"; lbl.textContent = "オフライン"; }
+}
+
+// ---------- カテゴリピル（投稿フォーム） ----------
+function buildFormCatPills() {
+  const wrap = document.getElementById("post-cats");
+  wrap.innerHTML = CATEGORIES.map(c =>
+    `<button type="button" class="pill-btn ${selectedFormCats.has(c.key)?"selected":""}" data-key="${c.key}">${c.label}</button>`
+  ).join("");
+  wrap.querySelectorAll(".pill-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const key = btn.dataset.key;
+      if (selectedFormCats.has(key)) selectedFormCats.delete(key);
+      else selectedFormCats.add(key);
+      btn.classList.toggle("selected");
+      markDraftDirty();
+    });
+  });
+}
+buildFormCatPills();
+
+// ---------- 投稿者選択・下書き読込 ----------
+function buildAuthorSelect() {
+  const sel = document.getElementById("post-author");
+  const cur = sel.value;
+  sel.innerHTML = `<option value="">（選択してください）</option>` +
+    members.map(m => `<option value="${m}">${m}</option>`).join("");
+  if (members.includes(cur)) sel.value = cur;
+}
+
+document.getElementById("post-author").addEventListener("change", function() {
+  currentAuthor = this.value;
+  loadDraft(currentAuthor);
+});
+
+function loadDraft(author) {
+  const bodyTa = document.getElementById("post-body");
+  selectedFormCats = new Set();
+  bodyTa.value = "";
+  buildFormCatPills();
+  autoGrowTextarea(bodyTa);
+  setDraftStatus("");
+  if (!author || !draftsRef) return;
+  draftsRef.child(author).once("value").then(snap => {
+    const d = snap.val();
+    if (d && currentAuthor === author) {
+      bodyTa.value = d.body || "";
+      selectedFormCats = new Set(d.categories || []);
+      buildFormCatPills();
+      autoGrowTextarea(bodyTa);
+      if (d.body || (d.categories && d.categories.length)) setDraftStatus("下書きを読み込みました");
+    }
+  });
+}
+
+function markDraftDirty() {
+  if (!currentAuthor) return;
+  draftDirty = true;
+  setDraftStatus("入力中…");
+  if (draftSaveTimer) clearTimeout(draftSaveTimer);
+  draftSaveTimer = setTimeout(saveDraftNow, 1500);
+}
+
+function saveDraftNow() {
+  if (!currentAuthor || !draftsRef) return;
+  const body = document.getElementById("post-body").value;
+  if (!body.trim() && selectedFormCats.size === 0) {
+    draftsRef.child(currentAuthor).remove();
+    setDraftStatus("");
+    draftDirty = false;
+    return;
+  }
+  draftsRef.child(currentAuthor).set({
+    body,
+    categories: [...selectedFormCats],
+    updatedAt: Date.now()
+  });
+  setDraftStatus("下書きを保存しました");
+  draftDirty = false;
+}
+
+function setDraftStatus(msg) {
+  document.getElementById("draft-status").textContent = msg;
+}
+
+document.getElementById("post-body").addEventListener("input", function() {
+  autoGrowTextarea(this);
+  markDraftDirty();
+});
+
+document.getElementById("post-draft-save").addEventListener("click", () => {
+  if (!currentAuthor) { showToast("投稿者を選択してください"); return; }
+  if (draftSaveTimer) clearTimeout(draftSaveTimer);
+  saveDraftNow();
+  showToast("下書きを保存しました");
+});
+
+// ---------- 投稿する ----------
+document.getElementById("post-submit").addEventListener("click", () => {
+  const author = document.getElementById("post-author").value;
+  const body   = document.getElementById("post-body").value.trim();
+  if (!author) { showToast("投稿者を選択してください"); return; }
+  if (!body)   { showToast("本文を入力してください"); return; }
+  if (!postsRef) { showToast("データベースに接続されていません"); return; }
+
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()}`;
+
+  postsRef.push({
+    author,
+    categories: [...selectedFormCats],
+    body,
+    date: dateStr,
+    createdAt: Date.now()
+  });
+
+  if (draftSaveTimer) clearTimeout(draftSaveTimer);
+  if (draftsRef) draftsRef.child(author).remove();
+  document.getElementById("post-body").value = "";
+  document.getElementById("post-body").style.height = "";
+  selectedFormCats = new Set();
+  buildFormCatPills();
+  setDraftStatus("");
+  showToast("投稿しました！");
+});
+
+// ---------- 投稿フィルター ----------
+function renderPostFilter() {
+  const wrap = document.getElementById("post-filter-row");
+  wrap.innerHTML = `<button type="button" class="pill-btn ${selectedFilterCats.size===0?"filter-active":""}" data-key="all">すべて</button>` +
+    CATEGORIES.map(c =>
+      `<button type="button" class="pill-btn ${selectedFilterCats.has(c.key)?"filter-active":""}" data-key="${c.key}">${c.label}</button>`
+    ).join("");
+  wrap.querySelectorAll(".pill-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const key = btn.dataset.key;
+      if (key === "all") { selectedFilterCats.clear(); }
+      else {
+        if (selectedFilterCats.has(key)) selectedFilterCats.delete(key);
+        else selectedFilterCats.add(key);
+      }
+      renderPostFilter();
+      renderPostList();
+    });
+  });
+}
+renderPostFilter();
+
+// ---------- 投稿一覧 ----------
+function escapeHtml(s) {
+  return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+function linkify(text) {
+  const escaped = escapeHtml(text);
+  const linked = escaped.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener" style="color:#7a5c3a;word-break:break-all">$1</a>');
+  return linked.replace(/\n/g, "<br>");
+}
+
+function renderPostList() {
+  const listEl = document.getElementById("post-list");
+  const openIds = [...listEl.querySelectorAll(".inline-edit-form.open")].map(el => el.dataset.id);
+
+  const sorted = Object.entries(posts)
+    .filter(([, p]) => {
+      if (selectedFilterCats.size === 0) return true;
+      const cats = p.categories || [];
+      return cats.some(c => selectedFilterCats.has(c));
+    })
+    .sort((a, b) => (b[1].createdAt || 0) - (a[1].createdAt || 0));
+
+  listEl.innerHTML = sorted.length
+    ? sorted.map(([id, p]) => postCardHTML(id, p, openIds.includes(id))).join("")
+    : `<p style="color:#999;font-size:0.88rem">まだ投稿がありません。</p>`;
+
+  bindPostListEvents(listEl);
+}
+
+function postCardHTML(id, p, editOpen) {
+  const cats = (p.categories || []).map(k => `<span class="post-cat-badge">${CAT_LABEL[k] || k}</span>`).join("");
+  const reactions = p.reactions || {};
+  const pills = REACTION_EMOJIS.map(e => {
+    const names = reactions[e] || [];
+    if (!names.length) return "";
+    return `<span class="reaction-pill" title="${names.join("・")}">${e} <span style="color:#555">${names.length}</span></span>`;
+  }).join("");
+  const emojiBtns = REACTION_EMOJIS.map(e =>
+    `<button type="button" class="reaction-emoji-btn" data-id="${id}" data-emoji="${e}">${e}</button>`
+  ).join("");
+  const nameBtns = members.map(m =>
+    `<button type="button" class="reaction-name-btn" data-id="${id}" data-name="${m}">${m}</button>`
+  ).join("");
+  const catCheckBtns = CATEGORIES.map(c =>
+    `<button type="button" class="pill-btn ${(p.categories||[]).includes(c.key)?"selected":""}" data-key="${c.key}">${c.label}</button>`
+  ).join("");
+
+  return `
+    <div class="post-card">
+      <div class="post-btn-row">
+        <button type="button" class="edit-btn-sm" data-id="${id}" data-action="edit">修正</button>
+        <button type="button" class="del-btn-sm" data-id="${id}" data-action="delete">削除</button>
+      </div>
+      ${cats ? `<div class="post-cats">${cats}</div>` : ""}
+      <div class="post-body">${linkify(p.body || "")}</div>
+      <div class="post-meta"><span>${escapeHtml(p.author || "")}</span><span>${escapeHtml(p.date || "")}</span></div>
+      <div class="reaction-row">${pills}${emojiBtns}</div>
+      <div class="reaction-picker" data-id="${id}">
+        <div style="font-size:0.78rem;color:#555;margin-bottom:6px"><span class="reaction-pending-emoji" style="font-size:1rem"></span> で反応する名前を選んでください</div>
+        <div class="pill-group">${nameBtns}</div>
+      </div>
+      <div class="inline-edit-form ${editOpen?"open":""}" data-id="${id}">
+        <div class="fg">
+          <label>カテゴリ</label>
+          <div class="pill-group edit-cats" data-id="${id}">${catCheckBtns}</div>
+        </div>
+        <div class="fg">
+          <label>本文</label>
+          <textarea class="edit-body" data-id="${id}" rows="3">${escapeHtml(p.body || "")}</textarea>
+        </div>
+        <div class="btn-row">
+          <button type="button" class="btn-primary" data-id="${id}" data-action="save">更新する</button>
+          <button type="button" class="btn-secondary" data-id="${id}" data-action="cancel">キャンセル</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function bindPostListEvents(listEl) {
+  listEl.querySelectorAll('[data-action="edit"]').forEach(btn => {
+    btn.addEventListener("click", () => {
+      const form = listEl.querySelector(`.inline-edit-form[data-id="${btn.dataset.id}"]`);
+      if (!form) return;
+      form.classList.toggle("open");
+      if (form.classList.contains("open")) {
+        const ta = form.querySelector(".edit-body");
+        autoGrowTextarea(ta);
+      }
+    });
+  });
+
+  listEl.querySelectorAll('[data-action="cancel"]').forEach(btn => {
+    btn.addEventListener("click", () => {
+      const form = listEl.querySelector(`.inline-edit-form[data-id="${btn.dataset.id}"]`);
+      if (form) form.classList.remove("open");
+    });
+  });
+
+  listEl.querySelectorAll(".edit-cats .pill-btn").forEach(btn => {
+    btn.addEventListener("click", () => btn.classList.toggle("selected"));
+  });
+
+  listEl.querySelectorAll(".edit-body").forEach(ta => {
+    ta.addEventListener("input", () => autoGrowTextarea(ta));
+  });
+
+  listEl.querySelectorAll('[data-action="save"]').forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.id;
+      const form = listEl.querySelector(`.inline-edit-form[data-id="${id}"]`);
+      const body = form.querySelector(".edit-body").value.trim();
+      if (!body) { showToast("本文を入力してください"); return; }
+      const cats = [...form.querySelectorAll(".edit-cats .pill-btn.selected")].map(b => b.dataset.key);
+      if (postsRef) postsRef.child(id).update({ body, categories: cats });
+      showToast("更新しました");
+    });
+  });
+
+  listEl.querySelectorAll('[data-action="delete"]').forEach(btn => {
+    btn.addEventListener("click", () => {
+      if (!confirm("この投稿を削除しますか？")) return;
+      if (postsRef) postsRef.child(btn.dataset.id).remove();
+      showToast("削除しました");
+    });
+  });
+
+  // リアクション
+  listEl.querySelectorAll(".reaction-emoji-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.id, emoji = btn.dataset.emoji;
+      const picker = listEl.querySelector(`.reaction-picker[data-id="${id}"]`);
+      if (!picker) return;
+      const wasOpenSameEmoji = getComputedStyle(picker).display !== "none" && picker.dataset.emoji === emoji;
+      listEl.querySelectorAll(".reaction-picker").forEach(p => p.style.display = "none");
+      if (!wasOpenSameEmoji) {
+        picker.querySelector(".reaction-pending-emoji").textContent = emoji;
+        picker.dataset.emoji = emoji;
+        picker.style.display = "block";
+      }
+    });
+  });
+
+  listEl.querySelectorAll(".reaction-name-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.id, name = btn.dataset.name;
+      const picker = listEl.querySelector(`.reaction-picker[data-id="${id}"]`);
+      const emoji = picker ? picker.dataset.emoji : "";
+      if (!emoji || !postsRef) return;
+      const post = posts[id];
+      const reactions = (post && post.reactions) || {};
+      const existing = reactions[emoji] || [];
+      if (existing.includes(name)) {
+        const filtered = existing.filter(n => n !== name);
+        if (filtered.length) postsRef.child(id).child("reactions").child(emoji).set(filtered);
+        else postsRef.child(id).child("reactions").child(emoji).remove();
+      } else {
+        postsRef.child(id).child("reactions").child(emoji).set([...existing, name]);
+      }
+      if (picker) picker.style.display = "none";
+    });
+  });
+}
+
+// ---------- 読み物タブ（アコーディオン） ----------
 document.querySelectorAll(".piece-toggle").forEach(btn => {
   btn.addEventListener("click", () => {
     const id = btn.dataset.id;
@@ -240,6 +817,67 @@ document.querySelectorAll(".piece-toggle").forEach(btn => {
     body.classList.toggle("open");
   });
 });
+
+// ---------- 設定タブ：投稿者名簿 ----------
+document.getElementById("admin-toggle").addEventListener("click", () => {
+  const body = document.getElementById("admin-body");
+  const arrow = document.getElementById("admin-arrow");
+  const isOpen = getComputedStyle(body).display !== "none";
+  body.style.display = isOpen ? "none" : "block";
+  arrow.textContent  = isOpen ? "▶" : "▼";
+});
+
+function renderMemberAdmin() {
+  const wrap = document.getElementById("member-list-admin");
+  if (!wrap) return;
+  wrap.innerHTML = members.map(m =>
+    `<span class="member-pill">${escapeHtml(m)}<button data-name="${escapeHtml(m)}">✕</button></span>`
+  ).join("") || `<p class="note" style="margin:0">まだ登録された投稿者がいません。</p>`;
+  wrap.querySelectorAll("button").forEach(btn => {
+    btn.addEventListener("click", () => removeMember(btn.dataset.name));
+  });
+}
+
+document.getElementById("add-member-btn").addEventListener("click", () => {
+  const input = document.getElementById("new-member-input");
+  const name  = input.value.trim();
+  if (!name) return;
+  if (members.includes(name)) { showToast("すでに登録されています"); return; }
+  const newMembers = [...members, name];
+  if (configRef) configRef.update({ members: newMembers });
+  input.value = "";
+  showToast(`${name}を追加しました`);
+});
+
+function removeMember(name) {
+  if (!confirm(`${name}を投稿者名簿から削除しますか？（過去の投稿には影響しません）`)) return;
+  if (configRef) configRef.update({ members: members.filter(m => m !== name) });
+  showToast(`${name}を削除しました`);
+}
+
+// ---------- タブ切り替え ----------
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById("panel-" + btn.dataset.tab).classList.add("active");
+  });
+});
+
+// ---------- 共通ユーティリティ ----------
+function autoGrowTextarea(el) {
+  el.style.height = "auto";
+  el.style.height = el.scrollHeight + "px";
+}
+
+let toastTimer = null;
+function showToast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg; el.style.display = "block";
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.style.display = "none", 2500);
+}
 </script>
 </body>
 </html>
