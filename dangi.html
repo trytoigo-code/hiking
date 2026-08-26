@@ -56,9 +56,9 @@
       読み物・考察をアコーディオン形式で掲載。西さんが編集して追加する想定。
   - ⚙️設定タブ（管理者の仕事内、グループごとに独立）
       投稿者名簿：名前を直接書き換え・削除可能（過去の投稿の表示名は変わらない）
-      カテゴリ設定：ラベル（絵文字含む）を自由に追加・書き換え・削除可能
-      （初期値：🎯棋力向上／💭忘れられない思い出／📖学び・気づき／🎉報告／💬その他。
-      過去の投稿に付いたカテゴリ名は変わらない）
+      カテゴリ設定：ラベルを自由に追加・書き換え・削除可能。☰ハンドルを長押し
+      ドラッグして表示順も変更できる（初期値：棋力向上／忘れられない思い出／
+      学び・気づき／報告／その他。過去の投稿に付いたカテゴリ名は変わらない）
   - データエクスポート（設定タブからJSONファイルとしてダウンロード。日付・グループ名
       入りファイル名で保存。dangi-posts/${group} 配下＝そのグループの投稿・下書き・
       設定をまとめて出力）
@@ -277,6 +277,13 @@
       background: #f0ede4; color: #999; font-size: 0.9rem; cursor: pointer;
     }
     .admin-edit-del-btn:active { background: #e74c3c; color: #fff; }
+    .admin-edit-row.dragging { background: #fdf8ee; border-color: #b89752; box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+    .admin-edit-handle {
+      width: 28px; height: 28px; flex-shrink: 0; display: flex;
+      align-items: center; justify-content: center;
+      color: #bbb; font-size: 1.1rem; cursor: grab; touch-action: none;
+    }
+    .admin-edit-handle:active { color: #555; cursor: grabbing; }
 
     /* トースト */
     #toast {
@@ -465,9 +472,9 @@ const firebaseConfig = {
   appId:             "1:1066293850319:web:94409f01b194d5afe7c7ba"
 };
 
-const DEFAULT_CATEGORIES = ["🎯棋力向上", "💭忘れられない思い出", "📖学び・気づき", "🎉報告", "💬その他"];
+const DEFAULT_CATEGORIES = ["棋力向上", "忘れられない思い出", "学び・気づき", "報告", "その他"];
 // 旧バージョン（カテゴリがkey/label形式だった頃）の投稿を表示するためのフォールバック
-const LEGACY_CAT_LABELS = { jouzu:"🎯棋力向上", omoide:"💭忘れられない思い出", manabi:"📖学び・気づき", houkoku:"🎉報告", other:"💬その他" };
+const LEGACY_CAT_LABELS = { jouzu:"棋力向上", omoide:"忘れられない思い出", manabi:"学び・気づき", houkoku:"報告", other:"その他" };
 function catLabel(c) { return LEGACY_CAT_LABELS[c] || c; }
 const REACTION_EMOJIS = ["👍","😄","😮","🔥"];
 
@@ -858,10 +865,12 @@ document.getElementById("admin-toggle").addEventListener("click", () => {
   arrow.textContent  = isOpen ? "▶" : "▼";
 });
 
-function adminEditRowHTML(value, idx, placeholder) {
+function adminEditRowHTML(value, idx, placeholder, withHandle) {
+  const handle = withHandle ? `<div class="admin-edit-handle" title="ドラッグで並び替え">☰</div>` : "";
   return `
     <div class="admin-edit-row" data-idx="${idx}">
       <input type="text" value="${escapeHtml(value)}" placeholder="${placeholder||""}">
+      ${handle}
       <button type="button" class="admin-edit-del-btn" data-idx="${idx}">✕</button>
     </div>`;
 }
@@ -916,23 +925,78 @@ function renderCategoryAdmin() {
   const wrap = document.getElementById("category-list-admin");
   if (!wrap) return;
   wrap.innerHTML = categories.length
-    ? categories.map((c, i) => adminEditRowHTML(c, i)).join("")
+    ? categories.map((c, i) => adminEditRowHTML(c, i, "", true)).join("")
     : `<p class="note" style="margin:0">カテゴリがありません。下のフォームから追加してください。</p>`;
 
   wrap.querySelectorAll(".admin-edit-row input").forEach(input => {
     input.addEventListener("focus", () => editingCategories = true);
     input.addEventListener("blur",  () => editingCategories = false);
   });
+  wrap.querySelectorAll(".admin-edit-handle").forEach(handle => {
+    handle.addEventListener("pointerdown", onCategoryDragStart);
+  });
   wrap.querySelectorAll(".admin-edit-del-btn").forEach(btn => {
     btn.addEventListener("click", () => {
-      const idx = Number(btn.dataset.idx);
-      const cat = categories[idx] || "このカテゴリ";
+      // ドラッグ中の並び替えや未保存の書き換えを反映するため、現在のDOM上の
+      // 表示順・値を基準に削除する（categories配列の古い状態には依存しない）
+      const row = btn.closest(".admin-edit-row");
+      const rows = [...wrap.querySelectorAll(".admin-edit-row")];
+      const removeIdx = rows.indexOf(row);
+      const currentValues = rows.map(r => r.querySelector("input").value.trim());
+      const cat = currentValues[removeIdx] || "このカテゴリ";
       if (!confirm(`「${cat}」を削除しますか？（過去の投稿に付いたカテゴリ名は変わりません）`)) return;
-      categories = categories.filter((_, i) => i !== idx);
-      if (configRef) configRef.update({ categories });
+      const newCategories = currentValues.filter((v, i) => i !== removeIdx && v);
+      categories = newCategories;
+      editingCategories = false;
+      if (configRef) configRef.update({ categories: newCategories });
       showToast(`「${cat}」を削除しました`);
     });
   });
+}
+
+// カテゴリの並び順を、行左端の☰ハンドルを長押ししてドラッグすることで入れ替える。
+// Firebaseにはまだ書き込まず、「カテゴリの変更を保存して同期」を押した時点で反映される
+// （tournament.htmlの対局者シード順ドラッグと同じ方式）。
+let categoryDrag = null;
+
+function onCategoryDragStart(e) {
+  const item = e.currentTarget.closest(".admin-edit-row");
+  if (!item) return;
+  e.preventDefault();
+  editingCategories = true; // ドラッグ中はFirebase更新で並びが上書きされないようにする
+  categoryDrag = { item };
+  item.classList.add("dragging");
+  try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
+  document.addEventListener("pointermove", onCategoryDragMove);
+  document.addEventListener("pointerup", onCategoryDragEnd);
+  document.addEventListener("pointercancel", onCategoryDragEnd);
+}
+
+function onCategoryDragMove(e) {
+  if (!categoryDrag) return;
+  const wrap = document.getElementById("category-list-admin");
+  if (!wrap) return;
+  const { item } = categoryDrag;
+  const y = e.clientY;
+  const others = [...wrap.querySelectorAll(".admin-edit-row")].filter(el => el !== item);
+  for (const other of others) {
+    const r = other.getBoundingClientRect();
+    if (y > r.top && y < r.bottom) {
+      const children = [...wrap.children];
+      if (children.indexOf(item) < children.indexOf(other)) wrap.insertBefore(item, other.nextSibling);
+      else wrap.insertBefore(item, other);
+      break;
+    }
+  }
+}
+
+function onCategoryDragEnd() {
+  if (!categoryDrag) return;
+  categoryDrag.item.classList.remove("dragging");
+  categoryDrag = null;
+  document.removeEventListener("pointermove", onCategoryDragMove);
+  document.removeEventListener("pointerup", onCategoryDragEnd);
+  document.removeEventListener("pointercancel", onCategoryDragEnd);
 }
 
 document.getElementById("add-category-btn").addEventListener("click", () => {
