@@ -7,7 +7,7 @@
 【アプリの目的】
   少人数の麻雀グループの成績を、全員がリアルタイムで確認・共有できるようにする。
   ポイントとチップを合算した総合順位を軸に、シーズン単位で成績を管理する。
-  5名を名簿に登録し、対局のたびにそのうち4名を選んで記録する運用を想定している。
+  6名を名簿に登録し、対局のたびにそのうち4名を選んで記録する運用を想定している。
 
 【セキュリティ】
   - 合言葉認証あり（初回のみ入力）
@@ -38,7 +38,7 @@
   ・機能を追加・変更したら「主な機能」と「今後の改良候補」を合わせて更新する
 
 【主な機能（現時点）】
-  - 雀士設定（5名登録・対局ごとに4名を選択）
+  - 雀士設定（6名登録・対局ごとに4名を選択）
   - 結果入力（2〜4位のスコアを入力すると1位が自動計算）
   - チップ入力（枚数を入力、設定レートでポイント換算）
   - 順位表（総合ポイント順 / 1位回数順の切り替え）
@@ -353,6 +353,7 @@
         <div class="fg"><label>雀士 3</label><input id="p2" type="text"></div>
         <div class="fg"><label>雀士 4</label><input id="p3" type="text"></div>
         <div class="fg"><label>雀士 5</label><input id="p4" type="text"></div>
+        <div class="fg"><label>雀士 6</label><input id="p5" type="text"></div>
 
         <button class="btn" id="save-settings">設定を保存して全員に同期</button>
 
@@ -410,7 +411,7 @@ const PLAYER_COUNT = 4;
 
 // ---------- State ----------
 let state = {
-  players: ["雀士1", "雀士2", "雀士3", "雀士4", "雀士5"],
+  players: ["雀士1", "雀士2", "雀士3", "雀士4", "雀士5", "雀士6"],
   history: [],
   season: 1,
   chipRate: 1 // チップ1枚あたりのポイント換算比率（デフォルト: 1pt）
@@ -650,7 +651,7 @@ document.getElementById("add-match").addEventListener("click", () => {
 // ---------- 棒グラフ ----------
 // 対局者ごとの固定色（並び順が変わっても同じ人は常に同じ色になるよう、
 // state.players内でのインデックスに紐づける）
-const PLAYER_BAR_COLORS = ["#c0392b", "#2980b9", "#27ae60", "#d68910", "#8e44ad"];
+const PLAYER_BAR_COLORS = ["#c0392b", "#2980b9", "#27ae60", "#d68910", "#8e44ad", "#16a085"];
 
 // 成績グラフで表示中の指標（総合ポイント／対局pt／チップ枚数）
 let rankChartMetric = "overall";
@@ -1147,7 +1148,7 @@ function fillSettingsInputs() {
   if (rateEl) rateEl.value = state.chipRate;
 }
 
-[0,1,2,3,4].forEach(i => {
+[0,1,2,3,4,5].forEach(i => {
   const el = document.getElementById("p" + i);
   if (el) {
     el.addEventListener("focus", () => editingSettings = true);
@@ -1164,7 +1165,7 @@ document.getElementById("save-settings").addEventListener("click", () => {
   const rateVal = parseFloat(document.getElementById("chip-rate").value);
   state.chipRate = isNaN(rateVal) ? 1 : rateVal;
 
-  state.players = [0,1,2,3,4].map(i => {
+  state.players = [0,1,2,3,4,5].map(i => {
     const v = document.getElementById("p" + i).value.trim();
     return v || `対局者${i+1}`;
   });
