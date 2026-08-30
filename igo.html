@@ -74,6 +74,9 @@
       全体（上手勝ち/下手勝ちの局数・割合）と対局者ごとの勝敗を集計）
   - 互先 黒白成績（順位タブ。互先のうち色が分かっている対局＝互白・互黒、で
       全体（黒番勝ち/白番勝ちの局数・割合）と対局者ごとの勝敗を集計。色不明の「互先」は対象外）
+  - 棋譜タブ（対局日・対局者・棋譜ファイルへのリンク（URL）・コメントを一覧管理。
+      対局結果の履歴とは独立したデータとして保持し、対局日順に表示、対局者で絞り込み可能。
+      登録・修正・削除に対応）
   - 対局コメント（履歴から各対局に一言メモを後から追記可能。短文はそのまま表示、長文は折りたたみ）
   - コメントへのリアクション（👍😄😮🔥の4種。誰が押したかFirebaseで全員に同期）
   - Firebase によるリアルタイム同期
@@ -135,10 +138,11 @@
     /* Form */
     .fg { margin-bottom: 14px; }
     label { display: block; margin-bottom: 4px; font-weight: bold; font-size: 0.88rem; color: #444; }
-    input, select {
+    input, select, textarea {
       width: 100%; padding: 10px; border: 1px solid #ddd8cc;
-      border-radius: 6px; font-size: 1rem; background: #fff;
+      border-radius: 6px; font-size: 1rem; background: #fff; font-family: inherit;
     }
+    textarea { resize: vertical; }
     .btn {
       width: 100%; padding: 13px; background: #2c3e50; color: #fff;
       border: none; border-radius: 6px; font-size: 1rem;
@@ -251,6 +255,7 @@
     <button class="tab-btn active" data-tab="standings">🏆順位表</button>
     <button class="tab-btn" data-tab="input">📝結果入力</button>
     <button class="tab-btn" data-tab="history">📜履歴</button>
+    <button class="tab-btn" data-tab="kifu">📋棋譜</button>
     <button class="tab-btn" data-tab="handicap">🤝手合い</button>
     <button class="tab-btn" data-tab="setup">⚙️設定</button>
   </div>
@@ -321,7 +326,7 @@
           <option value="jikan">時間切れ</option>
           <option value="moku">目数差</option>
           <option value="jigo">持碁（黒勝ち）</option>
-          <option value="mushoubu">無勝負（待ったあり指導碁で待った発生）</option>
+          <option value="mushoubu">無勝負（指導のため打ち直し）</option>
         </select>
       </div>
       <div class="fg"><label id="label-left">勝者 👑</label><select id="winner"></select></div>
@@ -397,6 +402,23 @@
       <div id="history-list"></div>
     </div>
 
+    <!-- 棋譜 -->
+    <div class="panel" id="panel-kifu">
+      <h3>棋譜</h3>
+      <p class="note">対局日・対局者・棋譜ファイルへのリンク・コメントを記録します（対局結果の記録とは別のリストです）。</p>
+      <div class="fg"><label>対局日</label><input type="date" id="kifu-date"></div>
+      <div class="fg"><label>対局者A</label><select id="kifu-p1"></select></div>
+      <div class="fg"><label>対局者B</label><select id="kifu-p2"></select></div>
+      <div class="fg"><label>棋譜ファイルへのリンク（URL）</label><input type="url" id="kifu-url" placeholder="https://..."></div>
+      <div class="fg"><label>コメント（任意）</label><textarea id="kifu-comment" rows="2"></textarea></div>
+      <button class="btn" id="kifu-submit">登録する</button>
+      <button class="btn" id="kifu-cancel-edit" style="display:none;background:#999;margin-top:8px">編集をキャンセル</button>
+
+      <h3 style="margin-top:24px">一覧</h3>
+      <div id="kifu-filter" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;"></div>
+      <div id="kifu-list"></div>
+    </div>
+
     <!-- 手合い -->
     <div class="panel" id="panel-handicap">
       <h3>手合い割</h3>
@@ -426,7 +448,7 @@
         <option value="jikan">時間切れ</option>
         <option value="moku">目数差</option>
         <option value="jigo">持碁（黒勝ち）</option>
-        <option value="mushoubu">無勝負（待ったあり指導碁で待った発生）</option>
+        <option value="mushoubu">無勝負（指導のため打ち直し）</option>
       </select>
     </div>
     <div class="fg"><label id="edit-label-left">勝者 👑</label><select id="edit-winner"></select></div>
@@ -497,7 +519,8 @@ let state = {
   history: [],
   levels:  {},  // ペアごとの手合い { "西|山田": 1, ... }
   streaks: {},  // ペアごとの現在の連勝数  { "西|山田": 3, ... }
-  season:  1    // 現在のシーズン番号
+  season:  1,   // 現在のシーズン番号
+  kifu:    []   // 棋譜記録 { id, date, players:[p1,p2], url, comment }
 };
 let stateRef = null;
 let seasonsRef = null;
@@ -521,7 +544,8 @@ if (isConfigured) {
           history: Array.isArray(data.history) ? data.history : [],
           levels:  (data.levels  && typeof data.levels  === "object") ? data.levels  : {},
           streaks: (data.streaks && typeof data.streaks === "object") ? data.streaks : {},
-          season:  (typeof data.season === "number") ? data.season : 1
+          season:  (typeof data.season === "number") ? data.season : 1,
+          kifu:    Array.isArray(data.kifu) ? data.kifu : []
         };
         // 後方互換: 既存データにlevels/streaksがなければ履歴から移行
         if (Object.keys(state.levels).length === 0 && state.history.length > 0) {
@@ -870,6 +894,7 @@ function renderAll() {
   renderHanme();
   renderRoleColorStats();
   renderHistory();
+  renderKifu();
   renderHandicap();
   renderLevelSettings();
   renderSeasonInfo();
@@ -2489,6 +2514,148 @@ document.getElementById("toast-undo").addEventListener("click", () => {
     showToast("元に戻しました");
   }
 });
+
+// ---------- 棋譜 ----------
+let kifuEditId = null;
+
+function buildKifuPlayerSelects() {
+  ["kifu-p1","kifu-p2"].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const cur = sel.value;
+    sel.innerHTML = state.players.map((p,i) => `<option value="${i}">${p}</option>`).join("");
+    if (cur !== "" && +cur < state.players.length) sel.value = cur;
+  });
+}
+
+function resetKifuForm() {
+  const today = new Date();
+  document.getElementById("kifu-date").value = `${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
+  document.getElementById("kifu-p1").selectedIndex = 0;
+  document.getElementById("kifu-p2").selectedIndex = state.players.length > 1 ? 1 : 0;
+  document.getElementById("kifu-url").value = "";
+  document.getElementById("kifu-comment").value = "";
+}
+
+let selectedKifuPlayer = null;
+
+function renderKifuFilter() {
+  const fc = document.getElementById("kifu-filter");
+  if (!fc) return;
+  const allBtn = `<button class="filter-btn${selectedKifuPlayer===null?" active":""}" data-action="all">すべて</button>`;
+  const playerBtns = state.players.map(p =>
+    `<button class="filter-btn kifu-player-btn${selectedKifuPlayer===p?" active":""}" data-player="${p}">${p}</button>`
+  ).join("");
+  fc.innerHTML = `<div style="margin-bottom:6px">${allBtn}</div><div style="display:flex;flex-wrap:wrap;gap:6px">${playerBtns}</div>`;
+  fc.querySelector("[data-action='all']").addEventListener("click", () => { selectedKifuPlayer = null; renderKifu(); });
+  fc.querySelectorAll(".kifu-player-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      selectedKifuPlayer = selectedKifuPlayer === btn.dataset.player ? null : btn.dataset.player;
+      renderKifu();
+    });
+  });
+}
+
+function renderKifu() {
+  buildKifuPlayerSelects();
+  renderKifuFilter();
+  const el = document.getElementById("kifu-list");
+  if (!el) return;
+  const list = (state.kifu || [])
+    .filter(k => !selectedKifuPlayer || k.players.includes(selectedKifuPlayer))
+    .slice()
+    .sort((a,b) => dateSortValue(b.date) - dateSortValue(a.date));
+
+  if (list.length === 0) {
+    el.innerHTML = `<p style="color:#999;font-size:0.88rem">まだ棋譜記録がありません。</p>`;
+    return;
+  }
+  el.innerHTML = list.map(k => {
+    const urlHTML = k.url
+      ? `<a href="${k.url}" target="_blank" rel="noopener noreferrer" style="color:#2c6ea3;text-decoration:underline;word-break:break-all">${k.url}</a>`
+      : `<span style="color:#bbb">リンクなし</span>`;
+    const commentHTML = k.comment ? `<div style="font-size:0.82rem;color:#666;margin-top:4px;white-space:pre-wrap">${linkify(k.comment)}</div>` : "";
+    return `
+      <div class="hist-item" style="flex-direction:column;align-items:stretch">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div><strong>${k.players[0]} vs ${k.players[1]}</strong><br><span class="hist-date">${k.date}</span></div>
+          <div style="display:flex;gap:6px;flex-shrink:0">
+            <button class="kifu-edit-btn" data-id="${k.id}" style="background:#b89752;color:#fff;border:none;padding:5px 10px;border-radius:4px;font-size:0.78rem;cursor:pointer">修正</button>
+            <button class="del-btn kifu-del-btn" data-id="${k.id}">削除</button>
+          </div>
+        </div>
+        <div style="margin-top:6px;font-size:0.86rem">${urlHTML}</div>
+        ${commentHTML}
+      </div>`;
+  }).join("");
+
+  el.querySelectorAll(".kifu-edit-btn").forEach(btn => btn.addEventListener("click", () => openKifuEdit(btn.dataset.id)));
+  el.querySelectorAll(".kifu-del-btn").forEach(btn => btn.addEventListener("click", () => deleteKifu(btn.dataset.id)));
+}
+
+function openKifuEdit(id) {
+  const k = (state.kifu || []).find(x => x.id === id);
+  if (!k) return;
+  kifuEditId = id;
+  buildKifuPlayerSelects();
+  const parts = k.date.split("/");
+  if (parts.length === 3) document.getElementById("kifu-date").value = `${parts[0]}-${pad(+parts[1])}-${pad(+parts[2])}`;
+  const i1 = state.players.indexOf(k.players[0]);
+  const i2 = state.players.indexOf(k.players[1]);
+  document.getElementById("kifu-p1").value = i1 >= 0 ? i1 : 0;
+  document.getElementById("kifu-p2").value = i2 >= 0 ? i2 : 0;
+  document.getElementById("kifu-url").value = k.url || "";
+  document.getElementById("kifu-comment").value = k.comment || "";
+  document.getElementById("kifu-submit").textContent = "更新する";
+  document.getElementById("kifu-cancel-edit").style.display = "";
+  document.getElementById("kifu-date").scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+document.getElementById("kifu-cancel-edit").addEventListener("click", () => {
+  kifuEditId = null;
+  document.getElementById("kifu-submit").textContent = "登録する";
+  document.getElementById("kifu-cancel-edit").style.display = "none";
+  resetKifuForm();
+});
+
+document.getElementById("kifu-submit").addEventListener("click", () => {
+  const dateVal = document.getElementById("kifu-date").value;
+  if (!dateVal) { showToast("対局日を入力してください"); return; }
+  const [y, mo, dy] = dateVal.split("-");
+  const d = `${y}/${parseInt(mo)}/${parseInt(dy)}`;
+  const i1 = document.getElementById("kifu-p1").value;
+  const i2 = document.getElementById("kifu-p2").value;
+  if (i1 === "" || i2 === "" || i1 === i2) { showToast("対局者を選択してください（同じ人は選べません）"); return; }
+  const url = document.getElementById("kifu-url").value.trim();
+  const comment = document.getElementById("kifu-comment").value.trim();
+
+  if (!Array.isArray(state.kifu)) state.kifu = [];
+  const record = { id: kifuEditId || crypto.randomUUID(), date: d, players: [state.players[+i1], state.players[+i2]], url, comment };
+
+  if (kifuEditId) {
+    const idx = state.kifu.findIndex(k => k.id === kifuEditId);
+    if (idx !== -1) state.kifu[idx] = record;
+    kifuEditId = null;
+    document.getElementById("kifu-submit").textContent = "登録する";
+    document.getElementById("kifu-cancel-edit").style.display = "none";
+    showToast("棋譜記録を更新しました");
+  } else {
+    state.kifu.unshift(record);
+    showToast("棋譜記録を登録しました");
+  }
+  pushState();
+  resetKifuForm();
+});
+
+function deleteKifu(id) {
+  if (!confirm("この棋譜記録を削除しますか？")) return;
+  state.kifu = (state.kifu || []).filter(k => k.id !== id);
+  pushState();
+  showToast("棋譜記録を削除しました");
+}
+
+buildKifuPlayerSelects();
+resetKifuForm();
 
 // Initial render
 renderAll();
