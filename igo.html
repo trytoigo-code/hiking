@@ -77,8 +77,8 @@
   - 対局コメント（履歴から各対局に一言メモを後から追記可能。短文はそのまま表示、長文は折りたたみ）
   - コメントへのリアクション（👍😄😮🔥の4種。誰が押したかFirebaseで全員に同期）
   - 棋譜リンク（結果入力・修正時に棋譜ファイルのURLを任意で登録できる。履歴に「📄棋譜」リンクとして
-      表示され、タップで新規タブに開く。履歴フィルターに「棋譜ありのみ」ボタンがあり、
-      棋譜が登録されている対局だけに絞り込める）
+      表示され、タップで新規タブに開く。履歴タブ上部にバッジの意味を説明する注記あり。
+      履歴フィルターに「棋譜ありのみ」ボタンがあり、棋譜が登録されている対局だけに絞り込める）
   - Firebase によるリアルタイム同期
   - データエクスポート（設定タブからJSONファイルとしてダウンロード。日付入りファイル名で保存）
 
@@ -401,6 +401,7 @@
     <!-- 履歴 -->
     <div class="panel" id="panel-history">
       <h3>対局履歴</h3>
+      <p class="note">📄棋譜バッジがある対局は、タップすると棋譜ファイルを開けます。棋譜URLは結果入力・修正画面から登録できます。</p>
       <div id="history-filter" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;"></div>
       <div id="history-list"></div>
     </div>
@@ -1677,7 +1678,7 @@ function matchListHTML(filtered, anchorPlayer) {
     return `
       <div class="hist-item" style="flex-direction:column;align-items:stretch">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
-          <div>${leftName} vs ${rightName} ${badgeHTML(m)}${m.shidou ? '<span class="badge badge-shidou" title="指導対局として記録されており、連勝・手合いや順位表・各種成績の集計には使われていません">📚指導対局</span>' : ""}${currentIrregularMatches.has(m) ? '<span class="badge badge-irregular" title="記録された手合いが、その時点の正規の手合いと異なるため、連勝・手合いには反映されていません">イレギュラー</span>' : ""}${m.kifuUrl ? `<a href="${escapeAttr(m.kifuUrl)}" target="_blank" rel="noopener noreferrer" class="badge badge-kifu">📄棋譜</a>` : ""}<br>
+          <div>${leftName} vs ${rightName} ${badgeHTML(m)}${m.shidou ? '<span class="badge badge-shidou" title="指導対局として記録されており、連勝・手合いや順位表・各種成績の集計には使われていません">📚指導対局</span>' : ""}${currentIrregularMatches.has(m) ? '<span class="badge badge-irregular" title="記録された手合いが、その時点の正規の手合いと異なるため、連勝・手合いには反映されていません">イレギュラー</span>' : ""}${m.kifuUrl ? `<a href="${escapeAttr(m.kifuUrl)}" target="_blank" rel="noopener noreferrer" class="badge badge-kifu" title="タップすると棋譜ファイルを開きます">📄棋譜</a>` : ""}<br>
           <span class="hist-date">${m.date}</span></div>
           <div style="display:flex;gap:6px;flex-shrink:0">
             <button class="comment-btn" data-id="${m.id || idx}" style="background:#f0ede4;color:#888;border:1px solid #ddd;padding:5px 8px;border-radius:4px;font-size:0.78rem;cursor:pointer">💬</button>
