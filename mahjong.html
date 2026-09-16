@@ -40,6 +40,11 @@
 【主な機能（現時点）】
   - 雀士設定（5名登録・対局ごとに4名を選択）
   - 結果入力（2〜4位のスコアを入力すると1位が自動計算）
+  - 半荘数の記録（複数回の半荘をまとめて1件の結果として入力することが多いため、
+      その入力が何半荘分かを記録できる。デフォルトは1。順位表には「入力回数」とは別に
+      「延べ半荘数」として表示する。1位〜4位のカウントは、まとめて入力した中の内訳までは
+      わからないため、従来どおり「入力1件＝1カウント」のまま。既存データ（半荘数の記録が
+      無い過去の履歴）は1半荘として扱う）
   - チップ入力（枚数を入力、設定レートでポイント換算）
   - 順位表（総合ポイント順 / 1位回数順の切り替え）
       総合ポイント = 対局ポイント + チップ換算ポイント
@@ -192,6 +197,7 @@
     }
     .hist-date-label { font-size: 0.7rem; color: #888; font-weight: bold; }
     .hist-no-label { font-size: 0.65rem; color: #b89752; font-weight: bold; margin-top: 2px; }
+    .hist-hanchan-label { font-size: 0.62rem; color: #888; margin-top: 2px; white-space: nowrap; }
 
     .hist-grid {
       flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px;
@@ -311,6 +317,11 @@
         <label>対局日</label>
         <input type="date" id="match-date">
       </div>
+      <div class="fg">
+        <label>半荘数</label>
+        <input type="number" id="match-hanchans" min="1" step="1" inputmode="numeric" value="1">
+        <p class="note" style="margin-top:6px;margin-bottom:0">複数回の半荘をまとめて1つの結果として入力する場合は、その半荘数を入力してください（通常は1）。</p>
+      </div>
       <div id="rank-inputs"></div>
       <button class="btn" id="add-match">登録する（全員に即時反映）</button>
     </div>
@@ -383,6 +394,7 @@
   <div style="background:#fff;margin:40px auto;max-width:420px;border-radius:10px;padding:20px;box-sizing:border-box">
     <h3 style="border-left:4px solid #b89752;padding-left:8px;color:#2c3e50;margin-top:0;font-size:1rem">対局記録の修正</h3>
     <div class="fg"><label>対局日</label><input type="text" id="em-date" placeholder="例: 5/29"></div>
+    <div class="fg"><label>半荘数</label><input type="number" id="em-hanchans" min="1" step="1"></div>
     <div id="em-players-wrap"></div>
     <div style="display:flex;gap:8px;margin-top:12px">
       <button id="em-save" style="flex:1;background:#b89752;color:#fff;border:none;padding:10px;border-radius:6px;font-size:0.9rem;cursor:pointer">保存する</button>
@@ -634,17 +646,21 @@ document.getElementById("add-match").addEventListener("click", () => {
     const now = new Date(); d = `${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()}`;
   }
 
-  state.history.push({ date: d, points, chips, players: playerNames });
+  const hanchansRaw = parseInt(document.getElementById("match-hanchans").value, 10);
+  const hanchans = (!isNaN(hanchansRaw) && hanchansRaw >= 1) ? hanchansRaw : 1;
+
+  state.history.push({ date: d, points, chips, players: playerNames, hanchans });
   pushState();
 
   [1,2,3].forEach(r => {
     document.getElementById(`ri-pt-${r}`).value = "";
     document.getElementById(`ri-chip-${r}`).value = "";
   });
+  document.getElementById("match-hanchans").value = "1";
   rankInputDirty = false; // 【追加】登録後はフラグをリセットしてrebuildを許可
   recalcTopScore();
   
-  showToast("結果を登録しました！");
+  showToast(`結果を登録しました！（${hanchans}半荘分）`);
 });
 
 // ---------- 棒グラフ ----------
@@ -764,24 +780,26 @@ let rankInputDirty = false; // 【追加】順位入力欄のドロップダウ�
 
 // ---------- 順位表 ----------
 function renderStandings() {
-  const totals = {}, chipTotals = {}, gameCnt = {}, rankCnt = { 1:{}, 2:{}, 3:{}, 4:{} };
+  const totals = {}, chipTotals = {}, gameCnt = {}, hanchanCnt = {}, rankCnt = { 1:{}, 2:{}, 3:{}, 4:{} };
 
   state.players.forEach(p => {
-    totals[p]  = 0; chipTotals[p] = 0; gameCnt[p] = 0;
+    totals[p]  = 0; chipTotals[p] = 0; gameCnt[p] = 0; hanchanCnt[p] = 0;
     [1,2,3,4].forEach(r => rankCnt[r][p] = 0);
   });
 
   state.history.forEach(m => {
     const ps = m.players || state.players;
     const oranks = matchOverallRanks(m);
+    const hanchans = (m.hanchans && m.hanchans >= 1) ? m.hanchans : 1; // 半荘数未記録の既存データは1半荘扱い
     ps.forEach((p, i) => {
       if (!(p in totals)) {
-        totals[p] = 0; chipTotals[p] = 0; gameCnt[p] = 0;
+        totals[p] = 0; chipTotals[p] = 0; gameCnt[p] = 0; hanchanCnt[p] = 0;
         [1,2,3,4].forEach(r => { rankCnt[r][p] = rankCnt[r][p] || 0; });
       }
       totals[p]     = totals[p] + m.points[i];
       chipTotals[p] = chipTotals[p] + (m.chips ? m.chips[i] : 0);
       gameCnt[p]++;
+      hanchanCnt[p] += hanchans;
       rankCnt[oranks[i]][p] = (rankCnt[oranks[i]][p] || 0) + 1;
     });
   });
@@ -798,6 +816,7 @@ function renderStandings() {
       chipTotal: chips,
       overall: overallScore,
       games: gameCnt[p] || 0,
+      hanchans: hanchanCnt[p] || 0,
       c: [0, rankCnt[1][p]||0, rankCnt[2][p]||0, rankCnt[3][p]||0, rankCnt[4][p]||0]
     };
   });
@@ -814,7 +833,7 @@ function renderStandings() {
         <div class="rank-info">
           <div class="rank-name">${p.name}</div>
           <div class="rank-sub">
-            ${p.games}回 ／ 👑${p.c[1]} 🥈${p.c[2]} 🥉${p.c[3]} <span style="opacity:0.7">4位:${p.c[4]}</span>
+            ${p.games}回入力${p.hanchans !== p.games ? `（延べ${p.hanchans}半荘）` : ""} ／ 👑${p.c[1]} 🥈${p.c[2]} 🥉${p.c[3]} <span style="opacity:0.7">4位:${p.c[4]}</span>
           </div>
         </div>
         <div class="rank-right-score">
@@ -898,6 +917,8 @@ function renderHistory() {
       name, rank: oranks[i], pt: m.points[i], chip: m.chips ? m.chips[i] : 0
     }));
     rows.sort((a, b) => a.rank - b.rank);
+    const hanchans = (m.hanchans && m.hanchans >= 1) ? m.hanchans : 1;
+    const hanchanBadge = hanchans > 1 ? `<span class="hist-hanchan-label">${hanchans}半荘分</span>` : "";
 
     // コメント表示
     const raw       = m.comment || "";
@@ -932,6 +953,7 @@ function renderHistory() {
           <div class="hist-meta-box">
             <span class="hist-date-label">${m.date}</span>
             <span class="hist-no-label">#${origIdx+1}</span>
+            ${hanchanBadge}
           </div>
           <div style="display:flex;gap:6px;flex-shrink:0">
             <button class="comment-btn" data-id="${id}" style="background:#f0ede4;color:#888;border:1px solid #ddd;padding:5px 8px;border-radius:4px;font-size:0.78rem;cursor:pointer">💬</button>
@@ -1269,6 +1291,7 @@ function openEditModal(idx) {
   editTargetIdx = idx;
 
   document.getElementById("em-date").value = m.date || "";
+  document.getElementById("em-hanchans").value = (m.hanchans && m.hanchans >= 1) ? m.hanchans : 1;
 
   const wrap = document.getElementById("em-players-wrap");
   wrap.innerHTML = (m.players || state.players).map((name, pi) => `
@@ -1289,6 +1312,9 @@ document.getElementById("em-save").addEventListener("click", () => {
   const m = state.history[editTargetIdx];
   const dateVal = document.getElementById("em-date").value.trim();
   if (dateVal) m.date = dateVal;
+
+  const hanchansVal = parseInt(document.getElementById("em-hanchans").value, 10);
+  m.hanchans = (!isNaN(hanchansVal) && hanchansVal >= 1) ? hanchansVal : 1;
 
   const players = m.players || state.players;
   players.forEach((_, pi) => {
