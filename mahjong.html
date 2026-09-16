@@ -46,13 +46,18 @@
       わからないため、従来どおり「入力1件＝1カウント」のまま。既存データ（半荘数の記録が
       無い過去の履歴）は1半荘として扱う）
   - チップ入力（枚数を入力、設定レートでポイント換算）
-  - 順位表（総合ポイント順 / 1位回数順 / 半荘数順の切り替え）
-      総合ポイント = 対局ポイント + チップ換算ポイント
-      内訳を「対局pt / 🪙チップ換算pt」形式で表示
-      半荘平均（対局pt・🪙チップ換算pt・総合ポイントそれぞれの、半荘1回あたりの平均値）を各行に表示
-      各対局の1位〜4位（👑🥈🥉4位のカウント・履歴のバッジ）は、対局ptとチップ換算分を合算した
-      その対局の総合値で判定する（対局pt単独の大小ではない）。順位はデータとして保存せず、
+  - 順位表（総合ポイント順 / 1位回数順 / 半荘数順 / 役満回数順の切り替え）
+      総合ポイント = ポイント（対局pt） + チップ換算ポイント
+      内訳を「ポイント / 🪙チップ換算pt」形式で表示
+      半荘平均（ポイント・🪙チップ換算pt・総合ポイントそれぞれの、半荘1回あたりの平均値）を各行に表示
+      入力回数（延べ半荘数）と、👑🥈🥉4位のカウント・🀄役満回数はそれぞれ改行して1行にまとめて表示
+      各対局の1位〜4位（👑🥈🥉4位のカウント・履歴のバッジ）は、ポイントとチップ換算分を合算した
+      その対局の総合値で判定する（ポイント単独の大小ではない）。順位はデータとして保存せず、
       表示のたびに matchOverallRanks() でその場計算する（チップレートを変更しても常に最新の値で表示される）
+  - 役満記録（結果入力・修正の両方で、対局者と役満名（自由入力）を任意の件数だけ記録できる。
+      1件の結果入力が複数半荘をまとめたものでも、その中で誰がどの役満を出したかを個別に残せる。
+      履歴カードに「🀄役満：〇〇（大三元）」の形式で表示。順位表には雀士ごとの役満回数を表示し、
+      「役満回数順」で並べ替えられる）
   - 成績グラフ（順位表タブ最上部。雀士ごとに固定色のバーで表示。
       「総合ポイント／ポイント／チップ」ボタンで表示指標を切り替え可能。
       選択中の指標が高い順に左から並び、値がプラスなら上方向・マイナスなら下方向。
@@ -208,6 +213,7 @@
     .hist-date-label { font-size: 0.7rem; color: #888; font-weight: bold; }
     .hist-no-label { font-size: 0.65rem; color: #b89752; font-weight: bold; margin-top: 2px; }
     .hist-hanchan-label { font-size: 0.62rem; color: #888; margin-top: 2px; white-space: nowrap; }
+    .hist-yakuman { margin-top: 8px; font-size: 0.8rem; color: #8e44ad; font-weight: bold; }
 
     .hist-grid {
       flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px;
@@ -317,6 +323,7 @@
         <button class="filter-btn active" id="sort-pt">総合ポイント順</button>
         <button class="filter-btn" id="sort-1st">1位回数順</button>
         <button class="filter-btn" id="sort-hanchans">半荘数順</button>
+        <button class="filter-btn" id="sort-yakuman">役満回数順</button>
       </div>
       <div id="rank-list"></div>
     </div>
@@ -334,6 +341,11 @@
         <p class="note" style="margin-top:6px;margin-bottom:0">複数回の半荘をまとめて1つの結果として入力する場合は、その半荘数を入力してください（通常は1）。</p>
       </div>
       <div id="rank-inputs"></div>
+      <div class="fg">
+        <label>🀄 役満（あれば記録）</label>
+        <div id="yakuman-rows"></div>
+        <button type="button" class="btn" id="yakuman-add-row" style="background:#f1f0ea;color:#2c3e50;margin-top:4px">＋ 役満を追加</button>
+      </div>
       <button class="btn" id="add-match">登録する（全員に即時反映）</button>
     </div>
 
@@ -407,6 +419,11 @@
     <div class="fg"><label>対局日</label><input type="text" id="em-date" placeholder="例: 5/29"></div>
     <div class="fg"><label>半荘数</label><input type="number" id="em-hanchans" min="1" step="1"></div>
     <div id="em-players-wrap"></div>
+    <div class="fg" style="margin-top:12px">
+      <label>🀄 役満（あれば記録）</label>
+      <div id="em-yakuman-rows"></div>
+      <button type="button" id="em-yakuman-add-row" style="width:100%;padding:10px;background:#f1f0ea;color:#2c3e50;border:none;border-radius:6px;font-size:0.88rem;cursor:pointer;margin-top:4px">＋ 役満を追加</button>
+    </div>
     <div style="display:flex;gap:8px;margin-top:12px">
       <button id="em-save" style="flex:1;background:#b89752;color:#fff;border:none;padding:10px;border-radius:6px;font-size:0.9rem;cursor:pointer">保存する</button>
       <button id="em-cancel" style="flex:1;background:#999;color:#fff;border:none;padding:10px;border-radius:6px;font-size:0.9rem;cursor:pointer">キャンセル</button>
@@ -585,6 +602,40 @@ function buildRankInputs() {
   recalcTopScore();
 }
 
+// ---------- 役満記録：入力行の共通ヘルパー ----------
+// 結果入力タブ（#yakuman-rows）と修正モーダル（#em-yakuman-rows）の両方から使う。
+function yakumanRowHTML(initial) {
+  const opts = state.players.map(p =>
+    `<option value="${p}"${initial && initial.player === p ? " selected" : ""}>${p}</option>`
+  ).join("");
+  const nameVal = initial ? (initial.name || "") : "";
+  return `
+    <div class="yakuman-row" style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+      <select class="yakuman-player" style="flex:1;min-width:0">${opts}</select>
+      <input type="text" class="yakuman-name" placeholder="例：大三元" value="${nameVal}" style="flex:1.4;min-width:0">
+      <button type="button" class="yakuman-row-del" style="flex-shrink:0;background:#f0ede4;border:none;border-radius:6px;width:32px;height:36px;color:#999;font-size:0.9rem;cursor:pointer">✕</button>
+    </div>`;
+}
+function addYakumanRow(containerId, initial) {
+  const wrap = document.getElementById(containerId);
+  if (!wrap) return;
+  wrap.insertAdjacentHTML("beforeend", yakumanRowHTML(initial));
+  const rows = wrap.querySelectorAll(".yakuman-row");
+  const row = rows[rows.length - 1];
+  row.querySelector(".yakuman-row-del").addEventListener("click", () => row.remove());
+}
+function readYakumanRows(containerId) {
+  const wrap = document.getElementById(containerId);
+  if (!wrap) return [];
+  return [...wrap.querySelectorAll(".yakuman-row")].map(row => {
+    const player = row.querySelector(".yakuman-player").value;
+    const name = row.querySelector(".yakuman-name").value.trim();
+    return name ? { player, name } : null;
+  }).filter(Boolean);
+}
+document.getElementById("yakuman-add-row").addEventListener("click", () => addYakumanRow("yakuman-rows"));
+document.getElementById("em-yakuman-add-row").addEventListener("click", () => addYakumanRow("em-yakuman-rows"));
+
 function toggleSign(id) {
   const el = document.getElementById(id);
   if (!el) return;
@@ -659,10 +710,12 @@ document.getElementById("add-match").addEventListener("click", () => {
 
   const hanchansRaw = parseInt(document.getElementById("match-hanchans").value, 10);
   const hanchans = (!isNaN(hanchansRaw) && hanchansRaw >= 1) ? hanchansRaw : 1;
+  const yakumans = readYakumanRows("yakuman-rows");
 
-  state.history.push({ date: d, points, chips, players: playerNames, hanchans });
+  state.history.push({ date: d, points, chips, players: playerNames, hanchans, yakumans });
   pushState();
 
+  document.getElementById("yakuman-rows").innerHTML = "";
   [1,2,3].forEach(r => {
     document.getElementById(`ri-pt-${r}`).value = "";
     document.getElementById(`ri-chip-${r}`).value = "";
@@ -791,10 +844,10 @@ let rankInputDirty = false; // 【追加】順位入力欄のドロップダウ�
 
 // ---------- 順位表 ----------
 function renderStandings() {
-  const totals = {}, chipTotals = {}, gameCnt = {}, hanchanCnt = {}, rankCnt = { 1:{}, 2:{}, 3:{}, 4:{} };
+  const totals = {}, chipTotals = {}, gameCnt = {}, hanchanCnt = {}, yakumanCnt = {}, rankCnt = { 1:{}, 2:{}, 3:{}, 4:{} };
 
   state.players.forEach(p => {
-    totals[p]  = 0; chipTotals[p] = 0; gameCnt[p] = 0; hanchanCnt[p] = 0;
+    totals[p]  = 0; chipTotals[p] = 0; gameCnt[p] = 0; hanchanCnt[p] = 0; yakumanCnt[p] = 0;
     [1,2,3,4].forEach(r => rankCnt[r][p] = 0);
   });
 
@@ -804,7 +857,7 @@ function renderStandings() {
     const hanchans = (m.hanchans && m.hanchans >= 1) ? m.hanchans : 1; // 半荘数未記録の既存データは1半荘扱い
     ps.forEach((p, i) => {
       if (!(p in totals)) {
-        totals[p] = 0; chipTotals[p] = 0; gameCnt[p] = 0; hanchanCnt[p] = 0;
+        totals[p] = 0; chipTotals[p] = 0; gameCnt[p] = 0; hanchanCnt[p] = 0; yakumanCnt[p] = yakumanCnt[p] || 0;
         [1,2,3,4].forEach(r => { rankCnt[r][p] = rankCnt[r][p] || 0; });
       }
       totals[p]     = totals[p] + m.points[i];
@@ -813,9 +866,13 @@ function renderStandings() {
       hanchanCnt[p] += hanchans;
       rankCnt[oranks[i]][p] = (rankCnt[oranks[i]][p] || 0) + 1;
     });
+    (m.yakumans || []).forEach(y => {
+      if (!y || !y.player) return;
+      yakumanCnt[y.player] = (yakumanCnt[y.player] || 0) + 1;
+    });
   });
 
-  const allPlayers = [...new Set([...state.players, ...Object.keys(totals)])];
+  const allPlayers = [...new Set([...state.players, ...Object.keys(totals), ...Object.keys(yakumanCnt)])];
   const data = allPlayers.map(p => {
     const purePt = Number((totals[p] || 0).toFixed(4));
     const chips  = Number((chipTotals[p] || 0).toFixed(4));
@@ -835,6 +892,7 @@ function renderStandings() {
       overall: overallScore,
       games: gameCnt[p] || 0,
       hanchans,
+      yakumanCnt: yakumanCnt[p] || 0,
       avgPt, avgChipPt, avgOverall,
       c: [0, rankCnt[1][p]||0, rankCnt[2][p]||0, rankCnt[3][p]||0, rankCnt[4][p]||0]
     };
@@ -842,6 +900,7 @@ function renderStandings() {
 
   if (sortMode === "pt")            data.sort((a, b) => b.overall - a.overall);
   else if (sortMode === "hanchans") data.sort((a, b) => b.hanchans - a.hanchans || b.overall - a.overall);
+  else if (sortMode === "yakuman")  data.sort((a, b) => b.yakumanCnt - a.yakumanCnt || b.overall - a.overall);
   else                              data.sort((a, b) => b.c[1] - a.c[1] || b.overall - a.overall);
 
   const MEDALS = ["🥇","🥈","🥉","4"];
@@ -849,10 +908,13 @@ function renderStandings() {
     const avgHTML = p.hanchans > 0
       ? `<div class="rank-avg-row">
            <span class="rank-avg-label">半荘平均</span>
-           <span class="rank-avg-item">対局<b class="${ptClass(p.avgPt)}">${fmtPt(p.avgPt)}</b></span>
+           <span class="rank-avg-item">ポイント<b class="${ptClass(p.avgPt)}">${fmtPt(p.avgPt)}</b></span>
            <span class="rank-avg-item">🪙<b class="${chipClass(p.avgChipPt)}">${fmtPt(p.avgChipPt)}</b></span>
            <span class="rank-avg-item">総合<b class="${ptClass(p.avgOverall)}">${fmtPt(p.avgOverall)}</b></span>
          </div>`
+      : "";
+    const yakumanHTML = p.yakumanCnt > 0
+      ? ` <span style="color:#8e44ad;font-weight:bold">🀄役満${p.yakumanCnt}</span>`
       : "";
     return `
       <div class="rank-row">
@@ -860,15 +922,14 @@ function renderStandings() {
           <div class="rank-num">${MEDALS[i] || i+1}</div>
           <div class="rank-info">
             <div class="rank-name">${p.name}</div>
-            <div class="rank-sub">
-              ${p.games}回入力${p.hanchans !== p.games ? `（延べ${p.hanchans}半荘）` : ""} ／ 👑${p.c[1]} 🥈${p.c[2]} 🥉${p.c[3]} <span style="opacity:0.7">4位:${p.c[4]}</span>
-            </div>
+            <div class="rank-sub">${p.games}履歴${p.hanchans !== p.games ? `（延べ${p.hanchans}半荘）` : ""}</div>
+            <div class="rank-sub" style="white-space:nowrap;margin-top:2px">👑${p.c[1]} 🥈${p.c[2]} 🥉${p.c[3]} <span style="opacity:0.7">4位:${p.c[4]}</span>${yakumanHTML}</div>
           </div>
           <div class="rank-right-score">
             <div class="rank-pt ${ptClass(p.overall)}">${fmtPt(p.overall)}</div>
             <div style="font-size:0.6rem;color:#aaa;text-align:right;margin-bottom:4px">総合ポイント</div>
             <div class="rank-breakdown">
-              <span style="color:#888">対局</span><span class="${ptClass(p.total)}" style="margin-left:3px">${fmtPt(p.total)}</span>
+              <span style="color:#888">ポイント</span><span class="${ptClass(p.total)}" style="margin-left:3px">${fmtPt(p.total)}</span>
               <span style="color:#ccc;margin:0 3px">/</span>
               <span style="color:#888">🪙</span><span class="${chipClass(p.chipPt)}" style="margin-left:2px">${fmtPt(p.chipPt)}pt</span>
             </div>
@@ -881,7 +942,7 @@ function renderStandings() {
 
 function setSortMode(mode) {
   sortMode = mode;
-  ["sort-pt","sort-1st","sort-hanchans"].forEach(id => {
+  ["sort-pt","sort-1st","sort-hanchans","sort-yakuman"].forEach(id => {
     document.getElementById(id).classList.toggle("active", id === `sort-${mode}`);
   });
   renderStandings();
@@ -889,6 +950,7 @@ function setSortMode(mode) {
 document.getElementById("sort-pt").addEventListener("click", () => setSortMode("pt"));
 document.getElementById("sort-1st").addEventListener("click", () => setSortMode("1st"));
 document.getElementById("sort-hanchans").addEventListener("click", () => setSortMode("hanchans"));
+document.getElementById("sort-yakuman").addEventListener("click", () => setSortMode("yakuman"));
 
 // ---------- 对局履歴 ----------
 function setHistoryHighlight(playerName) {
@@ -947,6 +1009,9 @@ function renderHistory() {
     rows.sort((a, b) => a.rank - b.rank);
     const hanchans = (m.hanchans && m.hanchans >= 1) ? m.hanchans : 1;
     const hanchanBadge = hanchans > 1 ? `<span class="hist-hanchan-label">${hanchans}半荘分</span>` : "";
+    const yakumanHTML = (m.yakumans && m.yakumans.length)
+      ? `<div class="hist-yakuman">🀄 役満：${m.yakumans.map(y => `${y.player}（${y.name}）`).join("、")}</div>`
+      : "";
 
     // コメント表示
     const raw       = m.comment || "";
@@ -1004,6 +1069,7 @@ function renderHistory() {
               </div>`;
           }).join("")}
         </div>
+        ${yakumanHTML}
         ${hasComment ? `<div style="margin-top:6px">${commentBody}</div>` : ""}
         ${reactionPills ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px">${reactionPills}</div>` : ""}
         ${hasComment ? `
@@ -1332,6 +1398,10 @@ function openEditModal(idx) {
     </div>
   `).join("");
 
+  const yakumanWrap = document.getElementById("em-yakuman-rows");
+  yakumanWrap.innerHTML = "";
+  (m.yakumans || []).forEach(y => addYakumanRow("em-yakuman-rows", y));
+
   document.getElementById("edit-modal").style.display = "block";
 }
 
@@ -1343,6 +1413,7 @@ document.getElementById("em-save").addEventListener("click", () => {
 
   const hanchansVal = parseInt(document.getElementById("em-hanchans").value, 10);
   m.hanchans = (!isNaN(hanchansVal) && hanchansVal >= 1) ? hanchansVal : 1;
+  m.yakumans = readYakumanRows("em-yakuman-rows");
 
   const players = m.players || state.players;
   players.forEach((_, pi) => {
