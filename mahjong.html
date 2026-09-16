@@ -170,19 +170,26 @@
     .rank-row {
       background: #fdfdfb; border: 1px solid #e0dbcd;
       padding: 12px 14px; border-radius: 8px; margin-bottom: 10px;
-      display: flex; align-items: center; gap: 10px;
     }
+    .rank-row-main { display: flex; align-items: center; gap: 10px; }
     .rank-num { width: 34px; font-size: 1.3rem; text-align: center; flex-shrink: 0; }
     .rank-info { flex: 1; min-width: 0; }
     .rank-name { font-weight: bold; font-size: 0.95rem; }
     .rank-sub { color: #888; font-size: 0.76rem; margin-top: 4px; }
-    .rank-avg { color: #888; font-size: 0.72rem; margin-top: 4px; }
-    .rank-avg span { font-weight: bold; margin-right: 6px; }
-    
+
     .rank-right-score { text-align: right; flex-shrink: 0; min-width: 95px; }
     .rank-pt { font-size: 1.2rem; font-weight: bold; }
     .rank-chip-total { font-size: 0.75rem; font-weight: bold; margin-top: 2px; color: #666; }
     .rank-breakdown { font-size: 0.65rem; color: #999; margin-top: 1px; font-weight: normal; }
+
+    .rank-avg-row {
+      display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 14px;
+      margin-top: 10px; padding-top: 8px; border-top: 1px dashed #ece8dc;
+      font-size: 0.72rem;
+    }
+    .rank-avg-label { color: #b89752; font-weight: bold; flex-shrink: 0; }
+    .rank-avg-item { color: #999; white-space: nowrap; }
+    .rank-avg-item b { font-weight: bold; margin-left: 2px; }
 
     .pt-pos, .chip-pos { color: #27ae60; }
     .pt-neg, .chip-neg { color: #e74c3c; }
@@ -840,31 +847,34 @@ function renderStandings() {
   const MEDALS = ["🥇","🥈","🥉","4"];
   document.getElementById("rank-list").innerHTML = data.map((p, i) => {
     const avgHTML = p.hanchans > 0
-      ? `<div class="rank-avg">
-           半荘平均　対局<span class="${ptClass(p.avgPt)}">${fmtPt(p.avgPt)}</span>
-           ／ 🪙<span class="${chipClass(p.avgChipPt)}">${fmtPt(p.avgChipPt)}</span>
-           ／ 総合<span class="${ptClass(p.avgOverall)}">${fmtPt(p.avgOverall)}</span>
+      ? `<div class="rank-avg-row">
+           <span class="rank-avg-label">半荘平均</span>
+           <span class="rank-avg-item">対局<b class="${ptClass(p.avgPt)}">${fmtPt(p.avgPt)}</b></span>
+           <span class="rank-avg-item">🪙<b class="${chipClass(p.avgChipPt)}">${fmtPt(p.avgChipPt)}</b></span>
+           <span class="rank-avg-item">総合<b class="${ptClass(p.avgOverall)}">${fmtPt(p.avgOverall)}</b></span>
          </div>`
       : "";
     return `
       <div class="rank-row">
-        <div class="rank-num">${MEDALS[i] || i+1}</div>
-        <div class="rank-info">
-          <div class="rank-name">${p.name}</div>
-          <div class="rank-sub">
-            ${p.games}回入力${p.hanchans !== p.games ? `（延べ${p.hanchans}半荘）` : ""} ／ 👑${p.c[1]} 🥈${p.c[2]} 🥉${p.c[3]} <span style="opacity:0.7">4位:${p.c[4]}</span>
+        <div class="rank-row-main">
+          <div class="rank-num">${MEDALS[i] || i+1}</div>
+          <div class="rank-info">
+            <div class="rank-name">${p.name}</div>
+            <div class="rank-sub">
+              ${p.games}回入力${p.hanchans !== p.games ? `（延べ${p.hanchans}半荘）` : ""} ／ 👑${p.c[1]} 🥈${p.c[2]} 🥉${p.c[3]} <span style="opacity:0.7">4位:${p.c[4]}</span>
+            </div>
           </div>
-          ${avgHTML}
-        </div>
-        <div class="rank-right-score">
-          <div class="rank-pt ${ptClass(p.overall)}">${fmtPt(p.overall)}</div>
-          <div style="font-size:0.6rem;color:#aaa;text-align:right;margin-bottom:4px">総合ポイント</div>
-          <div class="rank-breakdown">
-            <span style="color:#888">対局</span><span class="${ptClass(p.total)}" style="margin-left:3px">${fmtPt(p.total)}</span>
-            <span style="color:#ccc;margin:0 3px">/</span>
-            <span style="color:#888">🪙</span><span class="${chipClass(p.chipPt)}" style="margin-left:2px">${fmtPt(p.chipPt)}pt</span>
+          <div class="rank-right-score">
+            <div class="rank-pt ${ptClass(p.overall)}">${fmtPt(p.overall)}</div>
+            <div style="font-size:0.6rem;color:#aaa;text-align:right;margin-bottom:4px">総合ポイント</div>
+            <div class="rank-breakdown">
+              <span style="color:#888">対局</span><span class="${ptClass(p.total)}" style="margin-left:3px">${fmtPt(p.total)}</span>
+              <span style="color:#ccc;margin:0 3px">/</span>
+              <span style="color:#888">🪙</span><span class="${chipClass(p.chipPt)}" style="margin-left:2px">${fmtPt(p.chipPt)}pt</span>
+            </div>
           </div>
         </div>
+        ${avgHTML}
       </div>`;
   }).join("") || `<p style="color:#999;font-size:0.9rem">まだ対局がありません。</p>`;
 }
