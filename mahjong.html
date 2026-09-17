@@ -7,7 +7,7 @@
 【アプリの目的】
   少人数の麻雀グループの成績を、全員がリアルタイムで確認・共有できるようにする。
   ポイントとチップを合算した総合順位を軸に、シーズン単位で成績を管理する。
-  5名を名簿に登録し、対局のたびにそのうち4名を選んで記録する運用を想定している。
+  7名を名簿に登録し、対局のたびにそのうち4名を選んで記録する運用を想定している。
 
 【セキュリティ】
   - 合言葉認証あり（初回のみ入力）
@@ -38,7 +38,7 @@
   ・機能を追加・変更したら「主な機能」と「今後の改良候補」を合わせて更新する
 
 【主な機能（現時点）】
-  - 雀士設定（5名登録・対局ごとに4名を選択）
+  - 雀士設定（7名登録・対局ごとに4名を選択）
   - 結果入力（2〜4位のスコアを入力すると1位が自動計算）
   - 半荘数の記録（複数回の半荘をまとめて1件の結果として入力することが多いため、
       その入力が何半荘分かを記録できる。デフォルトは1。順位表には「入力回数」とは別に
@@ -54,7 +54,11 @@
       各対局の1位〜4位（👑🥈🥉4位のカウント・履歴のバッジ）は、ポイントとチップ換算分を合算した
       その対局の総合値で判定する（ポイント単独の大小ではない）。順位はデータとして保存せず、
       表示のたびに matchOverallRanks() でその場計算する（チップレートを変更しても常に最新の値で表示される）
-  - 役満記録（結果入力・修正の両方で、対局者と役満名（自由入力）を任意の件数だけ記録できる。
+  - 役満記録（結果入力・修正の両方で、対局者と役満の種類を任意の件数だけ記録できる。
+      役満はプルダウンから選択（天和・国士無双・大三元など標準的な役満をあらかじめ用意）。
+      選択肢に無いものは「その他（自由入力）」で入力可能。⚙️設定タブの管理者の仕事内で
+      役満の選択肢を追加登録でき（ローカルルールの役満などを想定）、追加した選択肢は
+      全員の画面に同期される（削除は追加したものだけ可能。標準の役満は削除不可）。
       1件の結果入力が複数半荘をまとめたものでも、その中で誰がどの役満を出したかを個別に残せる。
       履歴カードに「🀄役満：〇〇（大三元）」の形式で表示。順位表には雀士ごとの役満回数を表示し、
       「役満回数順」で並べ替えられる）
@@ -387,8 +391,21 @@
         <div class="fg"><label>雀士 3</label><input id="p2" type="text"></div>
         <div class="fg"><label>雀士 4</label><input id="p3" type="text"></div>
         <div class="fg"><label>雀士 5</label><input id="p4" type="text"></div>
+        <div class="fg"><label>雀士 6</label><input id="p5" type="text"></div>
+        <div class="fg"><label>雀士 7</label><input id="p6" type="text"></div>
 
         <button class="btn" id="save-settings">設定を保存して全員に同期</button>
+
+        <h3 style="margin-top:24px">役満の選択肢</h3>
+        <p class="note">結果入力・修正で選べる役満の一覧です。よく出る役満はあらかじめ用意していますが、ローカルルールなどで他に追加したいものがあればここで登録してください（追加したものだけ削除できます）。</p>
+        <div style="font-size:0.76rem;color:#999;margin-bottom:6px">標準の役満</div>
+        <div id="yakuman-base-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px"></div>
+        <div style="font-size:0.76rem;color:#999;margin-bottom:6px">追加した役満</div>
+        <div id="yakuman-custom-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px"></div>
+        <div class="fg" style="display:flex;gap:8px;align-items:flex-end">
+          <div style="flex:1"><label>追加する役満名</label><input id="yakuman-new-option" type="text" placeholder="例：大車輪"></div>
+          <button class="btn" id="yakuman-option-add-btn" style="width:auto;padding:10px 16px;margin:0;flex-shrink:0">追加</button>
+        </div>
 
         <h3 style="margin-top:24px">シーズン管理</h3>
         <p class="note">対局履歴をリセットします。アーカイブとしてFirebaseに保存されます。</p>
@@ -450,10 +467,11 @@ const PLAYER_COUNT = 4;
 
 // ---------- State ----------
 let state = {
-  players: ["雀士1", "雀士2", "雀士3", "雀士4", "雀士5"],
+  players: ["雀士1", "雀士2", "雀士3", "雀士4", "雀士5", "雀士6", "雀士7"],
   history: [],
   season: 1,
-  chipRate: 1 // チップ1枚あたりのポイント換算比率（デフォルト: 1pt）
+  chipRate: 1, // チップ1枚あたりのポイント換算比率（デフォルト: 1pt）
+  yakumanOptions: [] // 管理者が追加した役満の選択肢（標準の役満リストへの追加分）
 };
 let stateRef    = null;
 let seasonsRef  = null;
@@ -474,7 +492,8 @@ if (isConfigured) {
           players:  Array.isArray(data.players) ? data.players : state.players,
           history:  Array.isArray(data.history) ? data.history : [],
           season:   (typeof data.season === "number") ? data.season : 1,
-          chipRate: (typeof data.chipRate === "number") ? data.chipRate : 1
+          chipRate: (typeof data.chipRate === "number") ? data.chipRate : 1,
+          yakumanOptions: Array.isArray(data.yakumanOptions) ? data.yakumanOptions : []
         };
         if (!editingSettings) fillSettingsInputs();
         renderAll();
@@ -602,18 +621,43 @@ function buildRankInputs() {
   recalcTopScore();
 }
 
-// ---------- 役満記録：入力行の共通ヘルパー ----------
+// ---------- 役満記録：選択肢と入力行の共通ヘルパー ----------
 // 結果入力タブ（#yakuman-rows）と修正モーダル（#em-yakuman-rows）の両方から使う。
+const BASE_YAKUMAN_LIST = [
+  "天和", "地和",
+  "国士無双", "国士無双十三面",
+  "四暗刻", "四暗刻単騎",
+  "大三元", "小四喜", "大四喜",
+  "字一色", "緑一色", "清老頭",
+  "九蓮宝燈", "純正九蓮宝燈",
+  "四槓子"
+];
+// 標準リスト＋管理者が設定タブで追加した役満の一覧（選択肢として表示する全件）
+function allYakumanOptions() {
+  return [...BASE_YAKUMAN_LIST, ...(state.yakumanOptions || [])];
+}
+function yakumanSelectOptionsHTML(selectedValue) {
+  const opts = allYakumanOptions().map(n =>
+    `<option value="${n}"${selectedValue === n ? " selected" : ""}>${n}</option>`
+  ).join("");
+  return `<option value="">（選択してください）</option>${opts}<option value="__other__"${selectedValue === "__other__" ? " selected" : ""}>その他（自由入力）</option>`;
+}
 function yakumanRowHTML(initial) {
-  const opts = state.players.map(p =>
+  const initName  = initial ? (initial.name || "") : "";
+  const isPreset  = initName && allYakumanOptions().includes(initName);
+  const isOther   = !!initName && !isPreset;
+  const selValue  = isOther ? "__other__" : initName;
+  const playerOpts = state.players.map(p =>
     `<option value="${p}"${initial && initial.player === p ? " selected" : ""}>${p}</option>`
   ).join("");
-  const nameVal = initial ? (initial.name || "") : "";
   return `
-    <div class="yakuman-row" style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
-      <select class="yakuman-player" style="flex:1;min-width:0">${opts}</select>
-      <input type="text" class="yakuman-name" placeholder="例：大三元" value="${nameVal}" style="flex:1.4;min-width:0">
-      <button type="button" class="yakuman-row-del" style="flex-shrink:0;background:#f0ede4;border:none;border-radius:6px;width:32px;height:36px;color:#999;font-size:0.9rem;cursor:pointer">✕</button>
+    <div class="yakuman-row" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;padding:8px;border:1px solid #ece8dc;border-radius:8px;background:#faf9f5">
+      <div style="display:flex;gap:6px;align-items:center">
+        <select class="yakuman-player" style="flex:1;min-width:0">${playerOpts}</select>
+        <select class="yakuman-select" style="flex:1.4;min-width:0">${yakumanSelectOptionsHTML(selValue)}</select>
+        <button type="button" class="yakuman-row-del" style="flex-shrink:0;background:#f0ede4;border:none;border-radius:6px;width:32px;height:36px;color:#999;font-size:0.9rem;cursor:pointer">✕</button>
+      </div>
+      <input type="text" class="yakuman-name-other" placeholder="役満名を入力" value="${isOther ? initName : ""}" style="display:${isOther ? "block" : "none"};padding:8px">
     </div>`;
 }
 function addYakumanRow(containerId, initial) {
@@ -623,18 +667,77 @@ function addYakumanRow(containerId, initial) {
   const rows = wrap.querySelectorAll(".yakuman-row");
   const row = rows[rows.length - 1];
   row.querySelector(".yakuman-row-del").addEventListener("click", () => row.remove());
+  const select = row.querySelector(".yakuman-select");
+  const otherInput = row.querySelector(".yakuman-name-other");
+  select.addEventListener("change", () => {
+    const isOther = select.value === "__other__";
+    otherInput.style.display = isOther ? "block" : "none";
+    if (isOther) otherInput.focus();
+  });
 }
 function readYakumanRows(containerId) {
   const wrap = document.getElementById(containerId);
   if (!wrap) return [];
   return [...wrap.querySelectorAll(".yakuman-row")].map(row => {
     const player = row.querySelector(".yakuman-player").value;
-    const name = row.querySelector(".yakuman-name").value.trim();
+    const select = row.querySelector(".yakuman-select");
+    const name = select.value === "__other__"
+      ? row.querySelector(".yakuman-name-other").value.trim()
+      : select.value;
     return name ? { player, name } : null;
   }).filter(Boolean);
 }
+// 設定タブで追加した役満を選び直せるよう、開いている全ての役満行のプルダウンを作り直す
+function rebuildAllYakumanSelects() {
+  document.querySelectorAll(".yakuman-row").forEach(row => {
+    const select = row.querySelector(".yakuman-select");
+    if (!select) return;
+    const current = select.value;
+    select.innerHTML = yakumanSelectOptionsHTML(current);
+    if (current !== "__other__" && !allYakumanOptions().includes(current)) select.value = "";
+  });
+}
 document.getElementById("yakuman-add-row").addEventListener("click", () => addYakumanRow("yakuman-rows"));
 document.getElementById("em-yakuman-add-row").addEventListener("click", () => addYakumanRow("em-yakuman-rows"));
+
+// ---------- 役満の選択肢管理（設定タブ） ----------
+function renderYakumanOptionLists() {
+  const baseEl = document.getElementById("yakuman-base-list");
+  if (baseEl) {
+    baseEl.innerHTML = BASE_YAKUMAN_LIST.map(n =>
+      `<span style="background:#f0ede4;border:1px solid #ddd;border-radius:14px;padding:4px 12px;font-size:0.8rem;color:#666">${n}</span>`
+    ).join("");
+  }
+  const customEl = document.getElementById("yakuman-custom-list");
+  if (customEl) {
+    const list = state.yakumanOptions || [];
+    customEl.innerHTML = list.length
+      ? list.map(n => `<span style="background:#fdf5e8;border:1px solid #e8c990;border-radius:14px;padding:4px 6px 4px 12px;font-size:0.8rem;color:#7a5c3a;display:inline-flex;align-items:center;gap:6px">${n}<button type="button" class="yakuman-option-del" data-name="${n}" style="background:none;border:none;color:#b8935a;cursor:pointer;font-size:0.8rem;padding:0">✕</button></span>`).join("")
+      : `<span style="font-size:0.78rem;color:#bbb">まだありません</span>`;
+    customEl.querySelectorAll(".yakuman-option-del").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const name = btn.dataset.name;
+        state.yakumanOptions = (state.yakumanOptions || []).filter(n => n !== name);
+        pushState();
+        renderYakumanOptionLists();
+        rebuildAllYakumanSelects();
+        showToast(`${name}を選択肢から削除しました`);
+      });
+    });
+  }
+}
+document.getElementById("yakuman-option-add-btn").addEventListener("click", () => {
+  const input = document.getElementById("yakuman-new-option");
+  const name = input.value.trim();
+  if (!name) { showToast("役満名を入力してください"); return; }
+  if (allYakumanOptions().includes(name)) { showToast("すでに登録されています"); return; }
+  state.yakumanOptions = [...(state.yakumanOptions || []), name];
+  pushState();
+  input.value = "";
+  renderYakumanOptionLists();
+  rebuildAllYakumanSelects();
+  showToast(`${name}を選択肢に追加しました`);
+});
 
 function toggleSign(id) {
   const el = document.getElementById(id);
@@ -730,7 +833,7 @@ document.getElementById("add-match").addEventListener("click", () => {
 // ---------- 棒グラフ ----------
 // 対局者ごとの固定色（並び順が変わっても同じ人は常に同じ色になるよう、
 // state.players内でのインデックスに紐づける）
-const PLAYER_BAR_COLORS = ["#c0392b", "#2980b9", "#27ae60", "#d68910", "#8e44ad"];
+const PLAYER_BAR_COLORS = ["#c0392b", "#2980b9", "#27ae60", "#d68910", "#8e44ad", "#16a085", "#c2185b"];
 
 // 成績グラフで表示中の指標（総合ポイント／対局pt／チップ枚数）
 let rankChartMetric = "overall";
@@ -1276,9 +1379,10 @@ function fillSettingsInputs() {
   });
   const rateEl = document.getElementById("chip-rate");
   if (rateEl) rateEl.value = state.chipRate;
+  renderYakumanOptionLists();
 }
 
-[0,1,2,3,4].forEach(i => {
+[0,1,2,3,4,5,6].forEach(i => {
   const el = document.getElementById("p" + i);
   if (el) {
     el.addEventListener("focus", () => editingSettings = true);
@@ -1295,7 +1399,7 @@ document.getElementById("save-settings").addEventListener("click", () => {
   const rateVal = parseFloat(document.getElementById("chip-rate").value);
   state.chipRate = isNaN(rateVal) ? 1 : rateVal;
 
-  state.players = [0,1,2,3,4].map(i => {
+  state.players = [0,1,2,3,4,5,6].map(i => {
     const v = document.getElementById("p" + i).value.trim();
     return v || `対局者${i+1}`;
   });
