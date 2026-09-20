@@ -40,6 +40,12 @@
 【主な機能（現時点）】
   - 対局者設定（現時点では7名、拡張余地あり）
   - 結果入力（中押し・時間切れ・目数差・持碁）
+      目数差は、何目差か忘れた場合に「差は不明」として登録できる（入力・修正の両方に
+      チェックあり。数字は保存せず、履歴には「目数差不明」バッジを表示する。
+      コミ以内の差だったと分かる場合は「コミ以内の差だった」にもチェックでき、その場合は
+      「コミ以内（差不明）」バッジを表示して、決着内容の「うちコミ以内」に数える。
+      決着内容の「目数差」の局数には常に含めるが、「うち半目」・半目職人には数えない。
+      後から思い出したら、修正画面で数字を入れ直せる）
   - 順位表示（勝数順/勝率順の切り替え対応）
   - 対局履歴（多視点表示・修正機能付き）
       全体：決着内容の内訳（全体）・全対局の記録
@@ -340,6 +346,14 @@
       <div class="fg"><label id="label-right">敗者</label><select id="loser"></select></div>
       <div class="fg" id="moku-fg" style="display:none">
         <label>目数差</label><input id="mokusuu" type="number" placeholder="例: 3.5" min="0.5" step="0.5">
+        <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+          <input type="checkbox" id="moku-unknown" style="width:auto;flex-shrink:0">
+          <label for="moku-unknown" style="margin:0;font-weight:normal;font-size:0.85rem;color:#555">何目差か忘れた（目数差の数字は不明として登録）</label>
+        </div>
+        <div id="moku-komi-row" style="display:none;align-items:center;gap:8px;margin:8px 0 0 24px">
+          <input type="checkbox" id="moku-komi" style="width:auto;flex-shrink:0">
+          <label for="moku-komi" style="margin:0;font-weight:normal;font-size:0.85rem;color:#555">コミ以内の差だった（分かる場合のみ）</label>
+        </div>
       </div>
       <div class="fg">
         <label id="label-left-teai">勝者の手合い</label>
@@ -450,6 +464,14 @@
     <div class="fg"><label id="edit-label-right">敗者</label><select id="edit-loser"></select></div>
     <div class="fg" id="edit-moku-fg" style="display:none">
       <label>目数差</label><input type="number" id="edit-mokusuu" min="0.5" step="0.5" placeholder="例: 3.5">
+      <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+        <input type="checkbox" id="edit-moku-unknown" style="width:auto;flex-shrink:0">
+        <label for="edit-moku-unknown" style="margin:0;font-weight:normal;font-size:0.85rem;color:#555">何目差か忘れた（目数差の数字は不明として保存）</label>
+      </div>
+      <div id="edit-moku-komi-row" style="display:none;align-items:center;gap:8px;margin:8px 0 0 24px">
+        <input type="checkbox" id="edit-moku-komi" style="width:auto;flex-shrink:0">
+        <label for="edit-moku-komi" style="margin:0;font-weight:normal;font-size:0.85rem;color:#555">コミ以内の差だった（分かる場合のみ）</label>
+      </div>
     </div>
     <div class="fg">
       <label id="edit-label-teai">勝者の手合い</label>
@@ -826,11 +848,19 @@ document.getElementById("add-match").addEventListener("click", () => {
     if (!tw) { showToast("手合いを選択してください"); return; }
     const tl = TEAI_PAIR[tw] || "";
     if (type === "moku") {
-      const mk = parseFloat(document.getElementById("mokusuu").value);
-      if (isNaN(mk) || mk <= 0) { showToast("目数差を正しく入力してください"); return; }
-      m = { id:crypto.randomUUID(), type:"moku", winner:state.players[wi], loser:state.players[li],
-            mokusuu:mk, teai_w:tw, teai_l:tl, date:d };
-      showToast(`${m.winner} の勝利（${mk}目差）を登録！`);
+      if (document.getElementById("moku-unknown").checked) {
+        // 何目差か忘れた場合：mokusuuを持たない目数差の対局として登録する
+        m = { id:crypto.randomUUID(), type:"moku", winner:state.players[wi], loser:state.players[li],
+              teai_w:tw, teai_l:tl, date:d };
+        if (document.getElementById("moku-komi").checked) m.komiWithin = true; // コミ以内だったと分かる場合のみ
+        showToast(`${m.winner} の勝利（${m.komiWithin ? "コミ以内・" : ""}目数差は不明）を登録！`);
+      } else {
+        const mk = parseFloat(document.getElementById("mokusuu").value);
+        if (isNaN(mk) || mk <= 0) { showToast("目数差を正しく入力してください"); return; }
+        m = { id:crypto.randomUUID(), type:"moku", winner:state.players[wi], loser:state.players[li],
+              mokusuu:mk, teai_w:tw, teai_l:tl, date:d };
+        showToast(`${m.winner} の勝利（${mk}目差）を登録！`);
+      }
     } else if (type === "jikan") {
       m = { id:crypto.randomUUID(), type:"jikan", winner:state.players[wi], loser:state.players[li],
             teai_w:tw, teai_l:tl, date:d };
@@ -860,6 +890,18 @@ document.getElementById("add-match").addEventListener("click", () => {
   resetInputForm();
 });
 
+// 「何目差か忘れた」にチェックを入れると、目数差の入力欄を使えなくする
+// あわせて、不明のときだけ「コミ以内の差だった」のチェックを表示する
+function bindMokuUnknown(checkId, inputId, komiRowId) {
+  const cb = document.getElementById(checkId), inp = document.getElementById(inputId);
+  cb.addEventListener("change", () => {
+    inp.disabled = cb.checked;
+    document.getElementById(komiRowId).style.display = cb.checked ? "flex" : "none";
+  });
+}
+bindMokuUnknown("moku-unknown", "mokusuu", "moku-komi-row");
+bindMokuUnknown("edit-moku-unknown", "edit-mokusuu", "edit-moku-komi-row");
+
 function resetInputForm() {
   document.getElementById("result-type").value = "";
   document.getElementById("winner").selectedIndex = 0;
@@ -869,6 +911,10 @@ function resetInputForm() {
   document.getElementById("loser-teai-val").textContent = "";
   document.getElementById("moku-fg").style.display = "none";
   document.getElementById("mokusuu").value = "";
+  document.getElementById("moku-unknown").checked = false;
+  document.getElementById("moku-komi").checked = false;
+  document.getElementById("moku-komi-row").style.display = "none";
+  document.getElementById("mokusuu").disabled = false;
   document.getElementById("shidou-flag").checked = false;
   document.getElementById("shidou-flag").disabled = false;
   document.getElementById("kifu-url").value = "";
@@ -1086,7 +1132,7 @@ function badgeHTML(m) {
   if (m.type==="chuoshi")  return `<span class="badge badge-c">中押し</span>`;
   if (m.type==="jikan")    return `<span class="badge badge-t">時間切</span>`;
   if (m.type==="fumei")    return `<span class="badge badge-f">不明</span>`;
-  return `<span class="badge badge-m">${m.mokusuu}目差</span>`;
+  return `<span class="badge badge-m">${m.mokusuu ? m.mokusuu + "目差" : (m.komiWithin ? "コミ以内（差不明）" : "目数差不明")}</span>`;
 }
 
 let selectedPlayers = [];
@@ -1545,7 +1591,7 @@ function decisionBreakdownHTML(matches, player) {
     if (m.type === "moku") {
       types.moku.push(item);
       if (m.mokusuu === 0.5) hanme.push(item);
-      else if (m.mokusuu <= 6.5) komi.push(item);
+      else if (m.mokusuu <= 6.5 || (!m.mokusuu && m.komiWithin)) komi.push(item);
     } else if (types[m.type] !== undefined) {
       types[m.type].push(item);
     }
@@ -1581,7 +1627,7 @@ function decisionBreakdownOverallHTML(matches) {
     if (types[m.type] !== undefined) types[m.type]++;
     if (m.type === "moku") {
       if (m.mokusuu === 0.5) hanme++;
-      else if (m.mokusuu <= 6.5) komi++;
+      else if (m.mokusuu <= 6.5 || (!m.mokusuu && m.komiWithin)) komi++;
     }
   });
 
@@ -2283,6 +2329,11 @@ function openEditModal(m, idx) {
 
   // 目数差
   document.getElementById("edit-mokusuu").value = m.mokusuu || "";
+  const mokuUnknown = m.type === "moku" && !m.mokusuu;
+  document.getElementById("edit-moku-unknown").checked = mokuUnknown;
+  document.getElementById("edit-mokusuu").disabled = mokuUnknown;
+  document.getElementById("edit-moku-komi").checked = mokuUnknown && !!m.komiWithin;
+  document.getElementById("edit-moku-komi-row").style.display = mokuUnknown ? "flex" : "none";
   document.getElementById("edit-moku-fg").style.display = m.type === "moku" ? "" : "none";
 
   // 指導対局フラグ（無勝負は指導対局に限られるため、常にON・ロックする）
@@ -2417,16 +2468,22 @@ document.getElementById("edit-save").addEventListener("click", () => {
                 teai1:tw, teai2:tl, date:d };
     delete updated.winner; delete updated.loser; delete updated.teai_w; delete updated.teai_l; delete updated.mokusuu;
   } else if (type === "moku") {
+    const mokuUnknown = document.getElementById("edit-moku-unknown").checked;
     const mk = parseFloat(document.getElementById("edit-mokusuu").value);
-    if (isNaN(mk) || mk <= 0) { showToast("目数差を正しく入力してください"); return; }
+    if (!mokuUnknown && (isNaN(mk) || mk <= 0)) { showToast("目数差を正しく入力してください"); return; }
     updated = { ...orig, type:"moku", winner:state.players[+wv], loser:state.players[+lv],
-                mokusuu:mk, teai_w:tw, teai_l:tl, date:d };
+                teai_w:tw, teai_l:tl, date:d };
+    if (mokuUnknown) delete updated.mokusuu; else updated.mokusuu = mk;
+    if (mokuUnknown && document.getElementById("edit-moku-komi").checked) updated.komiWithin = true; // Firebaseはundefinedを保存できないため、不明のときは項目ごと消す
     delete updated.p1; delete updated.p2; delete updated.teai1; delete updated.teai2;
   } else {
     updated = { ...orig, type, winner:state.players[+wv], loser:state.players[+lv],
                 teai_w:tw, teai_l:tl, date:d };
     delete updated.p1; delete updated.p2; delete updated.teai1; delete updated.teai2; delete updated.mokusuu;
   }
+
+  // 「コミ以内」の印は、目数差が不明の対局にだけ付く（種別や数字が変わったら外す）
+  if (updated.type !== "moku" || updated.mokusuu || !document.getElementById("edit-moku-komi").checked) delete updated.komiWithin;
 
   // 指導対局フラグ
   if (document.getElementById("edit-shidou").checked) updated.shidou = true;
