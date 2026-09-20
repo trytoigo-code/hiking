@@ -77,6 +77,9 @@
       手合い別フィルター（すべて／互先／先／2子／3子／4子）に対応。
       「先」なら先・向先、「2子」なら2子・向2、というように同じ差の手合いをまとめて集計
   - ご無沙汰ランキング（順位タブ。最後に対局した日が古い人ほど上位に表示）
+  - よく対戦している組み合わせ（順位タブ。同じ2人の対局数が多い上位3組を表示。同数のときは
+      最近対局した組み合わせが上。指導対局・無勝負・イレギュラー対局も「対局した回数」として
+      数える。現在のシーズンのみ）
   - 半目職人ランキング（順位タブ。半目差での勝利数。半目勝ちが1件も無い間は非表示）
   - 上手・下手成績（順位タブ。ご無沙汰ランキングより上に表示。手合い差のある対局＝互先を除く、で
       全体（上手勝ち/下手勝ちの局数・割合）と対局者ごとの勝敗を集計）
@@ -92,6 +95,7 @@
 
 【今後の改良候補】
   - 結果入力画面のカード型UI
+  - 対戦数が少ない（まだ対局していない）組み合わせの表示
   - ダークモード対応
   - 囲碁語録アプリとの連携
 ================================================================================
@@ -411,6 +415,10 @@
       <h3 style="margin-top:24px">😴 ご無沙汰ランキング</h3>
       <p class="note">最後に対局した日が古い順。そろそろ誘ってみては？</p>
       <div id="gonosata-list"></div>
+
+      <h3 style="margin-top:24px">🤝 よく対戦している組み合わせ</h3>
+      <p class="note">対局数が多い上位3組（同数のときは、最近対局した組み合わせが上）。指導対局・無勝負も含みます。</p>
+      <div id="pair-count-list"></div>
 
       <div id="hanme-section" style="display:none">
         <h3 style="margin-top:24px">🎯 半目職人</h3>
@@ -937,6 +945,7 @@ function renderAll() {
   renderWinsChart();
   renderStandings();
   renderGonosata();
+  renderPairCounts();
   renderHanme();
   renderRoleColorStats();
   renderHistory();
@@ -1413,6 +1422,42 @@ function renderGonosata() {
         </div>
       </div>`;
   }).join("");
+}
+
+// ---------- よく対戦している組み合わせ（上位3組） ----------
+// 同じ2人の対局数を数え、多い順に上位3組を表示する。
+// 「対局した回数」として、指導対局・無勝負・イレギュラー対局もすべて数える。
+// 同数のときは、最後に対局した日が新しい組み合わせを上にする。
+function renderPairCounts() {
+  const el = document.getElementById("pair-count-list");
+  if (!el) return;
+
+  const pairs = {};
+  state.history.forEach(m => {
+    const [a, b] = (m.type === "jigo" || m.type === "mushoubu") ? [m.p1, m.p2] : [m.winner, m.loser];
+    if (!state.players.includes(a) || !state.players.includes(b)) return;
+    const key = pairKey(a, b);
+    if (!pairs[key]) pairs[key] = { names: key.split("|"), count: 0, last: 0 };
+    pairs[key].count++;
+    pairs[key].last = Math.max(pairs[key].last, dateSortValue(m.date));
+  });
+
+  const top = Object.values(pairs)
+    .sort((x, y) => y.count - x.count || y.last - x.last)
+    .slice(0, 3);
+
+  if (top.length === 0) {
+    el.innerHTML = `<p style="color:#999;font-size:0.88rem">対局記録がありません。</p>`;
+    return;
+  }
+  el.innerHTML = top.map((p, i) => `
+    <div class="rank-row">
+      <div class="rank-num">${i + 1}</div>
+      <div class="rank-info">
+        <div><strong>${p.names[0]}</strong> vs <strong>${p.names[1]}</strong></div>
+        <div class="rank-record">${p.count}局</div>
+      </div>
+    </div>`).join("");
 }
 
 // ---------- 履歴：共通ヘルパー ----------
