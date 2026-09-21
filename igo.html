@@ -91,10 +91,13 @@
   - 勝敗グラフ（順位タブ最上部。名前をベースラインに勝ちバーは上・負けバーは下に伸びる分岐縦棒グラフ）
       手合い別フィルター（すべて／互先／先／2子／3子／4子）に対応。
       「先」なら先・向先、「2子」なら2子・向2、というように同じ差の手合いをまとめて集計
+      「勝敗」「差分」ボタンで表示を切り替え可能。「差分」は勝ち数−負け数を、差分の大きい順に
+      左から並べた縦棒グラフ（プラスは上・マイナスは下。名前の下に戦績を小さく表示）。
+      手合い別フィルターは両方に効く
   - ご無沙汰ランキング（順位タブ。最後に対局した日が古い人ほど上位に表示）
   - よく対戦している組み合わせ（順位タブ。同じ2人の対局数が多い上位3組を表示。同数のときは
       最近対局した組み合わせが上。指導対局・無勝負・イレギュラー対局も「対局した回数」として
-      数える。現在のシーズンのみ）
+      数える。順位と同じ横バー付き（1位を100%とした割合）。現在のシーズンのみ）
   - 半目職人ランキング（順位タブ。半目差での勝利数。半目勝ちが1件も無い間は非表示）
   - 上手・下手成績（順位タブ。ご無沙汰ランキングより上に表示。手合い差のある対局＝互先を除く、で
       全体（上手勝ち/下手勝ちの局数・割合）と対局者ごとの勝敗を集計）
@@ -449,7 +452,7 @@
       <div id="gonosata-list"></div>
 
       <h3 style="margin-top:24px">🤝 よく対戦している組み合わせ</h3>
-      <p class="note">対局数が多い上位3組（同数のときは、最近対局した組み合わせが上）。指導対局・無勝負も含みます。</p>
+      <p class="note">対局数が多い上位3組（同数のときは、最近対局した組み合わせが上）。棒の長さは1位を100%とした割合です。指導対局・無勝負も含みます。</p>
       <div id="pair-count-list"></div>
 
       <h3 style="margin-top:24px">📈 月別の対局数</h3>
@@ -1084,6 +1087,59 @@ let winsChartFilter = "all";
 const WINS_CHART_FILTERS = ["all","互先","先","2子","3子","4子"];
 const WINS_CHART_FILTER_LABELS = { all:"すべて", "互先":"互先", "先":"先", "2子":"2子", "3子":"3子", "4子":"4子" };
 
+// 表示の切り替え：勝敗（勝ちバー上・負けバー下）／差分（勝ち数−負け数を差分順に）
+let winsChartMode = "wl";
+
+function setWinsChartMode(mode) {
+  winsChartMode = mode;
+  renderWinsChart();
+}
+
+// 差分グラフ：勝ち数−負け数を、差分の大きい順に左から並べる（プラスは上、マイナスは下）
+function winsDiffChartHTML(stats) {
+  const AREA_H = 110;
+  const rows = stats
+    .map(p => ({ name: p.name, wins: p.wins, losses: p.losses, diff: p.wins - p.losses }))
+    .sort((a, b) => b.diff - a.diff || b.wins - a.wins);
+  const maxAbs = Math.max(...rows.map(r => Math.abs(r.diff)), 1);
+
+  const cols = rows.map(r => {
+    const h = Math.round(Math.abs(r.diff) / maxAbs * AREA_H);
+    const inside = h >= 16;
+    const label = r.diff > 0 ? `+${r.diff}` : r.diff < 0 ? `${r.diff}` : "±0";
+    let top = "", bottom = "";
+    if (r.diff > 0) {
+      top = `${!inside ? `<div style="font-size:0.68rem;color:#2e7d5e;font-weight:bold;margin-bottom:1px">${label}</div>` : ""}
+        <div style="height:${h}px;width:100%;background:#2e7d5e;border-radius:4px 4px 0 0;display:flex;align-items:center;justify-content:center">
+          ${inside ? `<span style="color:#fff;font-size:0.72rem;font-weight:bold">${label}</span>` : ""}
+        </div>`;
+    } else if (r.diff < 0) {
+      bottom = `<div style="height:${h}px;background:#c0392b;border-radius:0 0 4px 4px;display:flex;align-items:center;justify-content:center">
+          ${inside ? `<span style="color:#fff;font-size:0.72rem;font-weight:bold">${label}</span>` : ""}
+        </div>
+        ${!inside ? `<div style="font-size:0.68rem;color:#c0392b;font-weight:bold;text-align:center;margin-top:1px">${label}</div>` : ""}`;
+    } else {
+      top = `<div style="font-size:0.68rem;color:#888;font-weight:bold;margin-bottom:1px">${label}</div>`;
+    }
+    return `
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center">
+        <div style="height:${AREA_H}px;width:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center">${top}</div>
+        <div style="width:100%;border-top:2px solid #888"></div>
+        <div style="font-size:0.78rem;font-weight:bold;color:#2c3e50;padding:4px 0 0;text-align:center">${r.name}</div>
+        <div style="font-size:0.6rem;color:#888;height:14px;line-height:14px;margin-bottom:2px;text-align:center;white-space:nowrap">${r.wins}勝${r.losses}敗</div>
+        <div style="height:${AREA_H}px;width:100%;display:flex;flex-direction:column;align-items:stretch">${bottom}</div>
+      </div>`;
+  }).join("");
+
+  return `
+    <div style="display:flex;gap:8px;align-items:stretch">${cols}</div>
+    <div style="display:flex;gap:12px;margin-top:8px;font-size:0.72rem;color:#777">
+      <span><span style="display:inline-block;width:10px;height:10px;background:#2e7d5e;border-radius:2px;margin-right:3px"></span>勝ち越し（上）</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:#c0392b;border-radius:2px;margin-right:3px"></span>負け越し（下）</span>
+    </div>
+    <div style="font-size:0.7rem;color:#999;margin-top:4px">差分＝勝ち数−負け数（名前の下は戦績）。差分の大きい順に左から並べています。</div>`;
+}
+
 function setWinsChartFilter(cat) {
   winsChartFilter = cat;
   renderWinsChart();
@@ -1094,6 +1150,12 @@ function renderWinsChart() {
   if (!el) return;
   const stats = calcStats(winsChartFilter);
 
+  const modeButtonsHTML = `
+    <div style="display:flex;gap:6px;margin-bottom:8px">
+      <button class="filter-btn wins-chart-mode-btn ${winsChartMode==='wl'?'active':''}" data-mode="wl">勝敗</button>
+      <button class="filter-btn wins-chart-mode-btn ${winsChartMode==='diff'?'active':''}" data-mode="diff">差分</button>
+    </div>`;
+
   const filterButtonsHTML = `
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
       ${WINS_CHART_FILTERS.map(cat => `
@@ -1102,7 +1164,17 @@ function renderWinsChart() {
     </div>`;
 
   if (stats.every(p => p.total === 0)) {
-    el.innerHTML = `<h3 style="margin-top:0;margin-bottom:12px">勝敗グラフ</h3>${filterButtonsHTML}<p style="color:#999;font-size:0.88rem">該当する対局がありません。</p>`;
+    el.innerHTML = `<h3 style="margin-top:0;margin-bottom:12px">勝敗グラフ</h3>${modeButtonsHTML}${filterButtonsHTML}<p style="color:#999;font-size:0.88rem">該当する対局がありません。</p>`;
+    bindWinsChartFilterButtons(el);
+    return;
+  }
+
+  if (winsChartMode === "diff") {
+    el.innerHTML = `
+      <h3 style="margin-top:0;margin-bottom:12px">勝敗グラフ</h3>
+      ${modeButtonsHTML}
+      ${filterButtonsHTML}
+      ${winsDiffChartHTML(stats)}`;
     bindWinsChartFilterButtons(el);
     return;
   }
@@ -1114,6 +1186,7 @@ function renderWinsChart() {
 
   el.innerHTML = `
     <h3 style="margin-top:0;margin-bottom:12px">勝敗グラフ</h3>
+    ${modeButtonsHTML}
     ${filterButtonsHTML}
     <div style="display:flex;gap:8px;align-items:stretch">
       ${stats.map(p => {
@@ -1158,6 +1231,9 @@ function renderWinsChart() {
 }
 
 function bindWinsChartFilterButtons(el) {
+  el.querySelectorAll(".wins-chart-mode-btn").forEach(btn => {
+    btn.addEventListener("click", () => setWinsChartMode(btn.dataset.mode));
+  });
   el.querySelectorAll(".wins-chart-filter-btn").forEach(btn => {
     btn.addEventListener("click", () => setWinsChartFilter(btn.dataset.cat));
   });
@@ -1518,14 +1594,20 @@ function renderPairCounts() {
     el.innerHTML = `<p style="color:#999;font-size:0.88rem">対局記録がありません。</p>`;
     return;
   }
-  el.innerHTML = top.map((p, i) => `
+  // 順位と同じ横バー。棒の長さは、1位の対局数を100%とした割合
+  const topCount = top[0].count;
+  el.innerHTML = top.map((p, i) => {
+    const pct = Math.round(p.count / topCount * 100);
+    return `
     <div class="rank-row">
       <div class="rank-num">${i + 1}</div>
       <div class="rank-info">
-        <div><strong>${p.names[0]}</strong> vs <strong>${p.names[1]}</strong></div>
-        <div class="rank-record">${p.count}局</div>
+        <div><strong>${p.names[0]}</strong> vs <strong>${p.names[1]}</strong>
+        <span class="rank-record"> ${p.count}局</span></div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
       </div>
-    </div>`).join("");
+    </div>`;
+  }).join("");
 }
 
 // ---------- 月別の対局数（縦棒グラフ） ----------
