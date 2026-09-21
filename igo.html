@@ -46,7 +46,17 @@
       「コミ以内（差不明）」バッジを表示して、決着内容の「うちコミ以内」に数える。
       決着内容の「目数差」の局数には常に含めるが、「うち半目」・半目職人には数えない。
       後から思い出したら、修正画面で数字を入れ直せる）
-  - 順位表示（勝数順/勝率順の切り替え対応）
+  - 順位表示（勝数順/勝率順/レーティング（参考値）の切り替え対応）
+      レーティング（参考値）：手合いを考慮して強さを数値にした参考値。全対局を毎回なめて
+      計算し直す方式で、保存はしない（表示のたびに再計算）。勝敗と手合い差（HANDICAP_ELO）から、
+      履歴全体に最もよく当てはまる強さを求める（対局の並び順には左右されない）。平均は約1500。
+      指導対局・無勝負は除外。持碁は他の集計と同じく黒番（下手）の勝ち扱い。
+      イレギュラー対局も、記録された手合いをそのまま使って計算に含める。
+      対局数が10局未満の人は「暫定」表示。手合い差の重み（小0.5／標準1／大1.5）は
+      レーティング表示中に画面上で切り替え可能。順位表・手合い割の判定には使わない。
+      レーティング表示中は、順位の中に「レーティングの仕組み」の説明を折りたたみで表示する
+      （換算値・暫定の基準は定数から組み立てるため、定数を変えても説明と食い違わない）。
+      現在のシーズンのみ対象。
   - 順位表タブの折りたたみ表示（「順位」「上手・下手成績」「互先 黒白成績」「ご無沙汰ランキング」は
       見出しをタップして開閉する。初期状態は閉じている。開閉の状態は、結果の登録などで
       画面が更新されても保たれる）
@@ -118,6 +128,8 @@
   - データエクスポート（設定タブからJSONファイルとしてダウンロード。日付入りファイル名で保存）
 
 【今後の改良候補】
+  - レーティングの手合い換算値（HANDICAP_ELO）を実データで調整する
+  - レーティングの推移グラフ
   - 結果入力画面のカード型UI
   - 対戦数が少ない（まだ対局していない）組み合わせの表示
   - ダークモード対応
@@ -448,10 +460,13 @@
       <div id="wins-chart" style="margin-bottom:24px"></div>
       <details class="section-details" style="margin-top:0">
         <summary>順位</summary>
-        <div style="display:flex;gap:8px;margin-bottom:12px">
+        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
           <button class="filter-btn active" id="sort-wins">勝数順</button>
           <button class="filter-btn" id="sort-rate">勝率順</button>
+          <button class="filter-btn" id="sort-rating">レーティング（参考値）</button>
         </div>
+        <div id="rating-options" style="display:none"></div>
+        <div id="rating-help" style="display:none"></div>
         <div id="rank-list"></div>
       </details>
 
@@ -1266,10 +1281,122 @@ function bindWinsChartFilterButtons(el) {
   });
 }
 
+// ---------- レーティング（参考値） ----------
+// 手合いの差（下手側に足す実効レートの加点）。添字は手合いの段差（0=互先, 1=先/向先, 2=2子/向2, 3, 4）。
+// 仮置きの値。「先」（コミなし）は1子より小さいため小さめにしている。実データを見て調整する。
+const HANDICAP_ELO = [0, 50, 150, 250, 350];
+const RATING_BASE = 1500;
+const RATING_PROVISIONAL_GAMES = 10; // これ未満の対局数は「暫定」表示
+let ratingScale = 1;                  // 手合い差の重み（画面で 0.5 / 1 / 1.5 を切り替え）
+
+// 対局履歴の全件から、各対局者のレートを求める（保存はせず、表示のたびに計算し直す）。
+// 各対局で「勝者側の実効レート＋手合い加点 − 敗者側の実効レート」から勝つ確率を予想し、
+// 実際の結果とのずれが小さくなるよう繰り返し調整する。対局の並び順には左右されない。
+// 対局が少ない人が極端な値にならないよう、全員が平均(1500)の仮想相手と引き分けた
+// 2局分を最初から持たせている。対局が1局もない人は結果に含めない。
+function computeRatings(scale) {
+  const names = state.players;
+  const games = [];
+  state.history.forEach(m => {
+    if (m.shidou || m.type === "mushoubu") return; // 指導対局・無勝負は除外
+    let w, l;
+    if (m.type === "jigo") {
+      w = jigoWinner(m);                      // 持碁は黒番（下手）の勝ち扱い
+      if (!w) return;
+      l = w === m.p1 ? m.p2 : m.p1;
+    } else {
+      w = m.winner; l = m.loser;
+    }
+    if (!names.includes(w) || !names.includes(l)) return;
+    const info = matchTeaiInfo(m);            // 手合い未設定なら加点なし
+    let wb = 0;
+    if (info) {
+      const bonus = HANDICAP_ELO[Math.min(info.absLevel, HANDICAP_ELO.length - 1)] * scale;
+      wb = info.isUpperWinner ? -bonus : bonus; // 勝者が上手なら不利、下手なら有利として見る
+    }
+    games.push({ w, l, wb });
+  });
+
+  const r = {}, n = {}, wins = {}, losses = {};
+  names.forEach(p => { r[p] = RATING_BASE; n[p] = 0; wins[p] = 0; losses[p] = 0; });
+  games.forEach(g => { n[g.w]++; n[g.l]++; wins[g.w]++; losses[g.l]++; });
+
+  const expect = d => 1 / (1 + Math.pow(10, -d / 400));
+  for (let it = 0; it < 500; it++) {
+    const grad = {};
+    names.forEach(p => { grad[p] = 0.5 - expect(r[p] - RATING_BASE); }); // 仮想2局分
+    games.forEach(g => {
+      const miss = 1 - expect(r[g.w] + g.wb - r[g.l]); // 勝者が勝つと予想できなかった度合い
+      grad[g.w] += miss;
+      grad[g.l] -= miss;
+    });
+    names.forEach(p => { r[p] += 80 * grad[p] / (n[p] + 2); });
+  }
+
+  return names
+    .filter(p => n[p] > 0)
+    .map(p => ({ name: p, rating: r[p], games: n[p], wins: wins[p], losses: losses[p] }))
+    .sort((a, b) => b.rating - a.rating);
+}
+
+// レーティング表示中だけ、説明と「手合い差の重み」ボタンを順位の上に出す
+function renderRatingOptions() {
+  const el = document.getElementById("rating-options");
+  const help = document.getElementById("rating-help");
+  if (!el) return;
+  if (help) help.style.display = sortMode === "rating" ? "" : "none"; // 折りたたみの開閉状態は作り直さず保つ
+  if (sortMode !== "rating") { el.style.display = "none"; el.innerHTML = ""; return; }
+  const scaleOpts = [[0.5, "小"], [1, "標準"], [1.5, "大"]];
+  el.style.display = "";
+  el.innerHTML = `
+    <p class="note" style="margin-top:0">勝敗と手合いから強さを数値にした参考値です（平均は約1500）。順位表や手合い割の判定には使われません。${RATING_PROVISIONAL_GAMES}局未満の人は「暫定」です。</p>
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;flex-wrap:wrap">
+      <span style="font-size:0.78rem;color:#777">手合い差の重み：</span>
+      ${scaleOpts.map(([v, label]) => `<button class="filter-btn rating-scale-btn ${ratingScale===v?"active":""}" data-scale="${v}">${label}</button>`).join("")}
+    </div>`;
+  el.querySelectorAll(".rating-scale-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      ratingScale = parseFloat(btn.dataset.scale);
+      renderStandings();
+    });
+  });
+}
+
+// レーティングの仕組みの説明（順位の中に折りたたみで表示）。換算値や暫定の基準は定数から組み立てるので、
+// 定数を変えても説明と食い違わない。
+const RATING_HELP_HTML = `
+  <details class="help-details">
+    <summary>レーティングの仕組み</summary>
+    <div class="note" style="margin:6px 0 0;line-height:1.7">
+      <div>・勝敗と手合いから推定した「強さの目安」です。数字が大きいほど強く、全員の平均は約${RATING_BASE}です。</div>
+      <div>・手合いは強さの差を補うものなので、その分を考慮して計算します。ハンデを背負った上手が勝つほどレートが上がり、ハンデをもらった下手が勝っても、上がり方は小さくなります。</div>
+      <div>・手合いの換算は、互先${HANDICAP_ELO[0]}／先${HANDICAP_ELO[1]}／2子${HANDICAP_ELO[2]}／3子${HANDICAP_ELO[3]}／4子${HANDICAP_ELO[4]}点です（上手側の向先・向2などは、先・2子と同じ段差として扱います）。仮置きの値です。「手合い差の重み」の小・標準・大は、この換算を0.5倍・1倍・1.5倍にする切り替えです。</div>
+      <div>・レートの差が100点なら強い方が約64%、200点なら約76%勝つ、という目安です。</div>
+      <div>・全対局をまとめて計算し直しています。結果は保存せず、対局の並び順にも左右されません。</div>
+      <div>・数えない対局：指導対局、無勝負。持碁は黒番（下手）の勝ちとして数えます。イレギュラー対局は、記録した手合いのまま数えます（連勝カウントとは扱いが違います）。</div>
+      <div>・現在のシーズンの対局だけが対象です。</div>
+      <div>・${RATING_PROVISIONAL_GAMES}局未満の人は「暫定」です。対局が少ないうちは、平均（${RATING_BASE}）に近い値になりやすくなります。</div>
+      <div>・順位表や手合い割の判定には使いません。あくまで参考値です。</div>
+    </div>
+  </details>`;
+document.getElementById("rating-help").innerHTML = RATING_HELP_HTML;
+
 // ---------- 順位表 ----------
 function renderStandings() {
   const raw = calcStats();
+  const isRating = sortMode === "rating";
+  const ratingMap = {};
+  if (isRating) computeRatings(ratingScale).forEach(r => { ratingMap[r.name] = r; });
+  renderRatingOptions();
+
   const sorted = raw.slice().sort((a,b) => {
+    if (isRating) {
+      const ra = ratingMap[a.name], rb = ratingMap[b.name];
+      if (ra && rb) return rb.rating - ra.rating;
+      if (ra) return -1;
+      if (rb) return 1;
+      return 0; // 対局がまだ無い人は末尾
+    }
     if (sortMode === "rate") {
       const rA = a.total > 0 ? a.wins / a.total : 0;
       const rB = b.total > 0 ? b.wins / b.total : 0;
@@ -1287,20 +1414,30 @@ function renderStandings() {
     const pct = Math.min((p.total/100)*100, 100);
     const prevRank = prevOrder.indexOf(p.name);
     let badge = "";
-    if (prevOrder.length > 0 && prevRank !== -1) {
+    // 順位変動の矢印は勝数順の並びとの比較なので、レーティング表示中は出さない
+    if (!isRating && prevOrder.length > 0 && prevRank !== -1) {
       const diff = prevRank - i;
       if (diff > 0)      badge = `<span style="color:#e74c3c;font-size:0.8rem;font-weight:bold">▲${diff}</span>`;
       else if (diff < 0) badge = `<span style="color:#3498db;font-size:0.8rem;font-weight:bold">▼${Math.abs(diff)}</span>`;
       else               badge = `<span style="color:#ccc;font-size:0.8rem">－</span>`;
     }
+    const rt = isRating ? ratingMap[p.name] : null;
+    const rankLabel = (isRating && !rt) ? "－" : (medals[i] || (i+1));
+    const ratingHTML = isRating
+      ? `<div style="text-align:right;flex-shrink:0;margin-left:8px">
+           <div style="font-size:1.15rem;font-weight:bold;color:#2c3e50">${rt ? Math.round(rt.rating) : "－"}</div>
+           ${rt && rt.games < RATING_PROVISIONAL_GAMES ? `<div style="font-size:0.68rem;color:#b89752">暫定</div>` : ""}
+         </div>`
+      : "";
     return `
       <div class="rank-row">
-        <div class="rank-num">${medals[i] || (i+1)}</div>
+        <div class="rank-num">${rankLabel}</div>
         <div class="rank-info">
           <div><strong>${p.name}</strong> ${badge}
           <span class="rank-record"> ${p.wins}勝 ${p.losses}敗${winRate(p.wins, p.losses)}</span></div>
           <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
         </div>
+        ${ratingHTML}
       </div>`;
   }).join("");
 
@@ -2667,18 +2804,16 @@ function renderSeasonInfo() {
 }
 
 // ---------- 順位ソート切り替え ----------
-document.getElementById("sort-wins").addEventListener("click", () => {
-  sortMode = "wins";
-  document.getElementById("sort-wins").classList.add("active");
-  document.getElementById("sort-rate").classList.remove("active");
+function setSortMode(mode) {
+  sortMode = mode;
+  [["wins", "sort-wins"], ["rate", "sort-rate"], ["rating", "sort-rating"]].forEach(([m, id]) => {
+    document.getElementById(id).classList.toggle("active", m === mode);
+  });
   renderStandings();
-});
-document.getElementById("sort-rate").addEventListener("click", () => {
-  sortMode = "rate";
-  document.getElementById("sort-rate").classList.add("active");
-  document.getElementById("sort-wins").classList.remove("active");
-  renderStandings();
-});
+}
+document.getElementById("sort-wins").addEventListener("click",   () => setSortMode("wins"));
+document.getElementById("sort-rate").addEventListener("click",   () => setSortMode("rate"));
+document.getElementById("sort-rating").addEventListener("click", () => setSortMode("rating"));
 
 // ---------- 対局修正モーダル ----------
 let editTargetIdx = -1;
