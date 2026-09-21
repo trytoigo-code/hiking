@@ -48,10 +48,12 @@
       後から思い出したら、修正画面で数字を入れ直せる）
   - 順位表示（勝数順/勝率順の切り替え対応）
   - 対局履歴（多視点表示・修正機能付き）
-      全体：決着内容の内訳（全体）・全対局の記録
+      全体：決着内容の内訳（全体。指導対局・無勝負も含めて数える。時間切れ・無勝負は0局でも表示）・全対局の記録
       1人選択：最近の流れ・相手別成績・決着内容・対局履歴
       2人選択：最近の流れ・決着内容・直接対局履歴
   - 手合い自動計算（3連勝で手合い変更、多段階対応）
+  - 連勝カウントと手合い変更のルール説明（結果入力画面と手合いタブに、同じ内容を折りたたみで表示。
+      同じ2人の対局だけで数える・3連勝で1段階変わる・数えない対局、など）
   - 月別の対局数（順位タブ。現在のシーズンの対局数を月ごとの縦棒グラフで表示。最初の対局の月から
       最後の対局の月まで、対局のない月も0局として並べる。指導対局・無勝負も数える。月が多いときは
       横にスクロールできる）
@@ -73,8 +75,9 @@
   - 指導対局対応（結果入力・修正時にチェックを入れると、その対局を指導対局として記録できる。
       手合いは通常どおり選択して記録するが、連勝カウント・手合い変更の判定には使わない
       （イレギュラー対局と同様の扱い）。順位表・勝敗グラフ・上手下手成績・互先黒白成績・
-      半目職人ランキング、および履歴タブの個人成績集計（相手別成績・最近の流れ・決着内容）
-      からも除外される。対局結果自体は履歴に「📚指導対局」バッジ付きで残る）
+      半目職人ランキング、および履歴タブの個人成績集計（相手別成績・最近の流れ）からも
+      除外される。ただし履歴タブの決着内容の内訳には、勝敗がついたものも含めて数える。
+      対局結果自体は履歴に「📚指導対局」バッジ付きで残る）
   - 無勝負対応（指導対局の途中で下手に悪手が出て打ち直しになった場合、結果種別で
       「無勝負」を選ぶと勝者・敗者を決めずに記録できる。無勝負は指導対局に限られるため、
       選択すると指導対局チェックが自動でON・ロックされる。手合いは通常どおり選択して
@@ -359,6 +362,7 @@
         <div>・連勝カウントと手合い変更の判定からは除外されます。</div>
         <div>・勝敗・順位・勝敗グラフ・履歴には通常どおり反映されます。</div>
       </div>
+      <div id="streak-rule-input"></div>
       <div class="fg">
         <label>対局日</label>
         <input type="date" id="match-date">
@@ -409,7 +413,7 @@
       </div>
       <div class="fg" style="display:flex;align-items:center;gap:8px;background:#eef5fb;border:1px solid #cfe3f2;border-radius:6px;padding:10px 12px">
         <input type="checkbox" id="shidou-flag" style="width:auto;flex-shrink:0">
-        <label for="shidou-flag" style="margin:0;font-weight:normal;font-size:0.85rem;color:#2c3e50">📚 指導対局として記録する（連勝・手合い変更や順位表・成績の集計には使いません）</label>
+        <label for="shidou-flag" style="margin:0;font-weight:normal;font-size:0.85rem;color:#2c3e50">📚 指導対局として記録する（連勝・手合い変更や順位表・成績の集計には使いません。決着内容の内訳には含まれます）</label>
       </div>
       <div class="fg">
         <label>棋譜URL（任意）</label>
@@ -476,6 +480,7 @@
     <div class="panel" id="panel-handicap">
       <h3>手合い割</h3>
       <p class="key-note">3連勝で手合い割が変わります。</p>
+      <div id="streak-rule-handicap"></div>
       <details class="help-details">
         <summary>ボタンの使い方</summary>
         <p class="note" style="margin:6px 0 0">対局者のボタンで絞り込めます。1人選ぶとその人が含まれる組み合わせ、2人選ぶとその2人の組み合わせと前回の対局結果を表示します（3人目を選ぶと古い選択が外れます）。もう一度押すと解除、「すべて」で全件に戻ります。</p>
@@ -545,7 +550,7 @@
     </div>
     <div class="fg" style="display:flex;align-items:center;gap:8px;background:#eef5fb;border:1px solid #cfe3f2;border-radius:6px;padding:10px 12px">
       <input type="checkbox" id="edit-shidou" style="width:auto;flex-shrink:0">
-      <label for="edit-shidou" style="margin:0;font-weight:normal;font-size:0.85rem;color:#2c3e50">📚 指導対局として記録する（連勝・手合い変更や順位表・成績の集計には使いません）</label>
+      <label for="edit-shidou" style="margin:0;font-weight:normal;font-size:0.85rem;color:#2c3e50">📚 指導対局として記録する（連勝・手合い変更や順位表・成績の集計には使いません。決着内容の内訳には含まれます）</label>
     </div>
     <div class="fg">
       <label>棋譜URL（任意）</label>
@@ -943,6 +948,23 @@ document.getElementById("add-match").addEventListener("click", () => {
 });
 
 // 「何目差か忘れた」にチェックを入れると、目数差の入力欄を使えなくする
+// 連勝カウントと手合い変更のルール説明（結果入力画面と手合いタブに、同じ内容を折りたたみで表示）
+const STREAK_RULE_HTML = `
+  <details class="help-details">
+    <summary>連勝カウントと手合い変更のルール</summary>
+    <div class="note" style="margin:6px 0 0;line-height:1.7">
+      <div>・同じ2人の対局だけで数えます（他の人との対局は関係ありません）。</div>
+      <div>・同じ人が3連勝すると、手合いが1段階変わります。勝った人が上手になる方向（互先→先→2子→3子…）に進み、変更後は連勝カウントが0に戻ります。</div>
+      <div>・すでに手合いがついている場合、下手の人が3連勝すると、手合いが1段階戻ります。</div>
+      <div>・途中で相手が勝つと、連勝カウントは相手の1連勝からやり直しです。</div>
+      <div>・持碁は、黒番（下手）の勝ちとして数えます。</div>
+      <div>・数えない対局：イレギュラー対局（記録した手合いが、その時点の正規の手合いと違う対局）、指導対局、無勝負。</div>
+    </div>
+  </details>`;
+["streak-rule-input", "streak-rule-handicap"].forEach(id => {
+  document.getElementById(id).innerHTML = STREAK_RULE_HTML;
+});
+
 // あわせて、不明のときだけ「コミ以内の差だった」のチェックを表示する
 function bindMokuUnknown(checkId, inputId, komiRowId) {
   const cb = document.getElementById(checkId), inp = document.getElementById(inputId);
@@ -1763,7 +1785,7 @@ function decisionBreakdownHTML(matches, player) {
     return `${w}勝 ${l}敗`;
   }
 
-  const types = { chuoshi:[], moku:[], jikan:[], jigo:[], fumei:[] };
+  const types = { chuoshi:[], moku:[], jikan:[], jigo:[], mushoubu:[], fumei:[] };
   const hanme = [], komi = [];
 
   matches.forEach(item => {
@@ -1789,8 +1811,10 @@ function decisionBreakdownHTML(matches, player) {
     html += sub("半目", hanme);
     html += sub("コミ以内", komi);
   }
-  if (types.jikan.length) html += `<div>時間切れ　${types.jikan.length}局　（${wl(types.jikan)}）</div>`;
+  // 時間切れと無勝負は、0局でも常に表示する（無勝負は勝敗がつかないので局数のみ）
+  html += `<div>時間切れ　${types.jikan.length}局　（${wl(types.jikan)}）</div>`;
   if (types.jigo.length)  html += `<div>持碁　${types.jigo.length}局　（${wl(types.jigo)}）</div>`;
+  html += `<div>無勝負　${types.mushoubu.length}局</div>`;
   if (types.fumei.length) html += `<div>不明　${types.fumei.length}局　（${wl(types.fumei)}）</div>`;
   html += '</div>';
   return html;
@@ -1800,7 +1824,7 @@ function decisionBreakdownHTML(matches, player) {
 function decisionBreakdownOverallHTML(matches) {
   if (matches.length === 0) return '<p style="color:#999">対局記録なし</p>';
 
-  const types = { chuoshi:0, moku:0, jikan:0, jigo:0, fumei:0 };
+  const types = { chuoshi:0, moku:0, jikan:0, jigo:0, mushoubu:0, fumei:0 };
   let hanme = 0, komi = 0;
 
   matches.forEach(({ m }) => {
@@ -1824,8 +1848,10 @@ function decisionBreakdownOverallHTML(matches) {
     html += sub("半目", hanme);
     html += sub("コミ以内", komi);
   }
-  if (types.jikan) html += `<div>時間切れ　${types.jikan}局　（${pct(types.jikan)}%）</div>`;
+  // 時間切れと無勝負は、0局でも常に表示する
+  html += `<div>時間切れ　${types.jikan}局　（${pct(types.jikan)}%）</div>`;
   if (types.jigo)  html += `<div>持碁　${types.jigo}局　（${pct(types.jigo)}%）</div>`;
+  html += `<div>無勝負　${types.mushoubu}局　（${pct(types.mushoubu)}%）</div>`;
   if (types.fumei) html += `<div>不明　${types.fumei}局　（${pct(types.fumei)}%）</div>`;
   html += '</div>';
   return html;
@@ -1909,7 +1935,7 @@ function matchListHTML(filtered, anchorPlayer, readOnly) {
     return `
       <div class="hist-item" style="flex-direction:column;align-items:stretch">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
-          <div>${leftName} vs ${rightName} ${badgeHTML(m)}${m.shidou ? '<span class="badge badge-shidou" title="指導対局として記録されており、連勝・手合いや順位表・各種成績の集計には使われていません">📚指導対局</span>' : ""}${currentIrregularMatches.has(m) ? '<span class="badge badge-irregular" title="記録された手合いが、その時点の正規の手合いと異なるため、連勝・手合いには反映されていません">イレギュラー</span>' : ""}${m.kifuUrl ? `<a href="${escapeAttr(m.kifuUrl)}" target="_blank" rel="noopener noreferrer" class="badge badge-kifu" title="タップすると棋譜ファイルを開きます">📄棋譜</a>` : ""}<br>
+          <div>${leftName} vs ${rightName} ${badgeHTML(m)}${m.shidou ? '<span class="badge badge-shidou" title="指導対局として記録されており、連勝・手合いや順位表・各種成績の集計には使われていません（決着内容の内訳には含まれます）">📚指導対局</span>' : ""}${currentIrregularMatches.has(m) ? '<span class="badge badge-irregular" title="記録された手合いが、その時点の正規の手合いと異なるため、連勝・手合いには反映されていません">イレギュラー</span>' : ""}${m.kifuUrl ? `<a href="${escapeAttr(m.kifuUrl)}" target="_blank" rel="noopener noreferrer" class="badge badge-kifu" title="タップすると棋譜ファイルを開きます">📄棋譜</a>` : ""}<br>
           <span class="hist-date">${m.date}</span></div>
           ${readOnly ? "" : `<div style="display:flex;gap:6px;flex-shrink:0">
             <button class="comment-btn" data-id="${m.id || idx}" style="background:#f0ede4;color:#888;border:1px solid #ddd;padding:5px 8px;border-radius:4px;font-size:0.78rem;cursor:pointer">💬</button>
@@ -1965,6 +1991,9 @@ function renderHistory() {
   // 指導対局は「勝敗・順位に関わらない学びの対局」として個人成績の集計からは除外する
   // （対局履歴の一覧そのものにはバッジ付きで残す。matchListHTMLはallFilteredを使い続ける）
   const statsFiltered = allFiltered.filter(({ m }) => !m.shidou);
+  // 決着内容の内訳には、指導対局（勝敗がついたもの・無勝負とも）も含める
+  // （手合い・連勝や順位表などの成績には使わないが、決着の種類としては数える）
+  const decisionFiltered = allFiltered;
 
   // ===== 未選択: 全体表示 =====
   if (selectedPlayers.length === 0) {
@@ -1972,7 +2001,7 @@ function renderHistory() {
       el.innerHTML = '<p style="color:#999">対局記録はありません。</p>';
       return;
     }
-    el.innerHTML = decisionBreakdownOverallHTML(statsFiltered) + matchListHTML(allFiltered);
+    el.innerHTML = decisionBreakdownOverallHTML(decisionFiltered) + matchListHTML(allFiltered);
 
   // ===== 1人選択: 個人視点 =====
   } else if (selectedPlayers.length === 1) {
@@ -2012,7 +2041,7 @@ function renderHistory() {
     html += oppHTML || '<p style="color:#999">データなし</p>';
     // 決着内容
     html += sectionHead("決着内容");
-    html += decisionBreakdownHTML(statsFiltered, player);
+    html += decisionBreakdownHTML(decisionFiltered, player);
     // 対局履歴
     html += sectionHead("対局履歴");
     if (allFiltered.length === 0) html += '<p style="color:#999">対局記録はありません。</p>';
@@ -2036,7 +2065,7 @@ function renderHistory() {
     </div>`;
     // 決着内容
     html += sectionHead("決着内容");
-    html += decisionBreakdownHTML(statsFiltered, pA);
+    html += decisionBreakdownHTML(decisionFiltered, pA);
     // 直接対局履歴
     html += sectionHead("対局履歴");
     if (allFiltered.length === 0) html += '<p style="color:#999">対局記録はありません。</p>';
