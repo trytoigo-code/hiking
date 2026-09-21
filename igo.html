@@ -52,6 +52,12 @@
       1人選択：最近の流れ・相手別成績・決着内容・対局履歴
       2人選択：最近の流れ・決着内容・直接対局履歴
   - 手合い自動計算（3連勝で手合い変更、多段階対応）
+  - 月別の対局数（順位タブ。現在のシーズンの対局数を月ごとの縦棒グラフで表示。最初の対局の月から
+      最後の対局の月まで、対局のない月も0局として並べる。指導対局・無勝負も数える。月が多いときは
+      横にスクロールできる）
+  - 履歴タブの見出しに現在のシーズンと開始年月日を表示（「対局履歴 シーズン3（2026/4/1開始）」。
+      開始年月日は、直前のシーズンを終えた日。直前のシーズンの記録がないシーズン1などでは、
+      最初の対局日を表示する）
   - 手合いタブの絞り込み（「すべて」と各対局者のボタン。履歴タブと同じ並び・同じ操作で、
       1人選ぶとその人が含まれる組み合わせ、2人選ぶとその2人の組み合わせだけを表示する。
       絞り込み中は、最初に選んだ人を常に左側に表示する。2人を選んだときだけ、その2人の
@@ -442,6 +448,10 @@
       <p class="note">対局数が多い上位3組（同数のときは、最近対局した組み合わせが上）。指導対局・無勝負も含みます。</p>
       <div id="pair-count-list"></div>
 
+      <h3 style="margin-top:24px">📈 月別の対局数</h3>
+      <p class="note">現在のシーズンの、月ごとの対局数の推移（指導対局・無勝負も含みます）。</p>
+      <div id="monthly-chart"></div>
+
       <div id="hanme-section" style="display:none">
         <h3 style="margin-top:24px">🎯 半目職人</h3>
         <p class="note">半目差での勝利数ランキング。</p>
@@ -452,7 +462,7 @@
 
     <!-- 履歴 -->
     <div class="panel" id="panel-history">
-      <h3>対局履歴</h3>
+      <h3>対局履歴<span id="history-season-label" style="font-size:0.78rem;font-weight:normal;color:#888;margin-left:10px"></span></h3>
       <p class="key-note">📄棋譜バッジがある対局はタップすると棋譜ファイルを開けます。</p>
       <details class="help-details">
         <summary>ボタンの使い方</summary>
@@ -584,6 +594,7 @@ let state = {
 };
 let stateRef = null;
 let seasonsRef = null;
+let firstStateLoaded = false;
 const isConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY";
 // 対局者名の入力中にFirebaseのonValueが発火すると、
 // 入力途中の文字が上書きされてしまう。
@@ -598,6 +609,7 @@ if (isConfigured) {
     seasonsRef = firebase.database().ref("go-league/seasons");
     stateRef.on("value", (snap) => {
       const data = snap.val();
+      firstStateLoaded = true; // 初回の読み込み前に、仮のシーズン表示が出ないようにするため
       if (data) {
         state = {
           players: Array.isArray(data.players) ? data.players : state.players,
@@ -978,9 +990,11 @@ function renderAll() {
   renderStandings();
   renderGonosata();
   renderPairCounts();
+  renderMonthlyChart();
   renderHanme();
   renderRoleColorStats();
   renderHistory();
+  renderHistorySeasonLabel();
   renderHandicap();
   renderLevelSettings();
   renderSeasonInfo();
@@ -1490,6 +1504,95 @@ function renderPairCounts() {
         <div class="rank-record">${p.count}局</div>
       </div>
     </div>`).join("");
+}
+
+// ---------- 月別の対局数（縦棒グラフ） ----------
+// 現在のシーズンの対局を、対局日の月ごとに数える。最初の対局の月から最後の対局の月まで、
+// 対局のなかった月も0局として並べる（推移が途切れて見えないようにするため）。
+// 「対局した回数」として、指導対局・無勝負・イレギュラー対局もすべて数える。
+function renderMonthlyChart() {
+  const el = document.getElementById("monthly-chart");
+  if (!el) return;
+
+  const counts = {};
+  state.history.forEach(m => {
+    const parts = String(m.date || "").split(" ")[0].split("/").map(n => parseInt(n, 10));
+    if (parts.length !== 3 || parts.some(isNaN)) return;
+    const key = parts[0] * 12 + (parts[1] - 1); // 年をまたいでも連続する月番号
+    counts[key] = (counts[key] || 0) + 1;
+  });
+  const keys = Object.keys(counts).map(Number);
+  if (keys.length === 0) {
+    el.innerHTML = `<p style="color:#999;font-size:0.88rem">対局記録がありません。</p>`;
+    return;
+  }
+
+  const first = Math.min(...keys), last = Math.max(...keys);
+  const months = [];
+  for (let k = first; k <= last; k++) {
+    months.push({ y: Math.floor(k / 12), mo: (k % 12) + 1, n: counts[k] || 0 });
+  }
+  const max = Math.max(...months.map(x => x.n), 1);
+  const total = months.reduce((sum, x) => sum + x.n, 0);
+  const AREA_H = 110, LABEL_H = 18; // 数字ラベルの分だけ、棒の最大の高さを低くする
+
+  const bars = months.map((x, i) => {
+    const h = Math.round(x.n / max * (AREA_H - LABEL_H));
+    const yearLabel = (i === 0 || x.mo === 1)
+      ? `<br><span style="font-size:0.62rem;color:#999;font-weight:normal">${x.y}</span>` : "";
+    return `
+      <div style="flex:1 0 40px;display:flex;flex-direction:column;align-items:center">
+        <div style="height:${AREA_H}px;width:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center">
+          <div style="font-size:0.74rem;font-weight:bold;color:${x.n > 0 ? "#7a5c3a" : "#bbb"};margin-bottom:2px">${x.n}</div>
+          ${x.n > 0 ? `<div style="height:${h}px;width:70%;background:#b89752;border-radius:4px 4px 0 0"></div>` : ""}
+        </div>
+        <div style="width:100%;border-top:2px solid #888"></div>
+        <div style="font-size:0.76rem;font-weight:bold;color:#2c3e50;padding-top:4px;text-align:center;line-height:1.3">${x.mo}月${yearLabel}</div>
+      </div>`;
+  }).join("");
+
+  el.innerHTML = `
+    <div style="overflow-x:auto;padding-bottom:4px"><div style="display:flex;gap:6px">${bars}</div></div>
+    <div style="font-size:0.78rem;color:#777;margin-top:8px">合計 ${total}局</div>`;
+}
+
+// ---------- 履歴タブの見出し：現在のシーズンと開始年月日 ----------
+// 開始年月日は、直前のシーズンを終えた日（「新シーズンを始める」でアーカイブに保存される endDate）。
+// 直前のシーズンの記録がない（シーズン1など）ときは、現在のシーズンで最初の対局日を使う。
+let seasonPrevEndCache = { season: null, endDate: "" }; // 取得済みの直前シーズンの終了日
+
+function firstGameDateText() {
+  let best = null;
+  state.history.forEach(m => {
+    const v = dateSortValue(m.date);
+    if (v && (!best || v < best.v)) best = { v, date: m.date };
+  });
+  return best ? best.date : "";
+}
+
+function renderHistorySeasonLabel() {
+  const el = document.getElementById("history-season-label");
+  if (!el) return;
+  if (isConfigured && !firstStateLoaded) { el.textContent = ""; return; }
+  const season = state.season || 1;
+  const show = (date) => {
+    if ((state.season || 1) !== season) return; // 取得中にシーズンが変わっていたら何もしない
+    el.textContent = `シーズン${season}` + (date ? `（${date}開始）` : "");
+  };
+  if (season > 1 && seasonsRef) {
+    if (seasonPrevEndCache.season === season) {
+      show(seasonPrevEndCache.endDate || firstGameDateText());
+    } else {
+      show(""); // 取得できるまでは、日付なしで先に表示する
+      seasonsRef.child(String(season - 1)).once("value", snap => {
+        const prev = snap.val();
+        seasonPrevEndCache = { season, endDate: (prev && prev.endDate) || "" };
+        show(seasonPrevEndCache.endDate || firstGameDateText());
+      });
+    }
+  } else {
+    show(firstGameDateText());
+  }
 }
 
 // ---------- 履歴：共通ヘルパー ----------
