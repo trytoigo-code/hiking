@@ -224,6 +224,13 @@
     .badge-shidou { background: #2980b9; }
     .badge-mushoubu { background: #7f5aa0; }
 
+    /* 各タブの目立たせたい説明（履歴・手合いタブ） */
+    .key-note {
+      font-size: 0.88rem; font-weight: bold; color: #2c3e50; line-height: 1.6;
+      background: #f1f0ea; border: 1px solid #e0dbcd; border-left: 4px solid #b89752;
+      border-radius: 6px; padding: 9px 12px; margin: 0 0 14px;
+    }
+
     /* 「ボタンの使い方」の折りたたみ説明（履歴・手合いタブ） */
     .help-details { margin: -6px 0 14px; }
     .help-details > summary {
@@ -446,7 +453,7 @@
     <!-- 履歴 -->
     <div class="panel" id="panel-history">
       <h3>対局履歴</h3>
-      <p class="note">📄棋譜バッジがある対局はタップすると棋譜ファイルを開けます</p>
+      <p class="key-note">📄棋譜バッジがある対局はタップすると棋譜ファイルを開けます。</p>
       <details class="help-details">
         <summary>ボタンの使い方</summary>
         <p class="note" style="margin:6px 0 0">対局者のボタンで絞り込めます。1人選ぶとその人の対局、2人選ぶとその2人の直接対局を表示します（3人目を選ぶと古い選択が外れます）。もう一度押すと解除、「すべて」で全件に戻ります。</p>
@@ -458,7 +465,7 @@
     <!-- 手合い -->
     <div class="panel" id="panel-handicap">
       <h3>手合い割</h3>
-      <p class="note">3連勝で手合い割が変わります。</p>
+      <p class="key-note">3連勝で手合い割が変わります。</p>
       <details class="help-details">
         <summary>ボタンの使い方</summary>
         <p class="note" style="margin:6px 0 0">対局者のボタンで絞り込めます。1人選ぶとその人が含まれる組み合わせ、2人選ぶとその2人の組み合わせを表示します（3人目を選ぶと古い選択が外れます）。もう一度押すと解除、「すべて」で全件に戻ります。</p>
