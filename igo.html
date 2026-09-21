@@ -47,6 +47,9 @@
       決着内容の「目数差」の局数には常に含めるが、「うち半目」・半目職人には数えない。
       後から思い出したら、修正画面で数字を入れ直せる）
   - 順位表示（勝数順/勝率順の切り替え対応）
+  - 順位表タブの折りたたみ表示（「順位」「上手・下手成績」「互先 黒白成績」「ご無沙汰ランキング」は
+      見出しをタップして開閉する。初期状態は閉じている。開閉の状態は、結果の登録などで
+      画面が更新されても保たれる）
   - 対局履歴（多視点表示・修正機能付き）
       全体：決着内容の内訳（全体。指導対局・無勝負も含めて数える。時間切れ・無勝負は0局でも表示）・全対局の記録
       1人選択：最近の流れ・相手別成績・決着内容・対局履歴
@@ -243,6 +246,18 @@
       margin: 0 0 14px;
     }
 
+    /* 順位表タブの折りたたみセクション（見出しは h3 と同じ見た目。▶/▼で開閉） */
+    .section-details { margin-top: 18px; }
+    .section-details > summary {
+      border-left: 4px solid #b89752; padding-left: 8px;
+      color: #2c3e50; font-size: 1rem; font-weight: bold;
+      cursor: pointer; list-style: none;
+    }
+    .section-details > summary::-webkit-details-marker { display: none; }
+    .section-details > summary::before { content: "▶ "; font-size: 0.65rem; color: #b89752; }
+    .section-details[open] > summary { margin-bottom: 14px; }
+    .section-details[open] > summary::before { content: "▼ "; }
+
     /* 「ボタンの使い方」の折りたたみ説明（履歴・手合いタブ） */
     .help-details { margin: -6px 0 14px; }
     .help-details > summary {
@@ -428,28 +443,37 @@
     <!-- 順位 -->
     <div class="panel active" id="panel-standings">
       <div id="wins-chart" style="margin-bottom:24px"></div>
-      <h3>順位</h3>
-      <div style="display:flex;gap:8px;margin-bottom:12px">
-        <button class="filter-btn active" id="sort-wins">勝数順</button>
-        <button class="filter-btn" id="sort-rate">勝率順</button>
-      </div>
-      <div id="rank-list"></div>
+      <details class="section-details" style="margin-top:0">
+        <summary>順位</summary>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <button class="filter-btn active" id="sort-wins">勝数順</button>
+          <button class="filter-btn" id="sort-rate">勝率順</button>
+        </div>
+        <div id="rank-list"></div>
+      </details>
 
-      <h3 style="margin-top:24px">🎓 上手・下手成績</h3>
-      <p class="note">手合い差のある対局（互先を除く）で、上手・下手それぞれの勝敗。</p>
-      <div id="role-stats-overall"></div>
-      <div style="font-size:0.72rem;color:#999;font-family:sans-serif;margin-bottom:6px">対局者ごと</div>
-      <div id="role-stats-list"></div>
+      <details class="section-details">
+        <summary>🎓 上手・下手成績</summary>
+        <p class="note">手合い差のある対局（互先を除く）で、上手・下手それぞれの勝敗。</p>
+        <div id="role-stats-overall"></div>
+        <div style="font-size:0.72rem;color:#999;font-family:sans-serif;margin-bottom:6px">対局者ごと</div>
+        <div id="role-stats-list"></div>
+      </details>
 
-      <h3 style="margin-top:24px">⚫⚪ 互先 黒白成績</h3>
-      <p class="note">互先のうち白番・黒番が分かっている対局の勝敗（色不明の互先は含みません）。</p>
-      <div id="color-stats-overall"></div>
-      <div style="font-size:0.72rem;color:#999;font-family:sans-serif;margin-bottom:6px">対局者ごと</div>
-      <div id="color-stats-list"></div>
+      <details class="section-details">
+        <summary>⚫⚪ 互先 黒白成績</summary>
+        <p class="note">互先のうち白番・黒番が分かっている対局の勝敗（色不明の互先は含みません）。</p>
+        <div id="color-stats-overall"></div>
+        <div style="font-size:0.72rem;color:#999;font-family:sans-serif;margin-bottom:6px">対局者ごと</div>
+        <div id="color-stats-list"></div>
+      </details>
 
-      <h3 style="margin-top:24px">😴 ご無沙汰ランキング</h3>
-      <p class="note">最後に対局した日が古い順。そろそろ誘ってみては？</p>
-      <div id="gonosata-list"></div>
+      <details class="section-details">
+        <summary>😴 ご無沙汰ランキング</summary>
+        <p class="note">最後に対局した日が古い順。そろそろ誘ってみては？</p>
+        <div id="gonosata-list"></div>
+      </details>
+
 
       <h3 style="margin-top:24px">🤝 よく対戦している組み合わせ</h3>
       <p class="note">対局数が多い上位3組（同数のときは、最近対局した組み合わせが上）。棒の長さは1位を100%とした割合です。指導対局・無勝負も含みます。</p>
