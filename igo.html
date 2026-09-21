@@ -107,7 +107,8 @@
   - 互先 黒白成績（順位タブ。互先のうち色が分かっている対局＝互白・互黒、で
       全体（黒番勝ち/白番勝ちの局数・割合）と対局者ごとの勝敗を集計。色不明の「互先」は対象外）
   - 対局コメント（履歴から各対局に一言メモを後から追記可能。短文はそのまま表示、長文は折りたたみ）
-  - コメントへのリアクション（👍😄😮🔥の4種。誰が押したかFirebaseで全員に同期）
+  - コメントへのリアクション（👍😄😮🔥の4種。誰が押したかFirebaseで全員に同期し、
+      絵文字の横に押した人の名前を表示する）
   - 棋譜リンク（結果入力・修正時に棋譜ファイルのURLを任意で登録できる。履歴に「📄棋譜」リンクとして
       表示され、タップで新規タブに開く。履歴タブ上部にバッジの意味を説明する注記あり。
       履歴フィルターに「棋譜ありのみ」ボタンがあり、棋譜が登録されている対局だけに絞り込める）
@@ -2004,7 +2005,7 @@ function matchListHTML(filtered, anchorPlayer, readOnly) {
       const reactionPills = REACTION_EMOJIS.map(e => {
         const names = reactions[e] || [];
         if (!names.length) return "";
-        return `<span style="display:inline-flex;align-items:center;gap:3px;background:#f0ede4;border:1px solid #e0dbcd;border-radius:12px;padding:2px 8px;font-size:0.8rem;cursor:default" title="${names.join("・")}">${e} <span style="color:#555;font-size:0.75rem">${names.length}</span></span>`;
+        return `<span style="display:inline-flex;align-items:center;gap:3px;background:#f0ede4;border:1px solid #e0dbcd;border-radius:12px;padding:2px 8px;font-size:0.8rem;cursor:default" title="${names.join("・")}">${e} <span style="color:#555;font-size:0.75rem">${names.join("・")}</span></span>`;
       }).join("");
 
       // 絵文字ボタン行
