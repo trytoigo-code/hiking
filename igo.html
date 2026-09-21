@@ -52,6 +52,9 @@
       1人選択：最近の流れ・相手別成績・決着内容・対局履歴
       2人選択：最近の流れ・決着内容・直接対局履歴
   - 手合い自動計算（3連勝で手合い変更、多段階対応）
+  - 手合いタブの絞り込み（「すべて」と各対局者のボタン。履歴タブと同じ並び・同じ操作で、
+      1人選ぶとその人が含まれる組み合わせ、2人選ぶとその2人の組み合わせだけを表示する。
+      絞り込み中は、最初に選んだ人を常に左側に表示する）
   - 手合いの独立保存（履歴に依存せず管理）
   - イレギュラー対局対応（記録された手合いが、その対局の時点でのペアの正規の手合いと
       異なる場合、連勝カウント・手合い変更の判定から除外する。対局結果自体は勝敗記録・
@@ -440,6 +443,7 @@
     <div class="panel" id="panel-handicap">
       <h3>手合い割</h3>
       <p class="note">3連勝で手合い割が変わります。</p>
+      <div id="handicap-filter" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px"></div>
       <div class="matrix-wrap">
         <table id="handicap-table">
           <thead><tr><th>対局</th><th>現在の手合い</th><th>状況</th></tr></thead>
@@ -2183,14 +2187,59 @@ function calcPairHandicap(pA, pB) {
   return { handicapStr, statusStr };
 }
 
+// 手合いタブの絞り込み（履歴タブと同じ操作：1人選ぶとその人が含まれる組み合わせ、
+// 2人選ぶとその2人の組み合わせだけを表示。3人目を選ぶと古い選択が外れる）
+let handicapSelectedPlayers = [];
+
+function renderHandicapFilter() {
+  const fc = document.getElementById("handicap-filter");
+  if (!fc) return;
+  const ps = state.players;
+  const allBtn = `<button class="filter-btn${handicapSelectedPlayers.length===0?" active":""}" data-action="all">すべて</button>`;
+  const playerBtns = ps.map(p =>
+    `<button class="filter-btn player-btn${handicapSelectedPlayers.includes(p)?" active":""}" data-player="${p}">${p}</button>`
+  ).join("");
+  fc.innerHTML = `
+    <div style="margin-bottom:6px">${allBtn}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">${playerBtns}</div>
+  `;
+
+  fc.querySelector("[data-action='all']").addEventListener("click", () => {
+    handicapSelectedPlayers = [];
+    renderHandicap();
+  });
+  fc.querySelectorAll(".player-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const p = btn.dataset.player;
+      if (handicapSelectedPlayers.includes(p)) {
+        handicapSelectedPlayers = handicapSelectedPlayers.filter(x => x !== p);
+      } else if (handicapSelectedPlayers.length < 2) {
+        handicapSelectedPlayers.push(p);
+      } else {
+        handicapSelectedPlayers = [handicapSelectedPlayers[1], p];
+      }
+      renderHandicap();
+    });
+  });
+}
+
 function renderHandicap() {
   const ps = state.players;
+  // 対局者名が変更されて存在しなくなった選択は外す
+  handicapSelectedPlayers = handicapSelectedPlayers.filter(p => ps.includes(p));
+  renderHandicapFilter();
+  const sel = handicapSelectedPlayers;
   let html = "";
   for (let i=0; i<ps.length; i++) {
     for (let j=i+1; j<ps.length; j++) {
-      const { handicapStr, statusStr } = calcPairHandicap(ps[i], ps[j]);
+      if (sel.length === 1 && ps[i] !== sel[0] && ps[j] !== sel[0]) continue;
+      if (sel.length === 2 && !(sel.includes(ps[i]) && sel.includes(ps[j]))) continue;
+      // 絞り込み中は、最初に選んだ人を常に左側に表示する（履歴タブと同じ）
+      let left = ps[i], right = ps[j];
+      if (sel.length > 0 && right === sel[0]) [left, right] = [right, left];
+      const { handicapStr, statusStr } = calcPairHandicap(left, right);
       html += `<tr>
-        <td style="white-space:nowrap">${ps[i]} vs ${ps[j]}</td>
+        <td style="white-space:nowrap">${left} vs ${right}</td>
         <td>${handicapStr}</td>
         <td style="font-size:0.82rem">${statusStr}</td>
       </tr>`;
