@@ -107,8 +107,9 @@
   - 互先 黒白成績（順位タブ。互先のうち色が分かっている対局＝互白・互黒、で
       全体（黒番勝ち/白番勝ちの局数・割合）と対局者ごとの勝敗を集計。色不明の「互先」は対象外）
   - 対局コメント（履歴から各対局に一言メモを後から追記可能。短文はそのまま表示、長文は折りたたみ）
-  - コメントへのリアクション（👍😄😮🔥の4種。誰が押したかFirebaseで全員に同期し、
-      絵文字の横に押した人の名前を表示する）
+  - コメントへのリアクション（👍いいね・😄楽しい・😮驚き・🔥熱い・👏お見事・🤔なるほど・
+      😢惜しい・🙏感謝の8種。反応ボタンの下に意味を表示し、名前を選ぶ画面にも意味を出す。
+      誰が押したかFirebaseで全員に同期し、絵文字の横に押した人の名前を表示する）
   - 棋譜リンク（結果入力・修正時に棋譜ファイルのURLを任意で登録できる。履歴に「📄棋譜」リンクとして
       表示され、タップで新規タブに開く。履歴タブ上部にバッジの意味を説明する注記あり。
       履歴フィルターに「棋譜ありのみ」ボタンがあり、棋譜が登録されている対局だけに絞り込める）
@@ -1318,7 +1319,9 @@ let kifuOnlyFilter = false; // 履歴：棋譜ありの対局だけに絞り込�
 let lastSorted = []; // 順位変動比較用
 let sortMode = "wins";
 let currentIrregularMatches = new Set(); // 履歴描画時に再計算する、イレギュラー対局の集合
-const REACTION_EMOJIS = ["👍","😄","😮","🔥"];
+const REACTION_EMOJIS = ["👍","😄","😮","🔥","👏","🤔","😢","🙏"];
+// 各反応の意味（反応ボタンの下と、名前を選ぶ画面に表示する）
+const REACTION_LABELS = { "👍":"いいね", "😄":"楽しい", "😮":"驚き", "🔥":"熱い", "👏":"お見事", "🤔":"なるほど", "😢":"惜しい", "🙏":"感謝" };
 // "YYYY/M/D" 形式の日付文字列を比較可能な数値に変換（不正・欠損時は0）
 function dateSortValue(dateStr) {
   if (!dateStr) return 0;
@@ -2010,7 +2013,7 @@ function matchListHTML(filtered, anchorPlayer, readOnly) {
 
       // 絵文字ボタン行
       const emojiButtons = REACTION_EMOJIS.map(e =>
-        `<button class="reaction-emoji-btn" data-id="${m.id || idx}" data-emoji="${e}" style="background:none;border:1px solid #e0dbcd;border-radius:8px;padding:2px 6px;font-size:0.9rem;cursor:pointer;line-height:1.4">${e}</button>`
+        `<button class="reaction-emoji-btn" data-id="${m.id || idx}" data-emoji="${e}" style="background:none;border:1px solid #e0dbcd;border-radius:8px;padding:2px 6px;cursor:pointer;display:flex;flex-direction:column;align-items:center;line-height:1.2"><span style="font-size:0.9rem">${e}</span><span style="font-size:0.55rem;color:#888">${REACTION_LABELS[e] || ""}</span></button>`
       ).join("");
 
       // 名前ピッカー
@@ -2024,7 +2027,7 @@ function matchListHTML(filtered, anchorPlayer, readOnly) {
         <div class="hist-comment" data-id="${m.id || idx}" style="margin-top:6px">
           ${commentBody}
           ${reactionPills ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px">${reactionPills}</div>` : ""}
-          ${readOnly ? "" : `<div style="display:flex;gap:4px;margin-top:5px;align-items:center">
+          ${readOnly ? "" : `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;align-items:center">
             <span style="font-size:0.7rem;color:#bbb">反応：</span>
             ${emojiButtons}
           </div>
@@ -2254,11 +2257,10 @@ function renderHistory() {
       const emoji = btn.dataset.emoji;
       const picker = el.querySelector(`.reaction-picker[data-id="${id}"]`);
       if (!picker) return;
-      const isOpen = picker.style.display !== "none"
-        && picker.querySelector(".reaction-pending-emoji").textContent === emoji;
+      const isOpen = picker.style.display !== "none" && picker.dataset.emoji === emoji;
       el.querySelectorAll(".reaction-picker").forEach(p => p.style.display = "none");
       if (!isOpen) {
-        picker.querySelector(".reaction-pending-emoji").textContent = emoji;
+        picker.querySelector(".reaction-pending-emoji").textContent = `${emoji}（${REACTION_LABELS[emoji] || ""}）`;
         picker.style.display = "";
         picker.dataset.emoji = emoji;
       }
