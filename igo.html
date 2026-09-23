@@ -128,6 +128,10 @@
       履歴フィルターに「棋譜ありのみ」ボタンがあり、棋譜が登録されている対局だけに絞り込める）
   - Firebase によるリアルタイム同期
   - データエクスポート（設定タブからJSONファイルとしてダウンロード。日付入りファイル名で保存）
+  - 表示回数（ヘッダーに常時表示。個人アカウントが無いため「誰が見たか」は分からない
+      参考値で、同じ端末では1日1回までしかカウントされない。Firebase
+      pageviews/igo に保存し、igo.html/mahjong.html/goroku.html/dangi.html
+      それぞれ独立にカウント）
 
 【今後の改良候補】
   - レーティングの手合い換算値（HANDICAP_ELO）を実データで調整する
@@ -167,6 +171,7 @@
     #sync-row { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 5px; }
     #sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #2ecc71; display: inline-block; }
     #sync-label { font-size: 0.7rem; color: #aed6f1; }
+    #pageview-row { font-size: 0.68rem; color: #8ba9c2; margin-top: 3px; }
 
     /* Tabs */
     #nav { display: flex; background: #f1f0ea; border-bottom: 1px solid #e0dbcd; position: sticky; top: 0; z-index: 100; }
@@ -329,6 +334,7 @@
       <span id="sync-dot"></span>
       <span id="sync-label">接続中...</span>
     </div>
+    <div id="pageview-row">👁 <span id="pageview-count">－</span>回表示</div>
   </div>
 
   <!-- Tabs -->
@@ -748,6 +754,25 @@ function setSyncStatus(online) {
 }
 
 function pad(n) { return String(n).padStart(2, "0"); }
+
+// ---------- 表示回数 ----------
+// 個人アカウントがないため「誰が見たか」は分からない。あくまで「このアプリが
+// 開かれた回数」の目安。同じ端末では1日1回までしかカウントされない
+// （localStorageに最後にカウントした日付を保存して判定）。
+(function() {
+  if (!isConfigured) return;
+  const pvRef = firebase.database().ref("pageviews/igo");
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
+  if (localStorage.getItem("pageview_date_igo") !== todayStr) {
+    pvRef.transaction(cur => (cur || 0) + 1);
+    localStorage.setItem("pageview_date_igo", todayStr);
+  }
+  pvRef.on("value", snap => {
+    const el = document.getElementById("pageview-count");
+    if (el) el.textContent = snap.val() || 0;
+  });
+})();
 
 // ---------- Tabs ----------
 // ---------- Sticky nav top adjustment ----------
