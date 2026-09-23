@@ -59,6 +59,10 @@
   - ⚙️設定タブ：しおりの色を選択（6色・個人設定）
   - しおり機能：語録タブのみ。6色・グループ共有（Firebase）
   - 山あるき連動：?group=yamaарuki 付きアクセス時にヘッダー表示
+  - 表示回数（ヘッダーに常時表示。個人アカウントが無いため「誰が見たか」は分からない
+      参考値で、同じ端末では1日1回までしかカウントされない。?group=に関わらず
+      全体で1つのカウント。Firebase pageviews/goroku に保存し、
+      igo.html/mahjong.html/goroku.html/dangi.html それぞれ独立にカウント）
 
 【文責】
   平本先生・畠さんの言葉を西がまとめた語録集です（文責：西）
@@ -247,6 +251,7 @@
     <div id="yamaарuki-label" style="display:none">山あるき</div>
     <h1>囲碁 一局一得</h1>
     <div id="header-sub">進化の連鎖を楽しもう。</div>
+    <div id="pageview-row" style="font-size:0.68rem;color:#c8a87a;margin:0 0 8px;font-family:sans-serif">👁 <span id="pageview-count">－</span>回表示</div>
     <div style="font-size:0.7rem;color:#c8a87a;line-height:1.6;margin-bottom:12px;font-family:sans-serif">なお、このアプリに掲載している囲碁語録や考え方は、平本先生および畠さんの言葉をもとに作成しています。文責は西にあります。</div>
     <div id="nav">
       <button class="tab-btn active" data-tab="chakugan">🎯着眼</button>
@@ -564,6 +569,30 @@ if (hasGroup && isConfigured) {
     colorsRef.on("value", snap => { takenColors = snap.val() || {}; renderColorPicker(); updateColorCurrent(); });
   } catch(e) { console.error("Firebase init failed:", e); }
 }
+
+// ---------- 表示回数 ----------
+// 個人アカウントがないため「誰が見たか」は分からない。あくまで「このアプリが
+// 開かれた回数」の目安（?group=に関わらず全体で1つのカウント）。
+// 同じ端末では1日1回までしかカウントされない（localStorageに最後にカウントした
+// 日付を保存して判定）。
+(function() {
+  if (!isConfigured) return;
+  try {
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const pvRef = firebase.database().ref("pageviews/goroku");
+    const today = new Date();
+    const pad2 = n => String(n).padStart(2, "0");
+    const todayStr = `${today.getFullYear()}-${pad2(today.getMonth()+1)}-${pad2(today.getDate())}`;
+    if (localStorage.getItem("pageview_date_goroku") !== todayStr) {
+      pvRef.transaction(cur => (cur || 0) + 1);
+      localStorage.setItem("pageview_date_goroku", todayStr);
+    }
+    pvRef.on("value", snap => {
+      const el = document.getElementById("pageview-count");
+      if (el) el.textContent = snap.val() || 0;
+    });
+  } catch(e) { console.error("Firebase init failed:", e); }
+})();
 
 // ---------- 自分の色 ----------
 let myColor = localStorage.getItem("gorokuMyColor") || null;
