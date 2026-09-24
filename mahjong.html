@@ -45,6 +45,12 @@
       「延べ半荘数」として表示する。1位〜4位のカウントは、まとめて入力した中の内訳までは
       わからないため、従来どおり「入力1件＝1カウント」のまま。既存データ（半荘数の記録が
       無い過去の履歴）は1半荘として扱う）
+  - 半荘ごとの順位入力（任意。結果入力・修正の両方で、半荘数が2以上のときだけチェックを
+      入れると、まとめて入力した中の各半荘の順位（4人の並び順）を記録できる。分かる場合は
+      全半荘分を入力し、分からない場合はチェックを入れない（一部の半荘だけ分かる、という
+      半端な入力には対応しない）。この情報はレーティング計算でのみ使い、それ以外――
+      👑🥈🥉4位のカウント・半荘平均・ポイント/チップの合計など――は今までどおり
+      入力1件＝1カウントの総合値のまま変わらない）
   - チップ入力（枚数を入力、設定レートでポイント換算）
   - 順位表（総合ポイント順 / 1位回数順 / 半荘数順 / 役満回数順 / レーティング（参考値）の切り替え）
       総合ポイント = ポイント（対局pt） + チップ換算ポイント
@@ -53,8 +59,10 @@
       レーティング（参考値）：対局した順（対局日の古い順。同じ日は登録順）に1件ずつ更新する
       方式（Elo方式）。全員1500から始め、各対局の順位（総合ポイント順。1位〜4位の判定と同じ）を
       「上位が下位に勝った」6組の勝ち負けに分けて、予想より意外な結果ほど大きく動かす。
-      得点差は使わず順位だけで計算する。複数半荘をまとめた入力も1件＝1試合として数え、
-      「暫定」と変動幅の切り替えも件数で判定する（延べ半荘数では数えない）。
+      得点差は使わず順位だけで計算する。半荘ごとの順位が分かっている入力は、その半荘数ぶん
+      実際の試合として数える。分からない入力は、従来どおり1件＝1試合として数える（総合
+      ポイント順で判定）。「暫定」と変動幅の切り替えも、この試合数（分かる場合は半荘数、
+      分からない場合は入力件数）で判定する。
       1件で動く幅は、その人の対局が15件未満の間は大きめ（最大32点）、以降は小さめ（最大16点）。
       30件未満の人は「暫定」表示。保存はせず、表示のたびに全履歴から計算し直す。
       現在のシーズンのみ対象。囲碁（星取）のレートとは別の尺度で、比べられない。
@@ -97,7 +105,7 @@
 
 【今後の改良候補】
   - レーティングの変動幅・暫定の基準（RATING_K_*・RATING_PROVISIONAL_GAMES）を実データで調整する
-  - まとめて入力した半荘数の多い入力を、レーティングでより重く扱うか（現状は1件＝1試合）
+  - 半荘ごとの順位入力のUI改善（現状は半荘ごとに4つのプルダウンを個別に選ぶだけの簡易UI）
   - レーティングと対局数の次シーズンへの持ち越し（現状は新シーズンで全員1500・0件に戻る）
   - ダークモード対応
 ================================================================================
@@ -384,6 +392,15 @@
         <p class="note" style="margin-top:6px;margin-bottom:0">複数回の半荘をまとめて1つの結果として入力する場合は、その半荘数を入力してください（通常は1）。</p>
       </div>
       <div id="rank-inputs"></div>
+      <div class="fg" id="hanchan-detail-toggle-fg" style="display:none;align-items:center;gap:8px">
+        <input type="checkbox" id="hanchan-detail-toggle" style="width:auto;flex-shrink:0">
+        <label for="hanchan-detail-toggle" style="margin:0;font-weight:normal;font-size:0.85rem;color:#555">各半荘の順位も分かるので入力する（レーティングの精度が上がります）</label>
+      </div>
+      <div class="fg" id="hanchan-detail-fg" style="display:none">
+        <label>半荘ごとの順位</label>
+        <div id="hanchan-detail-rows"></div>
+        <p class="note" style="margin-top:6px;margin-bottom:0">上で選んだ4人について、各半荘の順位（1位〜4位）を選んでください。一部の半荘だけ分かる場合には対応していません。</p>
+      </div>
       <div class="fg">
         <label>🀄 役満（あれば記録）</label>
         <div id="yakuman-rows"></div>
@@ -475,6 +492,14 @@
     <div class="fg"><label>対局日</label><input type="date" id="em-date"></div>
     <div class="fg"><label>半荘数</label><input type="number" id="em-hanchans" min="1" step="1"></div>
     <div id="em-players-wrap"></div>
+    <div class="fg" id="em-hanchan-detail-toggle-fg" style="display:none;align-items:center;gap:8px">
+      <input type="checkbox" id="em-hanchan-detail-toggle" style="width:auto;flex-shrink:0">
+      <label for="em-hanchan-detail-toggle" style="margin:0;font-weight:normal;font-size:0.85rem;color:#555">各半荘の順位も分かるので入力する</label>
+    </div>
+    <div class="fg" id="em-hanchan-detail-fg" style="display:none">
+      <label>半荘ごとの順位</label>
+      <div id="em-hanchan-detail-rows"></div>
+    </div>
     <div class="fg" style="margin-top:12px">
       <label>🀄 役満（あれば記録）</label>
       <div id="em-yakuman-rows"></div>
@@ -659,7 +684,7 @@ function buildRankInputs() {
     return `
       <div class="rank-input-row ${isTop ? 'top-auto-row' : ''}">
         <span class="ri-label">${label}</span>
-        <select class="ri-select" id="ri-player-${r}" onchange="rankInputDirty = true">${options}</select>
+        <select class="ri-select" id="ri-player-${r}" onchange="rankInputDirty = true; onRankInputPlayerChange()">${options}</select>
         
         <div class="ri-val-wrap">
           <span class="ri-val-title">ポイント</span>
@@ -682,6 +707,85 @@ function buildRankInputs() {
   }).join("");
   recalcTopScore();
 }
+
+// ---------- 半荘ごとの順位（任意入力） ----------
+// 複数半荘をまとめて1件に入力する際、各半荘の順位まで分かる場合だけ、その内訳を記録できる。
+// 一部の半荘だけ分かる、という半端な入力には対応しない（全半荘分入力するか、しないか）。
+// 保存した内訳はレーティング計算だけで使い、それ以外の集計（合計ポイント・チップ、
+// 👑🥈🥉4位カウント、半荘平均など）には使わない。結果入力タブ・修正モーダルの両方で使う。
+const HANCHAN_RANK_LABELS = ["1位", "2位", "3位", "4位"];
+
+function hanchanDetailRowHTML(players, prefillOrder) {
+  return `
+    <div class="hanchan-detail-row" style="display:flex;align-items:center;gap:4px;margin-bottom:6px">
+      ${HANCHAN_RANK_LABELS.map((label, pos) => {
+        const opts = players.map((name, pi) =>
+          `<option value="${name}"${(prefillOrder ? prefillOrder[pos] === name : pi === pos) ? " selected" : ""}>${name}</option>`
+        ).join("");
+        return `<select class="hanchan-detail-select" data-pos="${pos}" title="${label}" style="flex:1;min-width:0;padding:6px 2px;font-size:0.78rem">${opts}</select>`;
+      }).join("")}
+    </div>`;
+}
+
+// containerId直下に、半荘数ぶんの行（各行4つの順位プルダウン）を作る。
+// prefillRows（[半荘0の並び, 半荘1の並び, ...]）を渡すと、既存の値を選択済みにする。
+function buildHanchanDetailRows(containerId, players, hanchans, prefillRows) {
+  const wrap = document.getElementById(containerId);
+  if (!wrap) return;
+  const rows = [];
+  for (let h = 0; h < hanchans; h++) {
+    rows.push(`<div style="font-size:0.72rem;color:#999;margin:${h===0?"0":"8px"} 0 2px">第${h+1}半荘</div>`
+      + hanchanDetailRowHTML(players, prefillRows && prefillRows[h]));
+  }
+  wrap.innerHTML = rows.join("");
+}
+
+// containerId内の行を読み取り、[半荘ごとの4人の並び順]の配列を返す。
+// 行数が半荘数と合わない、またはどこかの半荘で同じ人が重複しているときはnullを返す（呼び出し側でエラー表示）。
+function readHanchanDetailRows(containerId, hanchans) {
+  const wrap = document.getElementById(containerId);
+  if (!wrap) return null;
+  const rowEls = wrap.querySelectorAll(".hanchan-detail-row");
+  if (rowEls.length !== hanchans) return null;
+  const rows = [...rowEls].map(rowEl => [...rowEl.querySelectorAll(".hanchan-detail-select")].map(sel => sel.value));
+  if (rows.some(row => new Set(row).size !== row.length)) return null;
+  return rows;
+}
+
+// ---- 結果入力タブ ----
+function currentRankInputPlayers() {
+  return [0,1,2,3].map(r => document.getElementById(`ri-player-${r}`).value);
+}
+
+function rebuildHanchanDetailRows() {
+  const hanchans = parseInt(document.getElementById("match-hanchans").value, 10) || 1;
+  buildHanchanDetailRows("hanchan-detail-rows", currentRankInputPlayers(), hanchans);
+}
+
+// 対局者の選択が変わったら、開いている場合だけ半荘ごとの行を作り直す（ri-selectのonchangeから呼ぶ）
+function onRankInputPlayerChange() {
+  if (document.getElementById("hanchan-detail-toggle").checked) rebuildHanchanDetailRows();
+}
+
+// 半荘数が2未満ならトグルごと隠す（分ける意味がないため）。2以上になったら表示する。
+function refreshHanchanDetailToggleVisibility() {
+  const hanchans = parseInt(document.getElementById("match-hanchans").value, 10) || 1;
+  const toggleFg = document.getElementById("hanchan-detail-toggle-fg");
+  const toggle = document.getElementById("hanchan-detail-toggle");
+  if (hanchans >= 2) {
+    toggleFg.style.display = "flex";
+    if (toggle.checked) rebuildHanchanDetailRows();
+  } else {
+    toggleFg.style.display = "none";
+    toggle.checked = false;
+    document.getElementById("hanchan-detail-fg").style.display = "none";
+  }
+}
+document.getElementById("match-hanchans").addEventListener("input", refreshHanchanDetailToggleVisibility);
+document.getElementById("hanchan-detail-toggle").addEventListener("change", function() {
+  document.getElementById("hanchan-detail-fg").style.display = this.checked ? "" : "none";
+  if (this.checked) rebuildHanchanDetailRows();
+});
 
 // ---------- 役満記録：選択肢と入力行の共通ヘルパー ----------
 // 結果入力タブ（#yakuman-rows）と修正モーダル（#em-yakuman-rows）の両方から使う。
@@ -877,7 +981,15 @@ document.getElementById("add-match").addEventListener("click", () => {
   const hanchans = (!isNaN(hanchansRaw) && hanchansRaw >= 1) ? hanchansRaw : 1;
   const yakumans = readYakumanRows("yakuman-rows");
 
-  state.history.push({ date: d, points, chips, players: playerNames, hanchans, yakumans });
+  let hanchanRanks = null;
+  if (hanchans >= 2 && document.getElementById("hanchan-detail-toggle").checked) {
+    hanchanRanks = readHanchanDetailRows("hanchan-detail-rows", hanchans);
+    if (!hanchanRanks) { showToast("半荘ごとの順位の入力を確認してください（同じ人が同じ半荘に重複していないか）"); return; }
+  }
+
+  const record = { date: d, points, chips, players: playerNames, hanchans, yakumans };
+  if (hanchanRanks) record.hanchanRanks = hanchanRanks;
+  state.history.push(record);
   pushState();
 
   document.getElementById("yakuman-rows").innerHTML = "";
@@ -886,6 +998,10 @@ document.getElementById("add-match").addEventListener("click", () => {
     document.getElementById(`ri-chip-${r}`).value = "";
   });
   document.getElementById("match-hanchans").value = "1";
+  document.getElementById("hanchan-detail-toggle").checked = false;
+  document.getElementById("hanchan-detail-fg").style.display = "none";
+  document.getElementById("hanchan-detail-toggle-fg").style.display = "none";
+  document.getElementById("hanchan-detail-rows").innerHTML = "";
   rankInputDirty = false; // 【追加】登録後はフラグをリセットしてrebuildを許可
   recalcTopScore();
   
@@ -1019,28 +1135,23 @@ const RATING_K_SWITCH_GAMES = 15;    // これ未満の件数の間は、1件で
 const RATING_K_NEW = 32;             // 上の件数未満のとき、1件で動く幅の上限（点）
 const RATING_K_SETTLED = 16;         // 上の件数以上のとき、1件で動く幅の上限（点）
 
-// 対局した順（対局日の古い順。同じ日は登録順）に1件ずつレートを更新する（Elo方式）。
-// 各対局の順位（総合ポイント順。1位〜4位の判定と同じ）を、「上位の人が下位の人に勝った」
-// 6組の勝ち負けに分け、予想より意外な結果ほど大きく動かす。全員1500から始める。
-// 複数半荘をまとめた入力も1件＝1試合として数える。得点差は使わず順位だけを見る。
-// 1件で動く幅（K）は、その人の対局件数が少ないうちは大きく、重ねると小さくする。
-// 保存はせず、表示のたびに全履歴から計算し直す。
+// 対局した順（対局日の古い順。同じ日は登録順）にレートを更新する（Elo方式）。
+// 各対局の順位を、「上位の人が下位の人に勝った」6組の勝ち負けに分け、予想より意外な
+// 結果ほど大きく動かす。全員1500から始める。得点差は使わず順位だけを見る。
+// 半荘ごとの順位が分かっている入力（m.hanchanRanks）は、その半荘数ぶん実際の試合として
+// 1つずつ順番に計算する。分からない入力は、従来どおり1件＝1試合として、総合ポイント順
+// （matchOverallRanks）で判定する。1件（1半荘）で動く幅（K）は、その人の試合数が
+// 少ないうちは大きく、重ねると小さくする。保存はせず、表示のたびに全履歴から計算し直す。
 function computeRatings() {
   const r = {}, n = {}, hn = {};
   const expect = d => 1 / (1 + Math.pow(10, -d / 400));
   const kOf = p => n[p] < RATING_K_SWITCH_GAMES ? RATING_K_NEW : RATING_K_SETTLED;
 
-  const entries = state.history.map((m, idx) => ({ m, idx }))
-    .sort((a, b) => historyDateSortValue(a.m.date) - historyDateSortValue(b.m.date) || a.idx - b.idx);
-
-  entries.forEach(({ m }) => {
-    const ps = m.players || state.players;
-    if (!m.points || ps.length !== m.points.length || ps.length < 2) return;
-    const ranks = matchOverallRanks(m);
-    const hanchans = (m.hanchans && m.hanchans >= 1) ? m.hanchans : 1;
+  // 対局者リストpsと、その順位ranks（1〜psの人数）から1試合ぶんレートを更新する。
+  // hanchanWeightは「延べ半荘数」の集計にだけ使う値（通常1。半荘内訳が無い入力では
+  // その入力の半荘数をまとめて渡す）。
+  function applyGame(ps, ranks, hanchanWeight) {
     ps.forEach(p => { if (!(p in r)) { r[p] = RATING_BASE; n[p] = 0; hn[p] = 0; } });
-
-    // 更新前のレートと対局件数で、全員分の変化量を先に求める
     const delta = {};
     ps.forEach(p => { delta[p] = 0; });
     const share = ps.length - 1; // 1人あたりの相手の数（4人打ちなら3）
@@ -1054,7 +1165,30 @@ function computeRatings() {
         delta[down] -= kOf(down) / share * miss;
       }
     }
-    ps.forEach(p => { r[p] += delta[p]; n[p]++; hn[p] += hanchans; });
+    ps.forEach(p => { r[p] += delta[p]; n[p]++; hn[p] += hanchanWeight; });
+  }
+
+  const entries = state.history.map((m, idx) => ({ m, idx }))
+    .sort((a, b) => historyDateSortValue(a.m.date) - historyDateSortValue(b.m.date) || a.idx - b.idx);
+
+  entries.forEach(({ m }) => {
+    const ps = m.players || state.players;
+    if (!m.points || ps.length !== m.points.length || ps.length < 2) return;
+    const hanchans = (m.hanchans && m.hanchans >= 1) ? m.hanchans : 1;
+
+    const hasDetail = Array.isArray(m.hanchanRanks) && m.hanchanRanks.length === hanchans
+      && m.hanchanRanks.every(order => Array.isArray(order) && order.length === ps.length && ps.every(p => order.includes(p)));
+
+    if (hasDetail) {
+      // 半荘ごとの順位が分かっている場合は、その半荘数ぶん、実際の試合として1つずつ計算する
+      m.hanchanRanks.forEach(order => {
+        const ranks = ps.map(p => order.indexOf(p) + 1);
+        applyGame(ps, ranks, 1);
+      });
+    } else {
+      // 分からない場合は、これまでどおり入力1件を1試合として扱う
+      applyGame(ps, matchOverallRanks(m), hanchans);
+    }
   });
 
   return Object.keys(n)
@@ -1073,7 +1207,8 @@ const RATING_HELP_HTML = `
       <div>・各対局の順位を、「上位の人が下位の人に勝った」という勝ち負けに分けて計算します（1位は2〜4位に、2位は3・4位に、3位は4位に勝ち）。レートの高い人に勝つほど、また低い人に負けるほど、大きく動きます。</div>
       <div>・順位は、ポイントにチップ換算分を足した総合ポイントの順で決めます（履歴の1位〜4位と同じです）。得点差は使いません。</div>
       <div>・対局した順（対局日の古い順、同じ日は登録順）に1件ずつ計算します。新しい対局ほど、今のレートに反映されます。保存はせず、表示のたびに全履歴から計算し直します。</div>
-      <div>・複数の半荘をまとめて入力した場合も、1件＝1試合として数えます。「暫定」や動く幅の切り替えも、半荘数ではなく件数で数えます。</div>
+      <div>・複数の半荘をまとめて入力した場合、各半荘の順位が分かっていれば、その半荘の数だけ実際の試合として数えます。分からない場合は、これまでどおり入力1件を1試合として数えます（総合ポイント順で判定）。</div>
+      <div>・「暫定」や動く幅の切り替えも、この試合数（半荘ごとに分かる場合はその数、そうでない場合は入力件数）で判定します。</div>
       <div>・1件で動く幅は、対局が${RATING_K_SWITCH_GAMES}件未満の間は最大${RATING_K_NEW}点、それ以降は最大${RATING_K_SETTLED}点です。</div>
       <div>・${RATING_PROVISIONAL_GAMES}件未満の人は「暫定」です。麻雀は運の要素が大きく、実力の差が数字に出にくいため、対局が少ないうちは順番や卓の顔ぶれの影響を受けやすい値です。差が小さくても不思議ではなく、50点以内の差は誤差の範囲として読んでください。</div>
       <div>・現在のシーズンの対局だけが対象です（新シーズンを始めると、全員${RATING_BASE}からやり直しです）。</div>
@@ -1673,7 +1808,25 @@ function openEditModal(idx) {
   // 履歴の日付は "YYYY/M/D" 形式。日付選択欄（YYYY-MM-DD）に変換して入れる。
   // 読み取れない日付のときは空欄にして、前に開いた対局の日付が残らないようにする
   document.getElementById("em-date").value = matchDateToInput(m.date);
-  document.getElementById("em-hanchans").value = (m.hanchans && m.hanchans >= 1) ? m.hanchans : 1;
+  const hanchans = (m.hanchans && m.hanchans >= 1) ? m.hanchans : 1;
+  document.getElementById("em-hanchans").value = hanchans;
+
+  const players = m.players || state.players;
+  const emToggleFg = document.getElementById("em-hanchan-detail-toggle-fg");
+  const emToggle = document.getElementById("em-hanchan-detail-toggle");
+  const emDetailFg = document.getElementById("em-hanchan-detail-fg");
+  const hasDetail = Array.isArray(m.hanchanRanks) && m.hanchanRanks.length === hanchans;
+  if (hanchans >= 2) {
+    emToggleFg.style.display = "flex";
+    emToggle.checked = hasDetail;
+    emDetailFg.style.display = hasDetail ? "" : "none";
+    buildHanchanDetailRows("em-hanchan-detail-rows", players, hanchans, hasDetail ? m.hanchanRanks : null);
+  } else {
+    emToggleFg.style.display = "none";
+    emToggle.checked = false;
+    emDetailFg.style.display = "none";
+    document.getElementById("em-hanchan-detail-rows").innerHTML = "";
+  }
 
   const wrap = document.getElementById("em-players-wrap");
   wrap.innerHTML = (m.players || state.players).map((name, pi) => `
@@ -1693,6 +1846,31 @@ function openEditModal(idx) {
   document.getElementById("edit-modal").style.display = "block";
 }
 
+// 修正モーダルでの半荘数変更／トグル切替：開いている場合だけ行を作り直す
+document.getElementById("em-hanchans").addEventListener("input", function() {
+  const hanchans = parseInt(this.value, 10) || 1;
+  const toggleFg = document.getElementById("em-hanchan-detail-toggle-fg");
+  const toggle = document.getElementById("em-hanchan-detail-toggle");
+  const m = state.history[editTargetIdx];
+  const players = (m && m.players) || state.players;
+  if (hanchans >= 2) {
+    toggleFg.style.display = "flex";
+    if (toggle.checked) buildHanchanDetailRows("em-hanchan-detail-rows", players, hanchans);
+  } else {
+    toggleFg.style.display = "none";
+    toggle.checked = false;
+    document.getElementById("em-hanchan-detail-fg").style.display = "none";
+  }
+});
+document.getElementById("em-hanchan-detail-toggle").addEventListener("change", function() {
+  document.getElementById("em-hanchan-detail-fg").style.display = this.checked ? "" : "none";
+  if (this.checked) {
+    const hanchans = parseInt(document.getElementById("em-hanchans").value, 10) || 1;
+    const m = state.history[editTargetIdx];
+    buildHanchanDetailRows("em-hanchan-detail-rows", (m && m.players) || state.players, hanchans);
+  }
+});
+
 document.getElementById("em-save").addEventListener("click", () => {
   if (editTargetIdx < 0) return;
   const m = state.history[editTargetIdx];
@@ -1702,6 +1880,14 @@ document.getElementById("em-save").addEventListener("click", () => {
   const hanchansVal = parseInt(document.getElementById("em-hanchans").value, 10);
   m.hanchans = (!isNaN(hanchansVal) && hanchansVal >= 1) ? hanchansVal : 1;
   m.yakumans = readYakumanRows("em-yakuman-rows");
+
+  if (m.hanchans >= 2 && document.getElementById("em-hanchan-detail-toggle").checked) {
+    const hanchanRanks = readHanchanDetailRows("em-hanchan-detail-rows", m.hanchans);
+    if (!hanchanRanks) { showToast("半荘ごとの順位の入力を確認してください（同じ人が同じ半荘に重複していないか）"); return; }
+    m.hanchanRanks = hanchanRanks;
+  } else {
+    delete m.hanchanRanks;
+  }
 
   const players = m.players || state.players;
   players.forEach((_, pi) => {
