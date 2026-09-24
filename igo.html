@@ -765,8 +765,10 @@ function pad(n) { return String(n).padStart(2, "0"); }
   const today = new Date();
   const todayStr = `${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
   if (localStorage.getItem("pageview_date_igo") !== todayStr) {
-    pvRef.transaction(cur => (cur || 0) + 1);
-    localStorage.setItem("pageview_date_igo", todayStr);
+    pvRef.transaction(cur => (cur || 0) + 1, (error, committed) => {
+      if (error) { console.error("表示回数の記録に失敗しました:", error); return; }
+      if (committed) localStorage.setItem("pageview_date_igo", todayStr);
+    });
   }
   pvRef.on("value", snap => {
     const el = document.getElementById("pageview-count");
