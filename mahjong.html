@@ -50,7 +50,8 @@
       全半荘分を入力し、分からない場合はチェックを入れない（一部の半荘だけ分かる、という
       半端な入力には対応しない）。この情報はレーティング計算でのみ使い、それ以外――
       👑🥈🥉4位のカウント・半荘平均・ポイント/チップの合計など――は今までどおり
-      入力1件＝1カウントの総合値のまま変わらない）
+      入力1件＝1カウントの総合値のまま変わらない。履歴カードにも「半荘ごとの順位を見る」
+      折りたたみで表示する（記録が無い入力には表示しない））
   - チップ入力（枚数を入力、設定レートでポイント換算）
   - 順位表（総合ポイント順 / 1位回数順 / 半荘数順 / 役満回数順 / レーティング（参考値）の切り替え）
       総合ポイント = ポイント（対局pt） + チップ換算ポイント
@@ -1422,6 +1423,15 @@ function renderHistory() {
     const yakumanHTML = (m.yakumans && m.yakumans.length)
       ? `<div class="hist-yakuman">🀄 役満：${m.yakumans.map(y => `${y.player}（${y.name}）`).join("、")}</div>`
       : "";
+    // 半荘ごとの順位が記録されている場合、折りたたみで表示する（無い入力では何も出さない）
+    const hanchanDetailHTML = (Array.isArray(m.hanchanRanks) && m.hanchanRanks.length === hanchans)
+      ? `<details class="help-details" style="margin:8px 0 0">
+           <summary>半荘ごとの順位を見る</summary>
+           <div class="note" style="margin:6px 0 0;line-height:1.9">
+             ${m.hanchanRanks.map((order, h) => `<div>第${h+1}半荘　${order.map((name, pos) => `${rankEmoji(pos+1)}${name}`).join("　")}</div>`).join("")}
+           </div>
+         </details>`
+      : "";
 
     // コメント表示
     const raw       = m.comment || "";
@@ -1481,6 +1491,7 @@ function renderHistory() {
           }).join("")}
         </div>
         ${yakumanHTML}
+        ${hanchanDetailHTML}
         ${hasComment ? `<div style="margin-top:6px">${commentBody}</div>` : ""}
         ${reactionPills ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px">${reactionPills}</div>` : ""}
         ${hasComment ? `
