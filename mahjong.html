@@ -1344,7 +1344,10 @@ function renderStandings() {
     // レーティング表示中だけ、半荘ごとの順位が分かっている対局に限定した👑🥈🥉4位も添える
     // （総合ポイント順の👑🥈🥉4位とは別物であることが分かるよう、ラベルを分けて表示する）
     const hanchanBasedHTML = (isRating && anyHanchanDetail)
-      ? `<div class="rank-sub" style="white-space:nowrap;margin-top:2px;color:#888">半荘ベース：👑${p.hanchanC[1]} 🥈${p.hanchanC[2]} 🥉${p.hanchanC[3]} <span style="opacity:0.7">4位:${p.hanchanC[4]}</span><span style="font-size:0.66rem;color:#bbb;margin-left:4px">（分かっている分のみ）</span></div>`
+      ? `<div class="rank-sub" style="margin-top:4px;color:#888">
+           <div style="font-size:0.66rem;color:#bbb;margin-bottom:1px">半荘ベース（分かっている分のみ）</div>
+           <div style="white-space:nowrap">👑${p.hanchanC[1]} 🥈${p.hanchanC[2]} 🥉${p.hanchanC[3]} <span style="opacity:0.7">4位:${p.hanchanC[4]}</span></div>
+         </div>`
       : "";
     return `
       <div class="rank-row">
