@@ -72,7 +72,10 @@
       入力回数（延べ半荘数）と、👑🥈🥉4位のカウント・🀄役満回数はそれぞれ改行して1行にまとめて表示
       各対局の1位〜4位（👑🥈🥉4位のカウント・履歴のバッジ）は、ポイントとチップ換算分を合算した
       その対局の総合値で判定する（ポイント単独の大小ではない）。順位はデータとして保存せず、
-      表示のたびに matchOverallRanks() でその場計算する（チップレートを変更しても常に最新の値で表示される）
+      表示のたびに matchOverallRanks() でその場計算する（チップレートを変更しても常に最新の値で表示される）。
+      レーティング表示中だけ、半荘ごとの順位が分かっている対局に限定した👑🥈🥉4位カウントを
+      「半荘ベース：（分かっている分のみ）」として別行に添える（総合ポイント順の👑🥈🥉4位とは
+      別物であることが分かるよう表示を分け、既存のカウントの意味は変えない）
   - 役満記録（結果入力・修正の両方で、対局者と役満の種類を任意の件数だけ記録できる。
       役満はプルダウンから選択（天和・国士無双・大三元など標準的な役満をあらかじめ用意）。
       選択肢に無いものは「その他（自由入力）」で入力可能。⚙️設定タブの管理者の仕事内で
@@ -80,14 +83,15 @@
       全員の画面に同期される（削除は追加したものだけ可能。標準の役満は削除不可）。
       1件の結果入力が複数半荘をまとめたものでも、その中で誰がどの役満を出したかを個別に残せる。
       履歴カードに「🀄役満：〇〇（大三元）」の形式で表示。順位表には雀士ごとの役満回数を表示し、
-      「役満回数順」で並べ替えられる）
+      「役満回数順」で並べ替えられる（この並び順を選んだときは、実際に役満を出した人だけを表示する））
   - 成績グラフ（順位表タブ最上部。雀士ごとに固定色のバーで表示。
       「総合ポイント／ポイント／チップ（枚）」ボタンで表示指標を切り替え可能。
       選択中の指標が高い順に左から並び、値がプラスなら上方向・マイナスなら下方向。
       値がバー内に収まらない場合のみ外側にラベル表示。
       チップ表示では棒を枚数（「+3枚」）で示し、名前の下に、チップレートで換算した
       ポイント（「換算+6pt」）もあわせて表示する）
-  - 対局履歴（雀士別ハイライト表示・削除＋10秒Undo機能付き）
+  - 対局履歴（雀士別ハイライト表示・削除＋10秒Undo機能付き。ハイライトは「半荘ごとの順位を
+      見る」の折りたたみ内にも及び、選ばれた人の名前をそこでも目立たせる）
       修正画面の対局日は日付選択欄（保存する日付は他と同じ「年/月/日」の形式にそろえる）
   - 対局コメントとリアクション（👍いいね・😄楽しい・😮驚き・🔥熱い・👏お見事・🤔なるほど・
       😢惜しい・🙏ありがとう・🎉おめでとう・💡気づきの10種。プルダウンで「絵文字＋意味」を
@@ -1238,6 +1242,10 @@ function renderStandings() {
   if (isRating) computeRatings().forEach(x => { ratingMap[x.name] = x; });
   renderRatingOptions();
   const totals = {}, chipTotals = {}, gameCnt = {}, hanchanCnt = {}, yakumanCnt = {}, rankCnt = { 1:{}, 2:{}, 3:{}, 4:{} };
+  // 半荘ごとの順位が分かっている対局だけを対象にした、レーティング表示専用の内訳
+  // （通常の👑🥈🥉4位カウントとは別物。分からない対局は含まれない）
+  const hanchanRankCnt = { 1:{}, 2:{}, 3:{}, 4:{} };
+  let anyHanchanDetail = false;
 
   state.players.forEach(p => {
     totals[p]  = 0; chipTotals[p] = 0; gameCnt[p] = 0; hanchanCnt[p] = 0; yakumanCnt[p] = 0;
@@ -1263,6 +1271,15 @@ function renderStandings() {
       if (!y || !y.player) return;
       yakumanCnt[y.player] = (yakumanCnt[y.player] || 0) + 1;
     });
+    if (Array.isArray(m.hanchanRanks) && m.hanchanRanks.length === hanchans) {
+      anyHanchanDetail = true;
+      m.hanchanRanks.forEach(order => {
+        order.forEach((name, pos) => {
+          const rank = pos + 1;
+          hanchanRankCnt[rank][name] = (hanchanRankCnt[rank][name] || 0) + 1;
+        });
+      });
+    }
   });
 
   const allPlayers = [...new Set([...state.players, ...Object.keys(totals), ...Object.keys(yakumanCnt)])];
@@ -1287,7 +1304,8 @@ function renderStandings() {
       hanchans,
       yakumanCnt: yakumanCnt[p] || 0,
       avgPt, avgChipPt, avgOverall,
-      c: [0, rankCnt[1][p]||0, rankCnt[2][p]||0, rankCnt[3][p]||0, rankCnt[4][p]||0]
+      c: [0, rankCnt[1][p]||0, rankCnt[2][p]||0, rankCnt[3][p]||0, rankCnt[4][p]||0],
+      hanchanC: [0, hanchanRankCnt[1][p]||0, hanchanRankCnt[2][p]||0, hanchanRankCnt[3][p]||0, hanchanRankCnt[4][p]||0]
     };
   });
 
@@ -1305,8 +1323,11 @@ function renderStandings() {
   else if (sortMode === "yakuman")  data.sort((a, b) => b.yakumanCnt - a.yakumanCnt || b.overall - a.overall);
   else                              data.sort((a, b) => b.c[1] - a.c[1] || b.overall - a.overall);
 
+  // 役満回数順は、実際に役満を出した人だけを表示する
+  const displayData = sortMode === "yakuman" ? data.filter(p => p.yakumanCnt > 0) : data;
+
   const MEDALS = ["🥇","🥈","🥉","4"];
-  document.getElementById("rank-list").innerHTML = data.map((p, i) => {
+  document.getElementById("rank-list").innerHTML = displayData.map((p, i) => {
     const rt = isRating ? ratingMap[p.name] : null;
     const rankLabel = (isRating && !rt) ? "－" : (MEDALS[i] || i+1);
     const avgHTML = (!isRating && p.hanchans > 0)
@@ -1320,6 +1341,11 @@ function renderStandings() {
     const yakumanHTML = p.yakumanCnt > 0
       ? ` <span style="color:#8e44ad;font-weight:bold">🀄役満${p.yakumanCnt}</span>`
       : "";
+    // レーティング表示中だけ、半荘ごとの順位が分かっている対局に限定した👑🥈🥉4位も添える
+    // （総合ポイント順の👑🥈🥉4位とは別物であることが分かるよう、ラベルを分けて表示する）
+    const hanchanBasedHTML = (isRating && anyHanchanDetail)
+      ? `<div class="rank-sub" style="white-space:nowrap;margin-top:2px;color:#888">半荘ベース：👑${p.hanchanC[1]} 🥈${p.hanchanC[2]} 🥉${p.hanchanC[3]} <span style="opacity:0.7">4位:${p.hanchanC[4]}</span><span style="font-size:0.66rem;color:#bbb;margin-left:4px">（分かっている分のみ）</span></div>`
+      : "";
     return `
       <div class="rank-row">
         <div class="rank-row-main">
@@ -1328,6 +1354,7 @@ function renderStandings() {
             <div class="rank-name">${p.name}</div>
             <div class="rank-sub">${p.games}履歴${p.hanchans !== p.games ? `（延べ${p.hanchans}半荘）` : ""}</div>
             <div class="rank-sub" style="white-space:nowrap;margin-top:2px">👑${p.c[1]} 🥈${p.c[2]} 🥉${p.c[3]} <span style="opacity:0.7">4位:${p.c[4]}</span>${yakumanHTML}</div>
+            ${hanchanBasedHTML}
           </div>
           ${isRating ? `
           <div class="rank-right-score">
@@ -1347,7 +1374,9 @@ function renderStandings() {
         </div>
         ${avgHTML}
       </div>`;
-  }).join("") || `<p style="color:#999;font-size:0.9rem">まだ対局がありません。</p>`;
+  }).join("") || (sortMode === "yakuman"
+    ? `<p style="color:#999;font-size:0.9rem">まだ役満はありません。</p>`
+    : `<p style="color:#999;font-size:0.9rem">まだ対局がありません。</p>`);
 }
 
 function setSortMode(mode) {
@@ -1423,12 +1452,18 @@ function renderHistory() {
     const yakumanHTML = (m.yakumans && m.yakumans.length)
       ? `<div class="hist-yakuman">🀄 役満：${m.yakumans.map(y => `${y.player}（${y.name}）`).join("、")}</div>`
       : "";
-    // 半荘ごとの順位が記録されている場合、折りたたみで表示する（無い入力では何も出さない）
+    // 半荘ごとの順位が記録されている場合、折りたたみで表示する（無い入力では何も出さない）。
+    // 履歴の絞り込みで人を選んでいる場合は、その人の名前をここでも目立たせる。
     const hanchanDetailHTML = (Array.isArray(m.hanchanRanks) && m.hanchanRanks.length === hanchans)
       ? `<details class="help-details" style="margin:8px 0 0">
            <summary>半荘ごとの順位を見る</summary>
            <div class="note" style="margin:6px 0 0;line-height:1.9">
-             ${m.hanchanRanks.map((order, h) => `<div>第${h+1}半荘　${order.map((name, pos) => `${rankEmoji(pos+1)}${name}`).join("　")}</div>`).join("")}
+             ${m.hanchanRanks.map((order, h) => `<div>第${h+1}半荘　${order.map((name, pos) => {
+                 const chip = `${rankEmoji(pos+1)}${name}`;
+                 return (selectedHighlightPlayer && name === selectedHighlightPlayer)
+                   ? `<span style="background:#fff9e6;border:1px solid #f39c12;border-radius:4px;padding:0 4px;font-weight:bold">${chip}</span>`
+                   : chip;
+               }).join("　")}</div>`).join("")}
            </div>
          </details>`
       : "";
