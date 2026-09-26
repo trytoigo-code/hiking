@@ -341,6 +341,17 @@ function escapeHtml(s) {
 }
 
 // ---------- タブ ----------
+// ---------- Sticky nav top adjustment ----------
+(function() {
+  function adjustNavTop() {
+    const header = document.getElementById("header");
+    const nav = document.getElementById("nav");
+    if (header && nav) nav.style.top = header.offsetHeight + "px";
+  }
+  adjustNavTop();
+  window.addEventListener("resize", adjustNavTop);
+})();
+
 document.querySelectorAll(".tab-btn").forEach(btn => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
