@@ -14,9 +14,23 @@
   - 各アプリへのリンクを管理する
 
 【技術構成】
-  - 純粋なHTML/CSS（JavaScriptなし）
+  - 基本は純粋なHTML/CSS。テロップ（後述）表示のためだけに、最小限のJSとFirebase
+    読み取り専用アクセスを追加している
   - 外部ライブラリなし・ビルド不要・1ファイル完結
-  - シンプルさを最優先とする
+  - シンプルさを最優先とする（テロップも含め、書き込みは一切行わない）
+
+【テロップについて】
+  タイトルの下に、仲間内の興味を引きそうな情報をテロップ（横に流れる帯）で表示する。
+  igo.html（go-league/state）・mahjong.html（mahjong/state）を読み取り専用で参照し、
+  ページを開くたびに以下を組み立てて流す（保存はしない・その場計算のみ）。
+    ・⚫囲碁 勝数1位（今シーズン）
+    ・🀄麻雀 総合ポイント1位（今シーズン）
+    ・📋囲碁・麻雀それぞれの最新の対局
+    ・😴 最後の対局から2週間以上空いている人への呼びかけ（囲碁・麻雀それぞれ。
+      該当者がいない場合はその項目を出さない）
+  総合順位（sogo.html）の1位は含めない。sogo.htmlのレーティング計算＋メンバー対応づけ
+  ロジックをこちらにも複製することになり、index.htmlの複雑さに見合わないため見送った。
+  データが1件も無い場合は「🏔️ 山あるき、はじまります！」を表示する。
 
 【共同編集の進め方】
   このアプリは、ユーザーと生成AIが対話しながら少しずつ育てていくものです。
@@ -40,6 +54,7 @@
   - 大石道場杯（tournament.html）：8人勝ち抜き大会の対戦表・結果共有
 
   ボタンは名称のみを表示し、説明文は置かない（縦スクロールを減らすため。2026-09-26変更）。
+  タイトル下のテロップの仕組みは【テロップについて】を参照。
 ================================================================================
 -->
 <!DOCTYPE html>
@@ -48,6 +63,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>山あるき</title>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
   <style>
     :root { color-scheme: light; }
@@ -77,8 +94,37 @@
     .sub {
       text-align: center;
       color: #777;
-      margin-bottom: 18px;
+      margin-bottom: 14px;
       font-size: 0.92rem;
+    }
+
+    #telop-wrap {
+      overflow: hidden;
+      white-space: nowrap;
+      background: #fff;
+      border: 1px solid #e0dbcd;
+      border-radius: 20px;
+      padding: 9px 0;
+      margin-bottom: 18px;
+    }
+    #telop-track {
+      display: inline-flex;
+      will-change: transform;
+    }
+    #telop-track.scrolling {
+      animation-name: telop-scroll;
+      animation-timing-function: linear;
+      animation-iteration-count: infinite;
+    }
+    .telop-seg {
+      display: inline-block;
+      padding-right: 50px;
+      font-size: 0.84rem;
+      color: #555;
+    }
+    @keyframes telop-scroll {
+      from { transform: translateX(0); }
+      to   { transform: translateX(-50%); }
     }
 
     .card {
@@ -121,6 +167,13 @@
     囲碁・麻雀のリーグ戦管理
   </div>
 
+  <div id="telop-wrap">
+    <div id="telop-track">
+      <span class="telop-seg" id="telop-seg-a">読み込み中…</span>
+      <span class="telop-seg" id="telop-seg-b">読み込み中…</span>
+    </div>
+  </div>
+
   <a class="card" href="ashiato.html?title=山あるき&group=yamaарuki">
     <div class="title">🐾 足あと</div>
   </a>
@@ -154,6 +207,190 @@
   </div>
 
 </div>
+
+<script>
+// ============================================================
+//  タイトル下のテロップ（読み取り専用。書き込みは一切行わない）
+//  igo.html（go-league/state）・mahjong.html（mahjong/state）から、
+//  ページを開いた時点のデータで組み立てて流す。保存はしない。
+// ============================================================
+const firebaseConfig = {
+  apiKey:            "AIzaSyBSrQkPMPc-icuph244VBorNqRf2yP-U7Y",
+  authDomain:        "hiking-558a9.firebaseapp.com",
+  databaseURL:       "https://hiking-558a9-default-rtdb.firebaseio.com",
+  projectId:         "hiking-558a9",
+  storageBucket:     "hiking-558a9.firebasestorage.app",
+  messagingSenderId: "1066293850319",
+  appId:             "1:1066293850319:web:94409f01b194d5afe7c7ba"
+};
+
+function telopDateSortValue(dateStr) {
+  if (!dateStr) return 0;
+  const parts = String(dateStr).split(" ")[0].split("/").map(n => parseInt(n, 10));
+  if (parts.length === 3 && !parts.some(isNaN)) {
+    const [y, mo, dy] = parts;
+    return y * 10000 + mo * 100 + dy;
+  }
+  return 0;
+}
+function telopParseDate(dateStr) {
+  if (!dateStr) return null;
+  const parts = String(dateStr).split(" ")[0].split("/").map(n => parseInt(n, 10));
+  if (parts.length === 3 && !parts.some(isNaN)) return new Date(parts[0], parts[1] - 1, parts[2]);
+  return null;
+}
+function telopFormatMD(dateStr) {
+  const d = telopParseDate(dateStr);
+  return d ? `${d.getMonth() + 1}/${d.getDate()}` : (dateStr || "");
+}
+const TELOP_NEGLECT_DAYS = 14; // これ以上空いていたら「そろそろ」の呼びかけを出す
+
+// ---- 囲碁（星取）：勝数1位・最新の対局・ご無沙汰 ----
+const TELOP_BLACK_TEAI = ["先", "2子", "3子", "4子"];
+function telopIgoJigoWinner(m) {
+  if (TELOP_BLACK_TEAI.includes(m.teai1)) return m.p1;
+  if (TELOP_BLACK_TEAI.includes(m.teai2)) return m.p2;
+  return null;
+}
+function buildIgoTelopItems(state) {
+  const items = [];
+  const players = state.players || [];
+  const history = state.history || []; // 新しい対局が先頭（igo.html側でunshiftしているため）
+  if (players.length === 0 || history.length === 0) return items;
+
+  const wins = {}, losses = {}, lastPlayed = {};
+  players.forEach(p => { wins[p] = 0; losses[p] = 0; });
+
+  history.forEach(m => {
+    const involved = (m.type === "jigo" || m.type === "mushoubu") ? [m.p1, m.p2] : [m.winner, m.loser];
+    const val = telopDateSortValue(m.date);
+    involved.forEach(p => {
+      if (!players.includes(p)) return;
+      if (!lastPlayed[p] || val > lastPlayed[p].val) lastPlayed[p] = { val, date: m.date };
+    });
+    if (m.shidou || m.type === "mushoubu") return; // 指導対局・無勝負は勝数に数えない
+    let w, l;
+    if (m.type === "jigo") { w = telopIgoJigoWinner(m); if (!w) return; l = (w === m.p1) ? m.p2 : m.p1; }
+    else { w = m.winner; l = m.loser; }
+    if (w in wins) wins[w]++;
+    if (l in losses) losses[l]++;
+  });
+
+  const top = players.slice().sort((a, b) => wins[b] - wins[a])
+    .find(p => wins[p] > 0 || losses[p] > 0);
+  if (top) items.push(`⚫囲碁 勝数1位：${top}さん（${wins[top]}勝${losses[top]}敗）`);
+
+  const latest = history[0];
+  if (latest) {
+    const [a, b] = (latest.type === "jigo" || latest.type === "mushoubu") ? [latest.p1, latest.p2] : [latest.winner, latest.loser];
+    if (a && b) items.push(`📋最新の対局（囲碁）：${a}さん vs ${b}さん（${telopFormatMD(latest.date)}）`);
+  }
+
+  const oldest = players.map(p => ({ p, info: lastPlayed[p] || null }))
+    .filter(x => x.info).sort((x, y) => x.info.val - y.info.val)[0];
+  if (oldest) {
+    const d = telopParseDate(oldest.info.date);
+    const days = d ? Math.floor((new Date() - d) / 86400000) : null;
+    if (days !== null && days >= TELOP_NEGLECT_DAYS) {
+      items.push(`😴 囲碁でしばらく打っていない${oldest.p}さん、そろそろ一局いかがですか？（${days}日ぶり）`);
+    }
+  }
+  return items;
+}
+
+// ---- 麻雀（点棒）：総合ポイント1位・最新の対局・ご無沙汰 ----
+function telopMjOverallRanks(m, chipRate) {
+  const combined = m.points.map((pt, i) => pt + (m.chips ? (m.chips[i] || 0) : 0) * chipRate);
+  const order = combined.map((v, i) => ({ i, v })).sort((a, b) => b.v - a.v);
+  const ranks = new Array(combined.length);
+  order.forEach((o, idx) => { ranks[o.i] = idx + 1; });
+  return ranks;
+}
+function buildMahjongTelopItems(state) {
+  const items = [];
+  const players = state.players || [];
+  const history = state.history || []; // 新しい対局が末尾（mahjong.html側でpushしているため）
+  if (players.length === 0 || history.length === 0) return items;
+  const chipRate = (typeof state.chipRate === "number") ? state.chipRate : 1;
+
+  const totals = {}, lastPlayed = {};
+  players.forEach(p => { totals[p] = 0; });
+
+  history.forEach(m => {
+    const ps = m.players || players;
+    ps.forEach((p, i) => {
+      if (!(p in totals)) totals[p] = 0;
+      totals[p] += (m.points ? (m.points[i] || 0) : 0) + (m.chips ? (m.chips[i] || 0) : 0) * chipRate;
+    });
+    const val = telopDateSortValue(m.date);
+    ps.forEach(p => { if (!lastPlayed[p] || val > lastPlayed[p].val) lastPlayed[p] = { val, date: m.date }; });
+  });
+
+  const topName = Object.keys(totals).sort((a, b) => totals[b] - totals[a])[0];
+  if (topName !== undefined) {
+    const pt = Number((totals[topName] || 0).toFixed(1));
+    items.push(`🀄麻雀 総合ポイント1位：${topName}さん（${pt > 0 ? "+" : ""}${pt}pt）`);
+  }
+
+  const latest = history[history.length - 1];
+  if (latest && latest.points) {
+    const ranks = telopMjOverallRanks(latest, chipRate);
+    const winnerIdx = ranks.indexOf(1);
+    const winnerName = (latest.players || players)[winnerIdx];
+    if (winnerName) items.push(`📋最新の対局（麻雀）：${winnerName}さんが1位（${telopFormatMD(latest.date)}）`);
+  }
+
+  const oldest = Object.keys(lastPlayed).filter(p => players.includes(p))
+    .map(p => ({ p, info: lastPlayed[p] })).sort((x, y) => x.info.val - y.info.val)[0];
+  if (oldest) {
+    const d = telopParseDate(oldest.info.date);
+    const days = d ? Math.floor((new Date() - d) / 86400000) : null;
+    if (days !== null && days >= TELOP_NEGLECT_DAYS) {
+      items.push(`😴 麻雀でしばらく打っていない${oldest.p}さん、そろそろ卓を囲みませんか？（${days}日ぶり）`);
+    }
+  }
+  return items;
+}
+
+function renderTelop(igoState, mjState) {
+  const items = [...buildIgoTelopItems(igoState || {}), ...buildMahjongTelopItems(mjState || {})];
+  const text = items.length ? items.join("　★　") : "🏔️ 山あるき、はじまります！";
+  const segA = document.getElementById("telop-seg-a");
+  const segB = document.getElementById("telop-seg-b");
+  segA.textContent = text;
+  segB.textContent = text;
+  requestAnimationFrame(() => {
+    const track = document.getElementById("telop-track");
+    const singleWidth = segA.getBoundingClientRect().width;
+    const speed = 60; // px/秒（流れる速さ）
+    const duration = Math.max(singleWidth / speed, 8);
+    track.style.animationDuration = duration + "s";
+    track.classList.add("scrolling");
+  });
+}
+
+(function() {
+  if (firebaseConfig.apiKey === "YOUR_API_KEY") { renderTelop(null, null); return; }
+  try {
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    let igoState = null, mjState = null;
+    function tryRender() {
+      if (igoState === null || mjState === null) return;
+      renderTelop(igoState, mjState);
+    }
+    db.ref("go-league/state").once("value")
+      .then(snap => { igoState = snap.val() || {}; tryRender(); })
+      .catch(() => { igoState = {}; tryRender(); });
+    db.ref("mahjong/state").once("value")
+      .then(snap => { mjState = snap.val() || {}; tryRender(); })
+      .catch(() => { mjState = {}; tryRender(); });
+  } catch (e) {
+    console.error("Firebase init failed:", e);
+    renderTelop(null, null);
+  }
+})();
+</script>
 
 </body>
 </html>
