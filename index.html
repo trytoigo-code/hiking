@@ -30,6 +30,7 @@
         ・😴 最後の対局から2週間以上空いている人への呼びかけ（囲碁・麻雀それぞれ。
           該当者がいない場合はその項目を出さない）
   流れるのは②の行だけで、①の語録行は流さず固定表示する（1件だけなので流す必要がない）。
+  ②の行はタップすると流れが止まり、もう一度タップすると止まった位置から再び流れ出す。
   総合順位（sogo.html）の1位は含めない。sogo.htmlのレーティング計算＋メンバー対応づけ
   ロジックをこちらにも複製することになり、index.htmlの複雑さに見合わないため見送った。
 
@@ -121,6 +122,7 @@
       border-radius: 20px;
       padding: 9px 0;
       margin-bottom: 18px;
+      cursor: pointer;
     }
     #telop-track {
       display: inline-flex;
@@ -130,6 +132,9 @@
       animation-name: telop-scroll;
       animation-timing-function: linear;
       animation-iteration-count: infinite;
+    }
+    #telop-track.paused {
+      animation-play-state: paused;
     }
     .telop-seg {
       display: inline-block;
@@ -433,6 +438,10 @@ function renderTelop(igoState, mjState) {
 }
 
 (function() {
+  document.getElementById("telop-wrap").addEventListener("click", () => {
+    document.getElementById("telop-track").classList.toggle("paused");
+  });
+
   if (firebaseConfig.apiKey === "YOUR_API_KEY") { renderTelop(null, null); return; }
   try {
     firebase.initializeApp(firebaseConfig);
