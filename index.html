@@ -21,7 +21,8 @@
 
 【テロップについて】
   タイトルの下は2段構成になっている。
-    ①語録行（静止表示）：囲碁 一局一得（goroku.html）の語録から日替わりで1件（後述）
+    ①語録行（静止表示）：囲碁 一局一得（goroku.html）の語録から、1日に複数回切り替わる
+      形で1件表示する（後述）
     ②その他の行（横に流れる）：igo.html（go-league/state）・mahjong.html（mahjong/state）
       を読み取り専用で参照し、ページを開くたびに以下を組み立てて流す（保存はしない）
         ・📊通算対局数（囲碁◯局・麻雀◯半荘）
@@ -38,12 +39,16 @@
   総合順位（sogo.html）の1位は含めない。sogo.htmlのレーティング計算＋メンバー対応づけ
   ロジックをこちらにも複製することになり、index.htmlの複雑さに見合わないため見送った。
 
-  【語録の日替わり表示について】
+  【語録の切り替えについて】
   goroku.htmlの語録（33件・テキストと語り手）を、このファイルにも配列としてそのまま
   複製している（goroku.html側はFirebaseに保存しておらず、JS内の定数のため、参照する
-  にはコピーするしかない）。日付の文字列をもとにした簡易ハッシュで配列のインデックスを
-  決めるため、同じ日は誰が見ても同じ1件になり、日付が変わるとランダムな別の1件になる
-  （単純な曜日順・順送りではない）。
+  にはコピーするしかない）。1日を朝（5:00〜）・昼（11:00〜）・夕方（17:00〜翌5:00）の
+  3つの時間帯（TELOP_QUOTE_SLOT_HOURS）に分け、日付＋時間帯の文字列をもとにした簡易
+  ハッシュで配列のインデックスを決める。同じ時間帯は誰が見ても同じ1件、時間帯が変わると
+  ランダムな別の1件になる（単純な順送りではない）。深夜0時〜朝5時は前日の夕方の枠を
+  そのまま引き継ぎ、意味もなく夜中に切り替わらないようにしている。
+  ページを開いたときに決まる値なので、同じタブを開きっぱなしでも時間帯をまたぐまでは
+  切り替わらない。
   goroku.htmlの語録を追加・変更・削除したら、このファイル内のGOROKU_QUOTESも
   必ず合わせて更新すること。
 
@@ -113,7 +118,7 @@
       border-radius: 8px;
       padding: 8px 12px;
       margin-bottom: 8px;
-      font-size: 0.82rem;
+      font-size: 0.95rem;
       color: #555;
       line-height: 1.6;
     }
@@ -143,7 +148,7 @@
     .telop-seg {
       display: inline-block;
       padding-right: 50px;
-      font-size: 0.84rem;
+      font-size: 0.88rem;
       color: #555;
     }
     @keyframes telop-scroll {
@@ -304,11 +309,27 @@ const GOROKU_QUOTES = [
   { text: "前に打った手だから仕方がないという言い訳は、囲碁ではいけません。前に打った手を活かすように打たなければいけないのです。", by: "畠さん" },
   { text: "妥協すると余計に危ない。", by: "畠さん" },
 ];
-// 日付の文字列から簡易ハッシュを作り、その日だけのインデックスを決める
-// （単純な順送りにはせず、日付が変わるとランダムな別の1件になるようにする）
+// 日付＋時間帯（朝・昼・夕方）の文字列から簡易ハッシュを作り、その時間帯だけの
+// インデックスを決める（単純な順送りにはせず、時間帯が変わるとランダムな別の1件になる）。
+// 深夜0時〜最初の時刻（TELOP_QUOTE_SLOT_HOURSの先頭）の前は、前日の夕方の枠を
+// そのまま引き継ぐ（夜中に切り替えても誰も見ていないので意味がないため）。
+const TELOP_QUOTE_SLOT_HOURS = [5, 11, 17]; // 朝5時・昼11時・夕方17時に切り替える
 function pickDailyGorokuQuote() {
   const now = new Date();
-  const key = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
+  const h = now.getHours();
+  const dayStart = TELOP_QUOTE_SLOT_HOURS[0];
+  const effectiveDate = new Date(now);
+  let slotIdx;
+  if (h < dayStart) {
+    effectiveDate.setDate(effectiveDate.getDate() - 1);
+    slotIdx = TELOP_QUOTE_SLOT_HOURS.length - 1; // 深夜は前日いちばん最後の枠のまま
+  } else {
+    slotIdx = 0;
+    for (let i = TELOP_QUOTE_SLOT_HOURS.length - 1; i >= 0; i--) {
+      if (h >= TELOP_QUOTE_SLOT_HOURS[i]) { slotIdx = i; break; }
+    }
+  }
+  const key = `${effectiveDate.getFullYear()}-${effectiveDate.getMonth() + 1}-${effectiveDate.getDate()}-${slotIdx}`;
   let hash = 0;
   for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
   return GOROKU_QUOTES[hash % GOROKU_QUOTES.length];
