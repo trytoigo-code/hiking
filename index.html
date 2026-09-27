@@ -34,6 +34,8 @@
         ・🎯囲碁 3連勝以上の人（相手問わず。いなければ出さない）
         ・🎯囲碁 半目職人（半目差での勝利数が最も多い人。実績が無ければ出さない）
         ・🤝囲碁 最多対戦の組み合わせ
+        ・💬囲碁・麻雀それぞれの人気コメント（対局コメントのうち、絵文字リアクションの
+          合計数が最も多いもの。1件も反応が付いていなければ出さない）
   流れるのは②の行だけで、①の語録行は流さず固定表示する（1件だけなので流す必要がない）。
   ②の行はタップすると流れが止まり、もう一度タップすると止まった位置から再び流れ出す。
   総合順位（sogo.html）の1位は含めない。sogo.htmlのレーティング計算＋メンバー対応づけ
@@ -271,6 +273,24 @@ function telopFormatMD(dateStr) {
 }
 const TELOP_NEGLECT_DAYS = 14; // これ以上空いていたら「そろそろ」の呼びかけを出す
 
+// ---- 人気コメント（反応の数が最も多いコメントを拾う。囲碁・麻雀共通で使う） ----
+function telopCountReactions(comment) {
+  if (!comment || typeof comment !== "object" || !comment.reactions) return 0;
+  return Object.values(comment.reactions).reduce((sum, names) => sum + (Array.isArray(names) ? names.length : 0), 0);
+}
+function telopBuildTopCommentItem(history, label) {
+  let best = null;
+  (history || []).forEach(m => {
+    const c = m.comment;
+    if (!c || typeof c !== "object" || !c.text) return;
+    const score = telopCountReactions(c);
+    if (score > 0 && (!best || score > best.score)) best = { text: c.text, author: c.author || "", score };
+  });
+  if (!best) return null;
+  const who = best.author ? `${best.author}さん：` : "";
+  return `💬${label} 人気コメント：${who}「${best.text}」（反応${best.score}件）`;
+}
+
 // ---- 囲碁 一局一得（goroku.html）の語録：日替わり表示用 ----
 // goroku.html本体のCHAPTERSをそのまま複製したもの。goroku.html側の語録を
 // 追加・変更・削除したら、ここも必ず合わせて更新すること（Firebase保存ではないため）。
@@ -424,6 +444,9 @@ function buildIgoTelopItems(state) {
     items.push(`🤝囲碁 最多対戦：${pa}さん×${pb}さん（${pairCounts[topPairKey]}局）`);
   }
 
+  const topComment = telopBuildTopCommentItem(history, "囲碁");
+  if (topComment) items.push(topComment);
+
   return items;
 }
 
@@ -478,6 +501,10 @@ function buildMahjongTelopItems(state) {
       items.push(`😴 麻雀でしばらく打っていない${oldest.p}さん、そろそろ卓を囲みませんか？（${days}日ぶり）`);
     }
   }
+
+  const topComment = telopBuildTopCommentItem(history, "麻雀");
+  if (topComment) items.push(topComment);
+
   return items;
 }
 
