@@ -24,11 +24,15 @@
     ①語録行（静止表示）：囲碁 一局一得（goroku.html）の語録から日替わりで1件（後述）
     ②その他の行（横に流れる）：igo.html（go-league/state）・mahjong.html（mahjong/state）
       を読み取り専用で参照し、ページを開くたびに以下を組み立てて流す（保存はしない）
+        ・📊通算対局数（囲碁◯局・麻雀◯半荘）
         ・⚫囲碁 勝数1位（今シーズン）
         ・🀄麻雀 総合ポイント1位（今シーズン）
         ・📋囲碁・麻雀それぞれの最新の対局
         ・😴 最後の対局から2週間以上空いている人への呼びかけ（囲碁・麻雀それぞれ。
           該当者がいない場合はその項目を出さない）
+        ・🎯囲碁 3連勝以上の人（相手問わず。いなければ出さない）
+        ・🎯囲碁 半目職人（半目差での勝利数が最も多い人。実績が無ければ出さない）
+        ・🤝囲碁 最多対戦の組み合わせ
   流れるのは②の行だけで、①の語録行は流さず固定表示する（1件だけなので流す必要がない）。
   ②の行はタップすると流れが止まり、もう一度タップすると止まった位置から再び流れ出す。
   総合順位（sogo.html）の1位は含めない。sogo.htmlのレーティング計算＋メンバー対応づけ
@@ -360,6 +364,45 @@ function buildIgoTelopItems(state) {
       items.push(`😴 囲碁でしばらく打っていない${oldest.p}さん、そろそろ一局いかがですか？（${days}日ぶり）`);
     }
   }
+
+  // 連勝中の人（相手問わず。対局した順に見て、今も勝ちが続いている人のみ対象。3連勝以上で表示）
+  const ordered = history.slice().sort((a, b) => telopDateSortValue(a.date) - telopDateSortValue(b.date));
+  const streaks = {};
+  players.forEach(p => { streaks[p] = 0; });
+  ordered.forEach(m => {
+    if (m.shidou || m.type === "mushoubu") return;
+    let w, l;
+    if (m.type === "jigo") { w = telopIgoJigoWinner(m); if (!w) return; l = (w === m.p1) ? m.p2 : m.p1; }
+    else { w = m.winner; l = m.loser; }
+    if (w in streaks) streaks[w] = (streaks[w] || 0) + 1;
+    if (l in streaks) streaks[l] = 0;
+  });
+  const streakTop = players.slice().sort((a, b) => streaks[b] - streaks[a])[0];
+  if (streakTop && streaks[streakTop] >= 3) items.push(`🎯囲碁 ${streaks[streakTop]}連勝中：${streakTop}さん`);
+
+  // 半目職人（半目差での勝利数が最も多い人）
+  const hanmeCounts = {};
+  history.forEach(m => {
+    if (m.shidou) return;
+    if (m.type === "moku" && m.mokusuu === 0.5) hanmeCounts[m.winner] = (hanmeCounts[m.winner] || 0) + 1;
+  });
+  const hanmeTop = Object.keys(hanmeCounts).sort((a, b) => hanmeCounts[b] - hanmeCounts[a])[0];
+  if (hanmeTop) items.push(`🎯囲碁 半目職人：${hanmeTop}さん（半目勝ち${hanmeCounts[hanmeTop]}回）`);
+
+  // 最多対戦の組み合わせ（指導対局・無勝負も「対局した回数」として数える）
+  const pairCounts = {};
+  history.forEach(m => {
+    const [a, b] = (m.type === "jigo" || m.type === "mushoubu") ? [m.p1, m.p2] : [m.winner, m.loser];
+    if (!players.includes(a) || !players.includes(b)) return;
+    const key = [a, b].sort().join("|");
+    pairCounts[key] = (pairCounts[key] || 0) + 1;
+  });
+  const topPairKey = Object.keys(pairCounts).sort((x, y) => pairCounts[y] - pairCounts[x])[0];
+  if (topPairKey) {
+    const [pa, pb] = topPairKey.split("|");
+    items.push(`🤝囲碁 最多対戦：${pa}さん×${pb}さん（${pairCounts[topPairKey]}局）`);
+  }
+
   return items;
 }
 
@@ -417,11 +460,24 @@ function buildMahjongTelopItems(state) {
   return items;
 }
 
+// ---- 通算対局数（囲碁・麻雀の両方が必要なので、単独では組み立てない） ----
+function buildTotalCountItem(igoState, mjState) {
+  const igoCount = (igoState.history || []).length;
+  const mjHanchans = (mjState.history || []).reduce((sum, m) => sum + ((m.hanchans && m.hanchans >= 1) ? m.hanchans : 1), 0);
+  if (igoCount === 0 && mjHanchans === 0) return null;
+  return `📊通算対局数：囲碁${igoCount}局・麻雀${mjHanchans}半荘`;
+}
+
 function renderTelop(igoState, mjState) {
   const q = pickDailyGorokuQuote();
   document.getElementById("telop-quote").textContent = `📖今日の語録：「${q.text}」―${q.by}`;
 
-  const items = [...buildIgoTelopItems(igoState || {}), ...buildMahjongTelopItems(mjState || {})];
+  const totalCountItem = buildTotalCountItem(igoState || {}, mjState || {});
+  const items = [
+    ...(totalCountItem ? [totalCountItem] : []),
+    ...buildIgoTelopItems(igoState || {}),
+    ...buildMahjongTelopItems(mjState || {})
+  ];
   const text = items.length ? items.join("　★　") : "🏔️ 山あるき、はじまります！";
   const segA = document.getElementById("telop-seg-a");
   const segB = document.getElementById("telop-seg-b");
