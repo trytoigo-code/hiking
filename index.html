@@ -20,11 +20,12 @@
   - シンプルさを最優先とする（テロップも含め、書き込みは一切行わない）
 
 【テロップについて】
-  タイトルの下は2段構成になっている。
+  タイトルの下は3段構成になっている（語録行＋テロップ2本）。
     ①語録行（静止表示）：囲碁 一局一得（goroku.html）の語録から、1日に複数回切り替わる
       形で1件表示する（後述）
-    ②その他の行（横に流れる）：igo.html（go-league/state）・mahjong.html（mahjong/state）
-      を読み取り専用で参照し、ページを開くたびに以下を組み立てて流す（保存はしない）
+    ②登録情報のテロップ（横に流れ続ける）：igo.html（go-league/state）・mahjong.html
+      （mahjong/state）を読み取り専用で参照し、ページを開くたびに以下を組み立てて流す
+      （保存はしない）
         ・📊通算対局数（囲碁◯局・麻雀◯半荘）
         ・⚫囲碁 勝数1位（今シーズン）
         ・🀄麻雀 総合ポイント1位（今シーズン）
@@ -34,10 +35,18 @@
         ・🎯囲碁 3連勝以上の人（相手問わず。いなければ出さない）
         ・🎯囲碁 半目職人（半目差での勝利数が最も多い人。実績が無ければ出さない）
         ・🤝囲碁 最多対戦の組み合わせ
-        ・💬囲碁・麻雀それぞれの人気コメント（対局コメントのうち、絵文字リアクションの
-          合計数が最も多いもの。1件も反応が付いていなければ出さない）
-  流れるのは②の行だけで、①の語録行は流さず固定表示する（1件だけなので流す必要がない）。
-  ②の行はタップすると流れが止まり、もう一度タップすると止まった位置から再び流れ出す。
+    ③コメントのテロップ（別枠。1件ずつ流れて、流れ終わるたびに次を選び直す）：
+      囲碁・麻雀の対局コメントのうち、絵文字リアクションが1つ以上付いているものだけを
+      対象に、毎回ランダムに1件選んで流す。最近の対局のコメントほど選ばれやすい重み
+      付き抽選（TELOP_COMMENT_HALF_LIFE_DAYS日ごとに重みが半分。古いコメントも
+      TELOP_COMMENT_MIN_WEIGHTの重みは残るので、たまには流れる）。直前に流した
+      コメントは、候補が2件以上あるかぎり連続しない。コメント自体に投稿日時は無いため、
+      「最近」は対局日（m.date）で判定する。反応付きコメントが1件も無いときは、この枠ごと
+      案内文を静止表示する（枠は常に出す）。
+  ①の語録行は流さず固定表示する（1件だけなので流す必要がない）。
+  ②③のテロップはどちらもタップすると流れが止まり、もう一度タップすると止まった位置から
+  再び流れ出す。②はCSSアニメーション、③はWeb Animations APIで動かしている（③は1件ごとに
+  長さが違うため、毎回アニメーションを作り直す方が素直なので）。
   総合順位（sogo.html）の1位は含めない。sogo.htmlのレーティング計算＋メンバー対応づけ
   ロジックをこちらにも複製することになり、index.htmlの複雑さに見合わないため見送った。
 
@@ -132,8 +141,24 @@
       border: 1px solid #e0dbcd;
       border-radius: 20px;
       padding: 9px 0;
+      margin-bottom: 8px;
+      cursor: pointer;
+    }
+    #telop-comment-wrap {
+      overflow: hidden;
+      white-space: nowrap;
+      background: #fffaf0;
+      border: 1px solid #e8d9b5;
+      border-radius: 20px;
+      padding: 9px 0;
       margin-bottom: 18px;
       cursor: pointer;
+    }
+    #telop-comment-item {
+      display: inline-block;
+      font-size: 0.82rem;
+      color: #555;
+      will-change: transform;
     }
     #telop-track {
       display: inline-flex;
@@ -201,6 +226,7 @@
       <span class="telop-seg" id="telop-seg-b">読み込み中…</span>
     </div>
   </div>
+  <div id="telop-comment-wrap"><span id="telop-comment-item">読み込み中…</span></div>
 
   <a class="card" href="ashiato.html?title=山あるき&group=yamaарuki">
     <div class="title">🐾 足あと</div>
@@ -273,22 +299,78 @@ function telopFormatMD(dateStr) {
 }
 const TELOP_NEGLECT_DAYS = 14; // これ以上空いていたら「そろそろ」の呼びかけを出す
 
-// ---- 人気コメント（反応の数が最も多いコメントを拾う。囲碁・麻雀共通で使う） ----
+// ---- コメントのテロップ（反応が付いているコメントを、ランダムに1件ずつ流す） ----
 function telopCountReactions(comment) {
   if (!comment || typeof comment !== "object" || !comment.reactions) return 0;
   return Object.values(comment.reactions).reduce((sum, names) => sum + (Array.isArray(names) ? names.length : 0), 0);
 }
-function telopBuildTopCommentItem(history, label) {
-  let best = null;
+// 反応が1つ以上付いているコメントだけを集める（囲碁・麻雀共通）
+function telopCollectReactedComments(history, label) {
+  const out = [];
   (history || []).forEach(m => {
     const c = m.comment;
     if (!c || typeof c !== "object" || !c.text) return;
-    const score = telopCountReactions(c);
-    if (score > 0 && (!best || score > best.score)) best = { text: c.text, author: c.author || "", score };
+    if (telopCountReactions(c) === 0) return;
+    out.push({ label, text: c.text, author: c.author || "", reactions: c.reactions, date: m.date });
   });
-  if (!best) return null;
-  const who = best.author ? `${best.author}さん：` : "";
-  return `💬${label} 人気コメント：${who}「${best.text}」（反応${best.score}件）`;
+  return out;
+}
+const TELOP_COMMENT_HALF_LIFE_DAYS = 30; // 対局日がこの日数古くなるごとに、選ばれやすさが半分になる
+const TELOP_COMMENT_MIN_WEIGHT = 0.1;    // 古いコメントにも、最低限この重み（新しい日=1）は残す
+const TELOP_COMMENT_SPEED = 60;          // px/秒（登録情報のテロップと同じ速さ）
+function telopCommentWeight(item) {
+  const d = telopParseDate(item.date);
+  const ageDays = d ? Math.max(0, (Date.now() - d.getTime()) / 86400000) : 365; // 日付不明は古い扱い
+  return Math.max(Math.pow(0.5, ageDays / TELOP_COMMENT_HALF_LIFE_DAYS), TELOP_COMMENT_MIN_WEIGHT);
+}
+// 重み付きランダム抽選。直前に流したものは、候補が2件以上あるかぎり除く
+function telopPickComment(pool, lastItem) {
+  const cands = pool.length > 1 ? pool.filter(x => x !== lastItem) : pool;
+  const weights = cands.map(telopCommentWeight);
+  let r = Math.random() * weights.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < cands.length; i++) {
+    r -= weights[i];
+    if (r <= 0) return cands[i];
+  }
+  return cands[cands.length - 1];
+}
+function telopCommentText(item) {
+  const who = item.author ? `${item.author}さん：` : "";
+  const body = String(item.text).replace(/\s+/g, " "); // 改行は空白にして1行で流す
+  const reacts = Object.entries(item.reactions || {})
+    .filter(([, names]) => Array.isArray(names) && names.length > 0)
+    .map(([emoji, names]) => `${emoji}${names.length}`).join(" ");
+  return `💬${item.label}（${telopFormatMD(item.date)}）${who}「${body}」　${reacts}`;
+}
+function startCommentTelop(pool) {
+  const wrap = document.getElementById("telop-comment-wrap");
+  const el = document.getElementById("telop-comment-item");
+  if (pool.length === 0) {
+    // 反応付きコメントがまだ無い（または読み込めない）ときは、枠は残して案内文を静止表示する
+    el.textContent = "💬 対局コメントにリアクションが付くと、ここに流れます";
+    el.style.paddingLeft = "12px";
+    return;
+  }
+  let last = null, anim = null;
+  wrap.addEventListener("click", () => {
+    if (!anim) return;
+    if (anim.playState === "paused") anim.play(); else anim.pause();
+  });
+  function next() {
+    if (anim) anim.cancel();
+    last = telopPickComment(pool, last);
+    el.textContent = telopCommentText(last);
+    const wrapW = wrap.clientWidth;
+    const itemW = el.getBoundingClientRect().width;
+    const duration = Math.max((wrapW + itemW) / TELOP_COMMENT_SPEED * 1000, 6000);
+    // 右端の外から入ってきて、左端の外へ抜けきったら、次のコメントを選び直す
+    anim = el.animate(
+      [{ transform: `translateX(${wrapW}px)` }, { transform: `translateX(${-itemW}px)` }],
+      { duration, easing: "linear", fill: "both" }
+    );
+    anim.onfinish = next;
+  }
+  next();
 }
 
 // ---- 囲碁 一局一得（goroku.html）の語録：日替わり表示用 ----
@@ -444,9 +526,6 @@ function buildIgoTelopItems(state) {
     items.push(`🤝囲碁 最多対戦：${pa}さん×${pb}さん（${pairCounts[topPairKey]}局）`);
   }
 
-  const topComment = telopBuildTopCommentItem(history, "囲碁");
-  if (topComment) items.push(topComment);
-
   return items;
 }
 
@@ -502,9 +581,6 @@ function buildMahjongTelopItems(state) {
     }
   }
 
-  const topComment = telopBuildTopCommentItem(history, "麻雀");
-  if (topComment) items.push(topComment);
-
   return items;
 }
 
@@ -539,6 +615,12 @@ function renderTelop(igoState, mjState) {
     track.style.animationDuration = duration + "s";
     track.classList.add("scrolling");
   });
+
+  // 別枠のコメントテロップ（反応付きコメントを囲碁・麻雀まとめて抽選）
+  startCommentTelop([
+    ...telopCollectReactedComments((igoState || {}).history, "囲碁"),
+    ...telopCollectReactedComments((mjState || {}).history, "麻雀")
+  ]);
 }
 
 (function() {
