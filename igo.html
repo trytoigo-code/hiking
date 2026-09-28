@@ -123,9 +123,11 @@
       😢惜しい・🙏ありがとう・🎉おめでとう・💡気づきの10種。プルダウンで「絵文字＋意味」を見ながら選ぶと、名前を選ぶ
       画面が開く（8個のボタンを並べると幅が足りないため、プルダウンにしている）。
       誰が押したかFirebaseで全員に同期し、絵文字の横に押した人の名前を表示する）
-  - 棋譜リンク（結果入力・修正時に棋譜ファイルのURLを任意で登録できる。履歴に「📄棋譜」リンクとして
-      表示され、タップで新規タブに開く。履歴タブ上部にバッジの意味を説明する注記あり。
-      履歴フィルターに「棋譜ありのみ」ボタンがあり、棋譜が登録されている対局だけに絞り込める）
+  - 棋譜リンク（結果入力・修正時に、①つぶや棋譜URL・②棋譜見てねURLの2つを任意で登録できる。
+      ①はデータ上 kifuUrl（従来の棋譜URL欄をそのまま①用にした）、②は kifuUrl2 に保存する。
+      履歴に「📄棋譜①」（緑）・「📄棋譜②」（青）のバッジとして表示され、タップで新規タブに開く。
+      履歴タブ上部にバッジの意味を説明する注記あり。履歴フィルターの「棋譜ありのみ」は、
+      ①②のどちらかが登録されている対局に絞り込める）
   - Firebase によるリアルタイム同期
   - データエクスポート（設定タブからJSONファイルとしてダウンロード。日付入りファイル名で保存）
   - 表示回数（ヘッダーに常時表示。個人アカウントが無いため「誰が見たか」は分からない
@@ -293,6 +295,7 @@
     .help-details > summary::before { content: "▶ "; font-size: 0.65rem; color: #b89752; }
     .help-details[open] > summary::before { content: "▼ "; }
     .badge-kifu { background: #27ae60; text-decoration: none; cursor: pointer; }
+    .badge-kifu2 { background: #2f6fd0; text-decoration: none; cursor: pointer; }
 
     /* Toast */
     #toast {
@@ -460,8 +463,12 @@
         <label for="shidou-flag" style="margin:0;font-weight:normal;font-size:0.85rem;color:#2c3e50">📚 指導対局として記録する（連勝・手合い変更や順位表・成績の集計には使いません。決着内容の内訳には含まれます）</label>
       </div>
       <div class="fg">
-        <label>棋譜URL（任意）</label>
-        <input type="url" id="kifu-url" placeholder="棋譜ファイルへのリンクがあれば貼り付け">
+        <label>①つぶや棋譜URL（任意）</label>
+        <input type="url" id="kifu-url" placeholder="つぶや棋譜のリンクがあれば貼り付け">
+      </div>
+      <div class="fg">
+        <label>②棋譜見てねURL（任意）</label>
+        <input type="url" id="kifu-url2" placeholder="棋譜見てねのリンクがあれば貼り付け">
       </div>
       <button class="btn" id="add-match">登録する（全員に即時反映）</button>
     </div>
@@ -523,7 +530,7 @@
     <!-- 履歴 -->
     <div class="panel" id="panel-history">
       <h3>対局履歴<span id="history-season-label" style="font-size:0.78rem;font-weight:normal;color:#888;margin-left:10px"></span></h3>
-      <p class="key-note">📄棋譜バッジがある対局はタップすると棋譜ファイルを開けます。</p>
+      <p class="key-note">📄棋譜バッジをタップすると棋譜を開けます。<span style="color:#27ae60">①緑＝つぶや棋譜</span>／<span style="color:#2f6fd0">②青＝棋譜見てね</span></p>
       <details class="help-details">
         <summary>ボタンの使い方</summary>
         <p class="note" style="margin:6px 0 0">対局者のボタンで絞り込めます。1人選ぶとその人の対局、2人選ぶとその2人の直接対局を表示します（3人目を選ぶと古い選択が外れます）。もう一度押すと解除、「すべて」で全件に戻ります。</p>
@@ -609,8 +616,12 @@
       <label for="edit-shidou" style="margin:0;font-weight:normal;font-size:0.85rem;color:#2c3e50">📚 指導対局として記録する（連勝・手合い変更や順位表・成績の集計には使いません。決着内容の内訳には含まれます）</label>
     </div>
     <div class="fg">
-      <label>棋譜URL（任意）</label>
-      <input type="url" id="edit-kifu-url" placeholder="棋譜ファイルへのリンクがあれば貼り付け">
+      <label>①つぶや棋譜URL（任意）</label>
+      <input type="url" id="edit-kifu-url" placeholder="つぶや棋譜のリンクがあれば貼り付け">
+    </div>
+    <div class="fg">
+      <label>②棋譜見てねURL（任意）</label>
+      <input type="url" id="edit-kifu-url2" placeholder="棋譜見てねのリンクがあれば貼り付け">
     </div>
     <div style="display:flex;gap:10px;margin-top:8px">
       <button class="btn" id="edit-save">保存する</button>
@@ -1012,6 +1023,8 @@ document.getElementById("add-match").addEventListener("click", () => {
   if (document.getElementById("shidou-flag").checked) m.shidou = true;
   const kifuVal = document.getElementById("kifu-url").value.trim();
   if (kifuVal) m.kifuUrl = kifuVal;
+  const kifuVal2 = document.getElementById("kifu-url2").value.trim();
+  if (kifuVal2) m.kifuUrl2 = kifuVal2;
   // 対局登録前の順位をスナップショットしておく。
   // 登録後にFirebaseのonValueが即座に発火して再レンダリングされるため、
   // renderStandings内ではなくここで保存しないと順位変動が正しく表示されない。
@@ -1069,6 +1082,7 @@ function resetInputForm() {
   document.getElementById("shidou-flag").checked = false;
   document.getElementById("shidou-flag").disabled = false;
   document.getElementById("kifu-url").value = "";
+  document.getElementById("kifu-url2").value = "";
   // ラベルを初期状態に戻す
   document.getElementById("label-left").textContent      = "勝者 👑";
   document.getElementById("label-right").textContent     = "敗者";
@@ -2213,7 +2227,7 @@ function matchListHTML(filtered, anchorPlayer, readOnly) {
     return `
       <div class="hist-item" style="flex-direction:column;align-items:stretch">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
-          <div>${leftName} vs ${rightName} ${badgeHTML(m)}${m.shidou ? '<span class="badge badge-shidou" title="指導対局として記録されており、連勝・手合いや順位表・各種成績の集計には使われていません（決着内容の内訳には含まれます）">📚指導対局</span>' : ""}${currentIrregularMatches.has(m) ? '<span class="badge badge-irregular" title="記録された手合いが、その時点の正規の手合いと異なるため、連勝・手合いには反映されていません">イレギュラー</span>' : ""}${m.kifuUrl ? `<a href="${escapeAttr(m.kifuUrl)}" target="_blank" rel="noopener noreferrer" class="badge badge-kifu" title="タップすると棋譜ファイルを開きます">📄棋譜</a>` : ""}<br>
+          <div>${leftName} vs ${rightName} ${badgeHTML(m)}${m.shidou ? '<span class="badge badge-shidou" title="指導対局として記録されており、連勝・手合いや順位表・各種成績の集計には使われていません（決着内容の内訳には含まれます）">📚指導対局</span>' : ""}${currentIrregularMatches.has(m) ? '<span class="badge badge-irregular" title="記録された手合いが、その時点の正規の手合いと異なるため、連勝・手合いには反映されていません">イレギュラー</span>' : ""}${m.kifuUrl ? `<a href="${escapeAttr(m.kifuUrl)}" target="_blank" rel="noopener noreferrer" class="badge badge-kifu" title="つぶや棋譜を開きます">📄棋譜①</a>` : ""}${m.kifuUrl2 ? `<a href="${escapeAttr(m.kifuUrl2)}" target="_blank" rel="noopener noreferrer" class="badge badge-kifu2" title="棋譜見てねを開きます">📄棋譜②</a>` : ""}<br>
           <span class="hist-date">${m.date}</span></div>
           ${readOnly ? "" : `<div style="display:flex;gap:6px;flex-shrink:0">
             <button class="comment-btn" data-id="${m.id || idx}" style="background:#f0ede4;color:#888;border:1px solid #ddd;padding:5px 8px;border-radius:4px;font-size:0.78rem;cursor:pointer">💬</button>
@@ -2255,7 +2269,7 @@ function renderHistory() {
   const allFiltered = state.history
     .map((m, idx) => ({ m, idx }))
     .filter(({ m }) => {
-      if (kifuOnlyFilter && !m.kifuUrl) return false;
+      if (kifuOnlyFilter && !m.kifuUrl && !m.kifuUrl2) return false;
       if (selectedPlayers.length === 0) return true;
       const { left, right } = getMatchPlayers(m);
       if (selectedPlayers.length === 1)
@@ -2892,6 +2906,7 @@ function openEditModal(m, idx) {
   editShidouEl.disabled = m.type === "mushoubu";
 
   document.getElementById("edit-kifu-url").value = m.kifuUrl || "";
+  document.getElementById("edit-kifu-url2").value = m.kifuUrl2 || "";
 
   // 手合い
   const tw = isP1P2 ? (m.teai1 || "") : (m.teai_w || "");
@@ -3043,6 +3058,9 @@ document.getElementById("edit-save").addEventListener("click", () => {
   const editKifuVal = document.getElementById("edit-kifu-url").value.trim();
   if (editKifuVal) updated.kifuUrl = editKifuVal;
   else delete updated.kifuUrl;
+  const editKifuVal2 = document.getElementById("edit-kifu-url2").value.trim();
+  if (editKifuVal2) updated.kifuUrl2 = editKifuVal2;
+  else delete updated.kifuUrl2;
 
   state.history[editTargetIdx] = updated;
 
