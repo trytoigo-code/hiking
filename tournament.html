@@ -81,7 +81,8 @@
   - 今回の成績（🏆トーナメントタブ。今大会での対局者ごとの勝敗数・勝率を表示。
     決着済みの対局のみを集計し、勝ち数が多い順に並ぶ）
   - 全員の次回大石道場杯段位一覧（1・2位＝昇段／7・8位＝降段／3〜6位＝変更なしを反映。
-    「新しい大会にする」時に名簿へ直接反映される）
+    「新しい大会にする」時に名簿へ直接反映される。今回の対局者に段位が1人も設定されて
+    いない場合は、この一覧と、順位の昇段・降段の注記・バッジを非表示にする）
   - 3位決定戦・5位決定戦・7位決定戦の自動組み合わせ
   - 結果だけリセット（対局者は保持）
   - 新しい大会にする（現在の大会をアーカイブして白紙に戻す。対局者と、
@@ -908,11 +909,15 @@ function renderBracket() {
 
   // ===== 順位（決定した分だけ表示、未定は「未定」） =====
   const placements = computePlacements();
+  // 段位が誰にも設定されていないときは、昇段・降段まわりの表示をすべて隠す
+  const hasAnyRank = state.players.some((name, i) => name && state.ranks[i]);
   html += `<h4 class="section-head">🏅 順位</h4>`;
-  html += `<p class="note" style="margin-top:-2px">1・2位は昇段、7・8位は降段です。</p>`;
+  if (hasAnyRank) {
+    html += `<p class="note" style="margin-top:-2px">1・2位は昇段、7・8位は降段です。</p>`;
+  }
   html += placements.map(p => {
     const rank = getPlayerRank(p.name);
-    const badge = p.name ? rankChangeBadgeHTML(p.rank) : "";
+    const badge = (p.name && hasAnyRank) ? rankChangeBadgeHTML(p.rank) : "";
     const nameHTML = p.name
       ? escapeHtml(p.name) + (rank ? ` <span style="font-weight:normal;color:#b89752;font-size:0.8rem">${escapeHtml(rank)}</span>` : "") + badge
       : '<span style="color:#bbb;font-weight:normal">未定</span>';
@@ -943,25 +948,27 @@ function renderBracket() {
   // ===== 全員の次回大石道場杯段位 =====
   // 順位が決まった対局者は1・2位＝昇段／7・8位＝降段／3〜6位＝変更なしを反映し、
   // まだ順位が決まっていない対局者は「未定」と表示する。
-  html += `<h4 class="section-head">🎓 全員の次回大石道場杯段位</h4>`;
-  html += `<p class="note" style="margin-top:-2px">3〜6位は大石道場杯段位の変更なし。順位が未定の対局者は「未定」と表示されます。</p>`;
-  html += state.players.map((name, i) => {
-    if (!name) return "";
-    const curRank = state.ranks[i] || "";
-    const pr = placementRankOf(placements, name);
-    let nextHTML;
-    if (pr === null) {
-      nextHTML = '<span style="color:#bbb">未定</span>';
-    } else {
-      const nextRank = computeNextRank(curRank, pr);
-      nextHTML = (nextRank ? escapeHtml(nextRank) : '<span style="color:#bbb">－</span>') + rankChangeBadgeHTML(pr);
-    }
-    return `
-    <div class="standings-row">
-      <div class="standings-name" style="flex:1">${escapeHtml(name)}</div>
-      <div style="font-size:0.84rem;color:#666;white-space:nowrap;flex-shrink:0">${curRank ? escapeHtml(curRank) : "－"} → ${nextHTML}</div>
-    </div>`;
-  }).join("");
+  if (hasAnyRank) {
+    html += `<h4 class="section-head">🎓 全員の次回大石道場杯段位</h4>`;
+    html += `<p class="note" style="margin-top:-2px">3〜6位は大石道場杯段位の変更なし。順位が未定の対局者は「未定」と表示されます。</p>`;
+    html += state.players.map((name, i) => {
+      if (!name) return "";
+      const curRank = state.ranks[i] || "";
+      const pr = placementRankOf(placements, name);
+      let nextHTML;
+      if (pr === null) {
+        nextHTML = '<span style="color:#bbb">未定</span>';
+      } else {
+        const nextRank = computeNextRank(curRank, pr);
+        nextHTML = (nextRank ? escapeHtml(nextRank) : '<span style="color:#bbb">－</span>') + rankChangeBadgeHTML(pr);
+      }
+      return `
+      <div class="standings-row">
+        <div class="standings-name" style="flex:1">${escapeHtml(name)}</div>
+        <div style="font-size:0.84rem;color:#666;white-space:nowrap;flex-shrink:0">${curRank ? escapeHtml(curRank) : "－"} → ${nextHTML}</div>
+      </div>`;
+    }).join("");
+  }
 
   el.innerHTML = html;
 
@@ -1466,9 +1473,11 @@ function renderArchivedTournament(container, t) {
   html += `<div class="bracket-block"><div class="bracket-block-title">7位決定戦</div><div class="ad-bd-seventh"></div></div>`;
 
   html += `<h4 class="section-head">🏅 順位</h4>`;
+  // その大会で段位が誰にも設定されていなければ、昇段・降段バッジは出さない
+  const hasAnyRank = players.some((name, i) => name && ranks[i]);
   html += placements.map(p => {
     const rank = getPlayerRank(p.name, players, ranks);
-    const badge = p.name ? rankChangeBadgeHTML(p.rank) : "";
+    const badge = (p.name && hasAnyRank) ? rankChangeBadgeHTML(p.rank) : "";
     const nameHTML = p.name
       ? escapeHtml(p.name) + (rank ? ` <span style="font-weight:normal;color:#b89752;font-size:0.8rem">${escapeHtml(rank)}</span>` : "") + badge
       : '<span style="color:#bbb;font-weight:normal">未定</span>';
