@@ -37,12 +37,13 @@
         ・🤝囲碁 最多対戦の組み合わせ
     ③コメントのテロップ（別枠。1件ずつ流れて、流れ終わるたびに次を選び直す）：
       囲碁・麻雀の対局コメントのうち、絵文字リアクションが1つ以上付いているものだけを
-      対象に、毎回ランダムに1件選んで流す。最近の対局のコメントほど選ばれやすい重み
-      付き抽選（TELOP_COMMENT_HALF_LIFE_DAYS日ごとに重みが半分。古いコメントも
-      TELOP_COMMENT_MIN_WEIGHTの重みは残るので、たまには流れる）。直前に流した
-      コメントは、候補が2件以上あるかぎり連続しない。コメント自体に投稿日時は無いため、
-      「最近」は対局日（m.date）で判定する。反応付きコメントが1件も無いときは、この枠ごと
-      案内文を静止表示する（枠は常に出す）。
+      対象に、毎回ランダムに1件選んで流す。最近の対局のコメントがやや選ばれやすい、
+      緩めの重み付き抽選（TELOP_COMMENT_HALF_LIFE_DAYS日ごとに重みが半分。古い
+      コメントもTELOP_COMMENT_MIN_WEIGHTの重みは残るので、古いものも十分流れる）。
+      直近TELOP_COMMENT_AVOID_RECENT件は、候補が十分あるかぎり選び直さないことで、
+      同じ数件に偏らず散らす。コメント自体に投稿日時は無いため、
+      「最近」は対局日（m.date）で判定する。反応付きコメントが1件も無いとき（Firebaseに繋がらない
+      場合も含む）は、枠は残して案内文を静止表示する。
   ①の語録行は流さず固定表示する（1件だけなので流す必要がない）。
   ②③のテロップはどちらもタップすると流れが止まり、もう一度タップすると止まった位置から
   再び流れ出す。②はCSSアニメーション、③はWeb Animations APIで動かしている（③は1件ごとに
@@ -315,17 +316,21 @@ function telopCollectReactedComments(history, label) {
   });
   return out;
 }
-const TELOP_COMMENT_HALF_LIFE_DAYS = 30; // 対局日がこの日数古くなるごとに、選ばれやすさが半分になる
-const TELOP_COMMENT_MIN_WEIGHT = 0.1;    // 古いコメントにも、最低限この重み（新しい日=1）は残す
+const TELOP_COMMENT_HALF_LIFE_DAYS = 60; // 対局日がこの日数古くなるごとに、選ばれやすさが半分になる
+const TELOP_COMMENT_MIN_WEIGHT = 0.4;    // 古いコメントにも、最低限この重み（新しい日=1）は残す
+const TELOP_COMMENT_AVOID_RECENT = 3;    // 直近この件数は、候補が十分あるかぎり選び直さない
 const TELOP_COMMENT_SPEED = 60;          // px/秒（登録情報のテロップと同じ速さ）
 function telopCommentWeight(item) {
   const d = telopParseDate(item.date);
   const ageDays = d ? Math.max(0, (Date.now() - d.getTime()) / 86400000) : 365; // 日付不明は古い扱い
   return Math.max(Math.pow(0.5, ageDays / TELOP_COMMENT_HALF_LIFE_DAYS), TELOP_COMMENT_MIN_WEIGHT);
 }
-// 重み付きランダム抽選。直前に流したものは、候補が2件以上あるかぎり除く
-function telopPickComment(pool, lastItem) {
-  const cands = pool.length > 1 ? pool.filter(x => x !== lastItem) : pool;
+// 重み付きランダム抽選。直近TELOP_COMMENT_AVOID_RECENT件は、候補が十分あるかぎり除く
+// （「最近優先」の重みだけだと同じ数件が固まって出やすいため、直近の被りを避けて散らす）
+function telopPickComment(pool, recentItems) {
+  const avoidCount = Math.min(recentItems.length, Math.max(0, pool.length - 1));
+  const avoidSet = new Set(recentItems.slice(-avoidCount));
+  const cands = avoidSet.size > 0 ? pool.filter(x => !avoidSet.has(x)) : pool;
   const weights = cands.map(telopCommentWeight);
   let r = Math.random() * weights.reduce((a, b) => a + b, 0);
   for (let i = 0; i < cands.length; i++) {
@@ -351,15 +356,17 @@ function startCommentTelop(pool) {
     el.style.paddingLeft = "12px";
     return;
   }
-  let last = null, anim = null;
+  let recent = [], anim = null;
   wrap.addEventListener("click", () => {
     if (!anim) return;
     if (anim.playState === "paused") anim.play(); else anim.pause();
   });
   function next() {
     if (anim) anim.cancel();
-    last = telopPickComment(pool, last);
-    el.textContent = telopCommentText(last);
+    const picked = telopPickComment(pool, recent);
+    recent.push(picked);
+    if (recent.length > TELOP_COMMENT_AVOID_RECENT) recent.shift();
+    el.textContent = telopCommentText(picked);
     const wrapW = wrap.clientWidth;
     const itemW = el.getBoundingClientRect().width;
     const duration = Math.max((wrapW + itemW) / TELOP_COMMENT_SPEED * 1000, 6000);
