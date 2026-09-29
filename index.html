@@ -36,14 +36,18 @@
         ・🎯囲碁 半目職人（半目差での勝利数が最も多い人。実績が無ければ出さない）
         ・🤝囲碁 最多対戦の組み合わせ
     ③コメントのテロップ（別枠。1件ずつ流れて、流れ終わるたびに次を選び直す）：
-      囲碁・麻雀の対局コメントのうち、絵文字リアクションが1つ以上付いているものだけを
-      対象に、毎回ランダムに1件選んで流す。最近の対局のコメントがやや選ばれやすい、
-      緩めの重み付き抽選（TELOP_COMMENT_HALF_LIFE_DAYS日ごとに重みが半分。古い
-      コメントもTELOP_COMMENT_MIN_WEIGHTの重みは残るので、古いものも十分流れる）。
+      囲碁・麻雀の本文入り対局コメント全部（反応の有無は問わない）を対象に、毎回
+      ランダムに1件選んで流す。以下2つの重みを掛け合わせた抽選：
+        ・最近の対局のコメントがやや選ばれやすい、緩めの重み（TELOP_COMMENT_
+          HALF_LIFE_DAYS日ごとに重みが半分。古いコメントもTELOP_COMMENT_MIN_
+          WEIGHTの重みは残るので、古いものも十分流れる）
+        ・絵文字リアクションが付いているコメントほど選ばれやすい重み（反応数+1倍。
+          反応が1つも無いコメントはTELOP_COMMENT_NO_REACTION_WEIGHTの低い基本
+          重みで、優先度は下がるが流れなくはしない）
       直近TELOP_COMMENT_AVOID_RECENT件は、候補が十分あるかぎり選び直さないことで、
       同じ数件に偏らず散らす。コメント自体に投稿日時は無いため、
-      「最近」は対局日（m.date）で判定する。反応付きコメントが1件も無いとき（Firebaseに繋がらない
-      場合も含む）は、枠は残して案内文を静止表示する。
+      「最近」は対局日（m.date）で判定する。本文入りコメントが1件も無いとき（Firebaseに
+      繋がらない場合も含む）は、枠は残して案内文を静止表示する。
   ①の語録行は流さず固定表示する（1件だけなので流す必要がない）。
   ②③のテロップはどちらもタップすると流れが止まり、もう一度タップすると止まった位置から
   再び流れ出す。②はCSSアニメーション、③はWeb Animations APIで動かしている（③は1件ごとに
@@ -300,30 +304,32 @@ function telopFormatMD(dateStr) {
 }
 const TELOP_NEGLECT_DAYS = 14; // これ以上空いていたら「そろそろ」の呼びかけを出す
 
-// ---- コメントのテロップ（反応が付いているコメントを、ランダムに1件ずつ流す） ----
-function telopCountReactions(comment) {
-  if (!comment || typeof comment !== "object" || !comment.reactions) return 0;
-  return Object.values(comment.reactions).reduce((sum, names) => sum + (Array.isArray(names) ? names.length : 0), 0);
+// ---- コメントのテロップ（対局コメントを、ランダムに1件ずつ流す） ----
+function telopCountReactions(reactions) {
+  if (!reactions) return 0;
+  return Object.values(reactions).reduce((sum, names) => sum + (Array.isArray(names) ? names.length : 0), 0);
 }
-// 反応が1つ以上付いているコメントだけを集める（囲碁・麻雀共通）
-function telopCollectReactedComments(history, label) {
+// 本文があるコメントを全部集める（反応の有無は問わない。反応数は重み付けに使う）
+function telopCollectComments(history, label) {
   const out = [];
   (history || []).forEach(m => {
     const c = m.comment;
     if (!c || typeof c !== "object" || !c.text) return;
-    if (telopCountReactions(c) === 0) return;
-    out.push({ label, text: c.text, author: c.author || "", reactions: c.reactions, date: m.date });
+    out.push({ label, text: c.text, author: c.author || "", reactionCount: telopCountReactions(c.reactions), reactions: c.reactions, date: m.date });
   });
   return out;
 }
 const TELOP_COMMENT_HALF_LIFE_DAYS = 60; // 対局日がこの日数古くなるごとに、選ばれやすさが半分になる
 const TELOP_COMMENT_MIN_WEIGHT = 0.4;    // 古いコメントにも、最低限この重み（新しい日=1）は残す
+const TELOP_COMMENT_NO_REACTION_WEIGHT = 0.3; // 反応が1つも無いコメントの基本重み（優先度は下げるが、流れなくはしない）
 const TELOP_COMMENT_AVOID_RECENT = 3;    // 直近この件数は、候補が十分あるかぎり選び直さない
 const TELOP_COMMENT_SPEED = 60;          // px/秒（登録情報のテロップと同じ速さ）
 function telopCommentWeight(item) {
   const d = telopParseDate(item.date);
   const ageDays = d ? Math.max(0, (Date.now() - d.getTime()) / 86400000) : 365; // 日付不明は古い扱い
-  return Math.max(Math.pow(0.5, ageDays / TELOP_COMMENT_HALF_LIFE_DAYS), TELOP_COMMENT_MIN_WEIGHT);
+  const recencyWeight = Math.max(Math.pow(0.5, ageDays / TELOP_COMMENT_HALF_LIFE_DAYS), TELOP_COMMENT_MIN_WEIGHT);
+  const reactionWeight = item.reactionCount > 0 ? 1 + item.reactionCount : TELOP_COMMENT_NO_REACTION_WEIGHT;
+  return recencyWeight * reactionWeight;
 }
 // 重み付きランダム抽選。直近TELOP_COMMENT_AVOID_RECENT件は、候補が十分あるかぎり除く
 // （「最近優先」の重みだけだと同じ数件が固まって出やすいため、直近の被りを避けて散らす）
@@ -345,14 +351,14 @@ function telopCommentText(item) {
   const reacts = Object.entries(item.reactions || {})
     .filter(([, names]) => Array.isArray(names) && names.length > 0)
     .map(([emoji, names]) => `${emoji}${names.length}`).join(" ");
-  return `💬${item.label}（${telopFormatMD(item.date)}）${who}「${body}」　${reacts}`;
+  return `💬${item.label}（${telopFormatMD(item.date)}）${who}「${body}」${reacts ? "　" + reacts : ""}`;
 }
 function startCommentTelop(pool) {
   const wrap = document.getElementById("telop-comment-wrap");
   const el = document.getElementById("telop-comment-item");
   if (pool.length === 0) {
     // 反応付きコメントがまだ無い（または読み込めない）ときは、枠は残して案内文を静止表示する
-    el.textContent = "💬 対局コメントにリアクションが付くと、ここに流れます";
+    el.textContent = "💬 対局にコメントが付くと、ここに流れます";
     el.style.paddingLeft = "12px";
     return;
   }
@@ -625,8 +631,8 @@ function renderTelop(igoState, mjState) {
 
   // 別枠のコメントテロップ（反応付きコメントを囲碁・麻雀まとめて抽選）
   startCommentTelop([
-    ...telopCollectReactedComments((igoState || {}).history, "囲碁"),
-    ...telopCollectReactedComments((mjState || {}).history, "麻雀")
+    ...telopCollectComments((igoState || {}).history, "囲碁"),
+    ...telopCollectComments((mjState || {}).history, "麻雀")
   ]);
 }
 
