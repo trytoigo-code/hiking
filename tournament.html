@@ -102,11 +102,12 @@
       展開表示。読み取り専用。新しい大会順に表示。直近6件のみ表示し、「もっと見る」で全件展開）
   - スイス式（⚙️設定タブの「形式」で切り替え。7・9・10人など人数自由の大会用。
     回戦数は通常3回戦（例外的に4回戦）で、8人のときは通常の勝ち抜き形式を使う。
+    奇数人数の不戦勝（お休み）の人は自動で決まり、その回戦の結果を入れる前なら手動で変更できる。
     参加者は名簿から選んで並び順を決め、回戦数は手入力する。🏆トーナメントタブに
     対局者×回戦のマス目表と回戦タブ・対局カードが出て、勝者の名前をタップして結果を
     入力する。次の回戦は前の回戦の結果が揃ってから「組み合わせを作る」で生成。
     組み合わせは公式のスイス式（成績でグループ分けし、上位半分×下位半分でクロス。
-    再戦回避。奇数人数は1人お休み＝不戦敗にしない）、順位は勝数→直接対決→BH
+    再戦回避。奇数人数は1人が不戦勝＝勝ち数に数える）、順位は勝数→直接対決→BH
     （対戦相手の勝数合計）→並び順。段位の昇段・降段は行わない。「新しい大会にする」で
     アーカイブされ、📚過去の大会と全期間の通算成績にも反映される）
   - Firebase によるリアルタイム同期
@@ -114,7 +115,7 @@
 
 【今後の改良候補】
   - 8人勝ち抜きの人数可変（4人・16人など。人数自由の大会はスイス式で対応済み）
-  - スイス式でのお休み（bye）の人が、後日実際に対局した結果の反映
+  - スイス式の不戦勝の人が、後日実際に対局した場合の扱い（通算成績には不戦勝を数えていない）
   - スイス式の過去大会の記録の修正・削除（現状は読み取り専用）
   - 不戦勝（空き枠）対応
   - 対局日・対局場所などのメモ欄
@@ -343,6 +344,13 @@
 
       <h4 class="section-head" style="margin-top:0">🏅 全期間の通算成績</h4>
       <p class="note" style="margin-top:-2px">進行中の大会も含めた、これまでの全対局の通算勝敗です（対局者名簿のIDをもとに集計するため、名前を打ち直しても同一人物としてまとまります。この機能導入前の古いアーカイブのみ、名前の完全一致で集計しています）。</p>
+      <details style="margin:-4px 0 12px">
+        <summary style="font-size:0.8rem;color:#b89752;cursor:pointer">数え方について</summary>
+        <div class="note" style="margin:8px 0 0;line-height:1.7">
+          <div>・8人勝ち抜き、スイス式、簡易記録の、実際に行った対局の勝敗を合算しています。</div>
+          <div>・スイス式の不戦勝（お休み）は、実際に対局していないため、ここには数えません。その大会の順位や成績表では、勝ちとして数えています。</div>
+        </div>
+      </details>
       <div id="alltime-record"></div>
 
       <h4 class="section-head">📜 大会ごとの結果</h4>
@@ -1081,7 +1089,7 @@ function renderBracket() {
 //  スイス式（7・9・10人など、人数自由の大会形式）
 //  組み合わせのロジックは gasshuku.html のスイス式と同じ考え方。
 //  対局データ：rounds = [ [ {a, b, winner}, ... ], ... ]（a/bは名簿ID）
-//  b が無い（null）ものはお休み（bye）で、勝敗には影響しない・不戦敗にしない。
+//  b が無い（null）ものは不戦勝（bye・お休み）で、その回戦の勝ち数に数える（通算成績には数えない）。
 //  winner は "a" | "b" | "bye" | null（未定）。
 // ============================================================
 function swToArr(v) {
@@ -1094,10 +1102,13 @@ function swNameOf(id, snap) { return (roster[id] && roster[id].name) || (snap &&
 function swPairKey(a, b) { return [a, b].sort().join("|"); }
 function swIsBye(m) { return !m.b; }
 
-function swScores(rounds) {
+// 不戦勝（bye）は勝ち数に数える。playedOnly が true のときは、実際に対局したものだけ数える
+// （全期間の通算成績用）
+function swScores(rounds, playedOnly) {
   const wins = {}, losses = {};
   rounds.forEach(round => round.forEach(m => {
-    if (swIsBye(m) || !m.winner || m.winner === "bye") return;
+    if (swIsBye(m)) { if (!playedOnly) wins[m.a] = (wins[m.a]||0)+1; return; }
+    if (!m.winner || m.winner === "bye") return;
     if (m.winner === "a") { wins[m.a] = (wins[m.a]||0)+1; losses[m.b] = (losses[m.b]||0)+1; }
     else if (m.winner === "b") { wins[m.b] = (wins[m.b]||0)+1; losses[m.a] = (losses[m.a]||0)+1; }
   }));
@@ -1120,8 +1131,8 @@ function swPriorByes(rounds) {
 // 公式のスイス式（ダッチシステム準拠）：成績（勝数）でグループ分けし、各グループを
 // 参加者の並び順のまま上位半分・下位半分に分けて、上位1位×下位1位…とクロスに組む。
 // グループが奇数人なら並び順で一番後ろの1人を次のグループへ降格。対戦済みなら下位半分の
-// 中で相手をずらして再戦を避ける。全体が奇数なら最初に1人だけお休み（bye）にする。
-function swGeneratePairing(ids, rounds) {
+// 中で相手をずらして再戦を避ける。全体が奇数なら最初に1人だけ不戦勝（bye）にする。
+function swGeneratePairing(ids, rounds, forcedBye) {
   const { wins } = swScores(rounds);
   const played = swPlayedSet(rounds);
   const byes = swPriorByes(rounds);
@@ -1129,9 +1140,13 @@ function swGeneratePairing(ids, rounds) {
   let pool = [...ids];
   let byeId = null;
   if (pool.length % 2 === 1) {
-    const byOrder = [...pool].sort((a, b) => (wins[a]||0) - (wins[b]||0));
-    for (const id of byOrder) { if (!byes.has(id)) { byeId = id; break; } }
-    if (!byeId) byeId = byOrder[0];
+    if (forcedBye && pool.includes(forcedBye)) {
+      byeId = forcedBye; // 不戦勝の人を手動で指定したとき
+    } else {
+      const byOrder = [...pool].sort((a, b) => (wins[a]||0) - (wins[b]||0));
+      for (const id of byOrder) { if (!byes.has(id)) { byeId = id; break; } }
+      if (!byeId) byeId = byOrder[0];
+    }
     pool = pool.filter(id => id !== byeId);
   }
 
@@ -1221,7 +1236,7 @@ function swCellHTML(id, roundIdx, rounds, snap) {
   if (!round) return `<td class="sw-cell-empty">－</td>`;
   const m = round.find(mm => mm.a === id || mm.b === id);
   if (!m) return `<td class="sw-cell-empty">－</td>`;
-  if (swIsBye(m)) return `<td class="sw-cell-pending">お休み</td>`;
+  if (swIsBye(m)) return `<td><div style="font-weight:bold">不戦勝</div><div class="sw-cell-win">○</div></td>`;
   const isA = m.a === id;
   const opp = escapeHtml(swNameOf(isA ? m.b : m.a, snap));
   if (m.winner === "a" || m.winner === "b") {
@@ -1232,7 +1247,8 @@ function swCellHTML(id, roundIdx, rounds, snap) {
 }
 function swMatrixHTML(list, rounds, roundCount, snap) {
   if (list.length === 0) return `<p style="color:#999;font-size:0.88rem">対局結果がまだありません。</p>`;
-  const anyDecided = list.some(p => p.w > 0 || p.l > 0);
+  // 不戦勝だけでは順位をつけない（実際の対局の結果が1件でも決まってから表示する）
+  const anyDecided = rounds.some(r => r.some(m => !swIsBye(m) && (m.winner === "a" || m.winner === "b")));
   const medals = ["🥇","🥈","🥉"];
   let head = `<tr><th>順位</th><th>対局者</th>`;
   for (let i = 0; i < roundCount; i++) head += `<th>第${i+1}<br>回戦</th>`;
@@ -1272,7 +1288,7 @@ function renderSwissPanel() {
   if (swActiveRound > rounds.length) swActiveRound = rounds.length;
   if (swActiveRound > roundCount - 1) swActiveRound = roundCount - 1;
 
-  html += `<p class="note" style="margin-top:-2px">〇＝勝ち／●＝負け／…＝結果待ち／－＝その回戦は未生成、を表します。</p>`;
+  html += `<p class="note" style="margin-top:-2px">〇＝勝ち／●＝負け／…＝結果待ち／－＝その回戦は未生成、を表します。不戦勝はこの大会の勝ち数に数えますが、全期間の通算成績には数えません。</p>`;
   html += swMatrixHTML(swMatrixList(ids, rounds), rounds, roundCount);
 
   html += `<h4 class="section-head">📝 結果を入力</h4>`;
@@ -1288,7 +1304,7 @@ function renderSwissPanel() {
     if (idx < rounds.length - 1) html += `<p class="note" style="margin-top:0">この回戦を修正すると、第${idx+2}回戦以降の組み合わせは自動的に消去されます（組み直しが必要になります）。</p>`;
     html += `<p class="note" style="margin-top:0">勝った人の名前をタップしてください。</p>`;
     html += rounds[idx].map((m, mi) => {
-      if (swIsBye(m)) return `<div class="sw-match"><div class="sw-bye">${escapeHtml(swNameOf(m.a))}　この回戦はお休み（不戦敗にはなりません）</div></div>`;
+      if (swIsBye(m)) return `<div class="sw-match"><div class="sw-bye">${escapeHtml(swNameOf(m.a))}　この回戦は不戦勝（勝ち数に数えます）</div></div>`;
       const wa = m.winner === "a", wb = m.winner === "b";
       const at = ` data-round="${idx}" data-match="${mi}"`;
       return `<div class="sw-match">
@@ -1297,6 +1313,16 @@ function renderSwissPanel() {
         <div class="sw-side ${wb?"winner":""}"${at} data-side="b">${wb?"👑 ":""}${escapeHtml(swNameOf(m.b))}</div>
       </div>`;
     }).join("");
+    // 不戦勝の人は自動で決まるが、最新の回戦で結果がまだ1件も入っていなければ変更できる
+    const cur = rounds[idx];
+    const byeM = cur.find(swIsBye);
+    if (byeM && idx === rounds.length - 1 && cur.every(m => swIsBye(m) || !m.winner)) {
+      const prior = swPriorByes(rounds.slice(0, idx));
+      html += `<div class="fg" style="margin-top:12px"><label>不戦勝の人を変更する</label>
+        <select id="sw-bye-select">${ids.map(id =>
+          `<option value="${id}"${id === byeM.a ? " selected" : ""}>${escapeHtml(swNameOf(id))}${prior.has(id) ? "（不戦勝済み）" : ""}</option>`).join("")}</select>
+        <p class="note" style="margin:6px 0 0">変えると、この回戦の組み合わせを作り直します（結果を入れたあとは変更できません）。</p></div>`;
+    }
   } else if (idx === rounds.length) {
     const prevOk = idx === 0 || swRoundComplete(rounds[idx - 1]);
     if (prevOk) html += `<button class="btn" id="sw-gen-round">第${idx+1}回戦の組み合わせを作る</button>`;
@@ -1307,6 +1333,13 @@ function renderSwissPanel() {
 
   el.querySelectorAll(".sw-round-tab").forEach(btn => {
     btn.addEventListener("click", () => { swActiveRound = Number(btn.dataset.round); renderSwissPanel(); });
+  });
+  const byeSel = document.getElementById("sw-bye-select");
+  if (byeSel) byeSel.addEventListener("change", () => {
+    const prior = rounds.slice(0, idx);
+    state.swiss.results = [...prior, swGeneratePairing(ids, prior, byeSel.value)];
+    pushState();
+    showToast(`不戦勝を${swNameOf(byeSel.value)}に変更し、組み合わせを作り直しました`);
   });
   const gen = document.getElementById("sw-gen-round");
   if (gen) gen.addEventListener("click", () => {
@@ -1808,7 +1841,7 @@ function renderAllTimeRecord(archiveList) {
   }
 
   function mergeSwiss(ids, rounds, names) {
-    const { wins, losses } = swScores(rounds);
+    const { wins, losses } = swScores(rounds, true); // 通算成績には不戦勝を数えない
     ids.forEach(id => {
       const w = wins[id] || 0, l = losses[id] || 0;
       if (!w && !l) return;
