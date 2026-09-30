@@ -2306,6 +2306,19 @@ function showToast(msg) {
   toastTimer = setTimeout(() => el.style.display = "none", 2500);
 }
 
+// ---------- タブを縦スクロールしても常に表示する ----------
+// ヘッダーもsticky（top:0）のため、タブもtop:0のままだとヘッダーの裏に隠れてしまう。
+// タブの位置をヘッダーの高さに合わせて、ヘッダーのすぐ下に固定する。
+(function() {
+  const header = document.getElementById("header");
+  const nav = document.getElementById("nav");
+  function adjustNavTop() { if (header && nav) nav.style.top = header.offsetHeight + "px"; }
+  adjustNavTop();
+  window.addEventListener("resize", adjustNavTop);
+  window.addEventListener("load", adjustNavTop);
+  if (window.ResizeObserver && header) new ResizeObserver(adjustNavTop).observe(header); // 同期状態の表示などで高さが変わったとき
+})();
+
 fillSettingsInputs();
 renderAll();
 </script>
