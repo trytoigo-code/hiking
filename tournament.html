@@ -100,11 +100,22 @@
       名簿IDが分かる大会はIDで、この機能導入前の古いアーカイブは名前の完全一致でフォールバック集計）
       過去の大会結果一覧（「結果を見る」でトーナメント図・順位を今の画面と同じ形式で
       展開表示。読み取り専用。新しい大会順に表示。直近6件のみ表示し、「もっと見る」で全件展開）
+  - スイス式（⚙️設定タブの「形式」で切り替え。7・9・10人など人数自由の大会用。
+    回戦数は通常3回戦（例外的に4回戦）で、8人のときは通常の勝ち抜き形式を使う。
+    参加者は名簿から選んで並び順を決め、回戦数は手入力する。🏆トーナメントタブに
+    対局者×回戦のマス目表と回戦タブ・対局カードが出て、勝者の名前をタップして結果を
+    入力する。次の回戦は前の回戦の結果が揃ってから「組み合わせを作る」で生成。
+    組み合わせは公式のスイス式（成績でグループ分けし、上位半分×下位半分でクロス。
+    再戦回避。奇数人数は1人お休み＝不戦敗にしない）、順位は勝数→直接対決→BH
+    （対戦相手の勝数合計）→並び順。段位の昇段・降段は行わない。「新しい大会にする」で
+    アーカイブされ、📚過去の大会と全期間の通算成績にも反映される）
   - Firebase によるリアルタイム同期
   - データエクスポート（設定タブからJSONファイルとしてダウンロード。日付入りファイル名で保存）
 
 【今後の改良候補】
-  - 人数を可変にする（4人・16人など）
+  - 8人勝ち抜きの人数可変（4人・16人など。人数自由の大会はスイス式で対応済み）
+  - スイス式でのお休み（bye）の人が、後日実際に対局した結果の反映
+  - スイス式の過去大会の記録の修正・削除（現状は読み取り専用）
   - 不戦勝（空き枠）対応
   - 対局日・対局場所などのメモ欄
 ================================================================================
@@ -255,6 +266,36 @@
     color: #2c3e50; font-weight: bold; font-size: 1rem; border-bottom: 1px solid #e0dbcd;
   }
 
+  /* スイス式 */
+  .matrix-wrap { overflow-x: auto; margin: 8px 0 4px; }
+  .matrix-wrap table { width: 100%; border-collapse: collapse; background: #faf9f5; font-size: 0.78rem; }
+  .matrix-wrap th, .matrix-wrap td { border: 1px solid #ddd8cc; padding: 6px 5px; text-align: center; white-space: nowrap; }
+  .matrix-wrap th { background: #f1f0ea; color: #2c3e50; font-size: 0.72rem; }
+  .sw-cell-win { color: #2e7d5e; font-weight: bold; }
+  .sw-cell-loss { color: #222; font-weight: bold; }
+  .sw-cell-pending { color: #999; font-size: 0.76rem; }
+  .sw-cell-empty { color: #ccc; }
+  .sw-round-tabs { display: flex; gap: 6px; overflow-x: auto; margin: 10px 0 14px; padding-bottom: 2px; }
+  .sw-round-tab { flex-shrink: 0; padding: 7px 14px; border: 1px solid #ddd8cc; border-radius: 16px; background: #fff; font-size: 0.8rem; font-weight: bold; color: #777; cursor: pointer; }
+  .sw-round-tab.active { background: #2c3e50; color: #fff; border-color: #2c3e50; }
+  .sw-round-tab.done { border-color: #b89752; }
+  .sw-match { display: flex; align-items: center; background: #fff; border: 1px solid #ddd8cc; border-radius: 8px; margin-bottom: 8px; overflow: hidden; }
+  .sw-side { flex: 1; padding: 12px 10px; text-align: center; font-size: 0.88rem; font-weight: bold; color: #555; cursor: pointer; background: #fff; }
+  .sw-side.winner { background: #fdf1ef; color: #b03a2e; }
+  .sw-vs { padding: 0 6px; color: #bbb; font-size: 0.76rem; flex-shrink: 0; }
+  .sw-bye { padding: 12px; text-align: center; color: #888; font-size: 0.86rem; width: 100%; }
+  .sw-add-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  .sw-add-btn { background: #f0ede4; border: 1px solid #ddd; border-radius: 20px; padding: 6px 14px; font-size: 0.84rem; cursor: pointer; font-family: inherit; color: #555; }
+  .sw-add-btn:active { background: #e0dbcd; }
+  .sw-item { display: flex; align-items: center; gap: 8px; background: #fff; border: 1px solid #ddd8cc; border-radius: 8px; padding: 8px; margin-bottom: 6px; touch-action: none; }
+  .sw-item.dragging { background: #fdf8ee; border-color: #b89752; box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+  .sw-num { width: 18px; text-align: center; color: #999; font-weight: bold; font-size: 0.78rem; flex-shrink: 0; }
+  .sw-name { flex: 1; min-width: 0; font-size: 0.88rem; font-weight: bold; color: #2c3e50; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sw-remove { width: 28px; height: 28px; flex-shrink: 0; border: none; border-radius: 6px; background: #f0ede4; color: #999; font-size: 0.85rem; cursor: pointer; }
+  .sw-remove:active { background: #e74c3c; color: #fff; }
+  .sw-handle { width: 28px; height: 28px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: #bbb; font-size: 1.1rem; cursor: grab; touch-action: none; }
+  .sw-handle:active { color: #555; cursor: grabbing; }
+
   #toast {
     position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
     background: #2c3e50; color: #fff; padding: 10px 18px;
@@ -316,11 +357,32 @@
 
       <h3>大会設定</h3>
       <p class="note">大会名は「大石道場杯」固定です。開催回と開催日を入力してください。対局者を名簿から選ぶと、シード順（1〜8）で1回戦の組み合わせが決まります。右端の☰を長押ししてドラッグすると並び順（シード順）を入れ替えられます。大石道場杯段位（名簿側の値）は順位表に表示されます。対局者名簿の登録・編集は下の「管理者の仕事」内で行います。</p>
+      <div class="fg"><label>形式</label>
+        <select id="t-format">
+          <option value="bracket">8人勝ち抜き（トーナメント表）</option>
+          <option value="swiss">スイス式（人数自由・7〜10人など）</option>
+        </select>
+      </div>
       <div class="fg"><label>開催回</label><input id="t-edition" type="number" min="1" inputmode="numeric" placeholder="例：5"></div>
       <div class="fg"><label>開催日</label><input id="t-event-date" type="date"></div>
+      <div id="setup-bracket-fields">
       <div class="fg">
         <label>対局者（順に1〜8）</label>
         <div id="seed-list"></div>
+      </div>
+      </div>
+      <div id="setup-swiss-fields" style="display:none">
+        <div class="fg"><label>参加者を名簿から追加</label><div class="sw-add-list" id="sw-add-list"></div></div>
+        <div class="fg">
+          <label>参加者（☰で並び替え・✕で取り消し。並び順が組み合わせの基準になります）</label>
+          <div id="sw-selected"></div>
+          <div id="sw-count" style="font-size:0.82rem;color:#888;margin:8px 0 0"></div>
+        </div>
+        <div class="fg">
+          <label>回戦数</label>
+          <input id="sw-rounds" type="number" min="1" max="10" inputmode="numeric" placeholder="通常は3">
+          <p class="note" style="margin:6px 0 0">通常は3回戦です（例外的に4回戦もあります）。未設定のときは3が入ります。</p>
+        </div>
       </div>
       <button class="btn" id="save-setup">保存して全員に同期</button>
 
@@ -424,7 +486,9 @@ function normalizeResults(data) {
   };
 }
 
-let state = { edition:"", eventDate:"", playerIds:["","","","","","","",""], players:["","","","","","","",""], ranks:["","","","","","","",""], results: emptyResults() };
+let state = { edition:"", eventDate:"", playerIds:["","","","","","","",""], players:["","","","","","","",""], ranks:["","","","","","","",""], results: emptyResults(), format:"bracket", swissIds:[], swiss:{ rounds:null, results:[] } };
+// スイス式の設定入力中の下書き（保存ボタンを押すまでFirebaseには書き込まない）
+let swDraft = [], swDirty = false, swActiveRound = 0;
 let roster = {}; // { id: { name, rank } } 対局者名簿
 let stateRef = null, archiveRef = null, rosterRef = null;
 const isConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY";
@@ -447,7 +511,13 @@ if (isConfigured) {
           playerIds: Array.isArray(data.playerIds) && data.playerIds.length === 8 ? data.playerIds : null,
           players: Array.isArray(data.players) && data.players.length === 8 ? data.players : state.players,
           ranks:   Array.isArray(data.ranks) && data.ranks.length === 8 ? data.ranks : state.ranks,
-          results: normalizeResults(data.results)
+          results: normalizeResults(data.results),
+          format:  data.format === "swiss" ? "swiss" : "bracket",
+          swissIds: swToArr(data.swissIds),
+          swiss: {
+            rounds:  (data.swiss && typeof data.swiss.rounds === "number") ? data.swiss.rounds : null,
+            results: swNormRounds(data.swiss && data.swiss.results)
+          }
         };
       }
       stateLoaded = true;
@@ -892,6 +962,7 @@ function renderBracketDiagram(container, leaves, winnerSideLevels, winnerName, l
 
 // ---------- 描画 ----------
 function renderBracket() {
+  if (state.format === "swiss") { renderSwissPanel(); return; }
   const el = document.getElementById("panel-bracket");
 
   let html = "";
@@ -1006,12 +1077,400 @@ function renderBracket() {
   );
 }
 
+// ============================================================
+//  スイス式（7・9・10人など、人数自由の大会形式）
+//  組み合わせのロジックは gasshuku.html のスイス式と同じ考え方。
+//  対局データ：rounds = [ [ {a, b, winner}, ... ], ... ]（a/bは名簿ID）
+//  b が無い（null）ものはお休み（bye）で、勝敗には影響しない・不戦敗にしない。
+//  winner は "a" | "b" | "bye" | null（未定）。
+// ============================================================
+function swToArr(v) {
+  if (Array.isArray(v)) return v.filter(x => x !== undefined && x !== null);
+  if (v && typeof v === "object") return Object.keys(v).sort((a, b) => Number(a) - Number(b)).map(k => v[k]);
+  return [];
+}
+function swNormRounds(v) { return swToArr(v).map(r => swToArr(r)); }
+function swNameOf(id, snap) { return (roster[id] && roster[id].name) || (snap && snap[id]) || "（削除済み）"; }
+function swPairKey(a, b) { return [a, b].sort().join("|"); }
+function swIsBye(m) { return !m.b; }
+
+function swScores(rounds) {
+  const wins = {}, losses = {};
+  rounds.forEach(round => round.forEach(m => {
+    if (swIsBye(m) || !m.winner || m.winner === "bye") return;
+    if (m.winner === "a") { wins[m.a] = (wins[m.a]||0)+1; losses[m.b] = (losses[m.b]||0)+1; }
+    else if (m.winner === "b") { wins[m.b] = (wins[m.b]||0)+1; losses[m.a] = (losses[m.a]||0)+1; }
+  }));
+  return { wins, losses };
+}
+function swPlayedSet(rounds) {
+  const set = new Set();
+  rounds.forEach(round => round.forEach(m => {
+    if (swIsBye(m) || !m.winner || m.winner === "bye") return;
+    set.add(swPairKey(m.a, m.b));
+  }));
+  return set;
+}
+function swPriorByes(rounds) {
+  const s = new Set();
+  rounds.forEach(round => round.forEach(m => { if (swIsBye(m)) s.add(m.a); }));
+  return s;
+}
+
+// 公式のスイス式（ダッチシステム準拠）：成績（勝数）でグループ分けし、各グループを
+// 参加者の並び順のまま上位半分・下位半分に分けて、上位1位×下位1位…とクロスに組む。
+// グループが奇数人なら並び順で一番後ろの1人を次のグループへ降格。対戦済みなら下位半分の
+// 中で相手をずらして再戦を避ける。全体が奇数なら最初に1人だけお休み（bye）にする。
+function swGeneratePairing(ids, rounds) {
+  const { wins } = swScores(rounds);
+  const played = swPlayedSet(rounds);
+  const byes = swPriorByes(rounds);
+
+  let pool = [...ids];
+  let byeId = null;
+  if (pool.length % 2 === 1) {
+    const byOrder = [...pool].sort((a, b) => (wins[a]||0) - (wins[b]||0));
+    for (const id of byOrder) { if (!byes.has(id)) { byeId = id; break; } }
+    if (!byeId) byeId = byOrder[0];
+    pool = pool.filter(id => id !== byeId);
+  }
+
+  const groups = {};
+  pool.forEach(id => { const w = wins[id] || 0; (groups[w] = groups[w] || []).push(id); });
+  const scores = Object.keys(groups).map(Number).sort((a, b) => b - a);
+
+  let matches = [];
+  let floater = null;
+  scores.forEach(score => {
+    let group = floater ? [floater, ...groups[score]] : [...groups[score]];
+    floater = null;
+    if (group.length % 2 === 1) { floater = group[group.length - 1]; group = group.slice(0, -1); }
+    matches = matches.concat(swCrossPair(group, played));
+  });
+  if (byeId) matches.push({ a: byeId, b: null, winner: "bye" });
+  return matches;
+}
+function swCrossPair(group, played) {
+  const half = group.length / 2;
+  const upper = group.slice(0, half), lower = group.slice(half);
+  const used = new Set();
+  const matches = [];
+  for (let i = 0; i < upper.length; i++) {
+    const a = upper[i];
+    const order = [i];
+    for (let d = 1; d < lower.length; d++) {
+      if (i + d < lower.length) order.push(i + d);
+      if (i - d >= 0) order.push(i - d);
+    }
+    let opp = null;
+    for (const idx of order) {
+      const b = lower[idx];
+      if (used.has(b)) continue;
+      if (!played.has(swPairKey(a, b))) { opp = b; break; }
+    }
+    if (!opp) { for (const idx of order) { const b = lower[idx]; if (!used.has(b)) { opp = b; break; } } }
+    used.add(opp);
+    matches.push({ a, b: opp, winner: null });
+  }
+  return matches;
+}
+function swRoundComplete(round) { return round.every(m => m.winner); }
+
+// 順位：勝数 → 直接対決 → BH（対戦相手の勝数合計）→ 参加者の並び順
+function swStandings(ids, rounds, snap) {
+  const { wins, losses } = swScores(rounds);
+  const opps = {};
+  ids.forEach(id => opps[id] = []);
+  rounds.forEach(round => round.forEach(m => {
+    if (swIsBye(m) || !m.winner || m.winner === "bye") return;
+    (opps[m.a] = opps[m.a] || []).push(m.b);
+    (opps[m.b] = opps[m.b] || []).push(m.a);
+  }));
+  const bh = id => (opps[id] || []).reduce((sum, o) => sum + (wins[o] || 0), 0);
+  function direct(x, y) {
+    for (const round of rounds) for (const m of round) {
+      if (swIsBye(m) || !m.winner || m.winner === "bye") continue;
+      if (m.a === x && m.b === y) return m.winner === "a" ? -1 : 1;
+      if (m.a === y && m.b === x) return m.winner === "b" ? -1 : 1;
+    }
+    return 0;
+  }
+  const list = ids.map((id, i) => ({ id, idx: i, name: swNameOf(id, snap), w: wins[id]||0, l: losses[id]||0, bh: bh(id) }));
+  list.sort((x, y) => {
+    if (y.w !== x.w) return y.w - x.w;
+    const d = direct(x.id, y.id);
+    if (d !== 0) return d;
+    if (y.bh !== x.bh) return y.bh - x.bh;
+    return x.idx - y.idx;
+  });
+  return list;
+}
+
+// マス目表の行は参加者の並び順に固定し、順位（左端）だけを算出して差し替える
+function swMatrixList(ids, rounds, snap) {
+  const standings = swStandings(ids, rounds, snap);
+  const rankOf = {};
+  standings.forEach((p, i) => { rankOf[p.id] = i + 1; });
+  return ids.map(id => {
+    const s = standings.find(p => p.id === id);
+    return { id, name: swNameOf(id, snap), w: s ? s.w : 0, l: s ? s.l : 0, bh: s ? s.bh : 0, rank: rankOf[id] || null };
+  });
+}
+function swCellHTML(id, roundIdx, rounds, snap) {
+  const round = rounds[roundIdx];
+  if (!round) return `<td class="sw-cell-empty">－</td>`;
+  const m = round.find(mm => mm.a === id || mm.b === id);
+  if (!m) return `<td class="sw-cell-empty">－</td>`;
+  if (swIsBye(m)) return `<td class="sw-cell-pending">お休み</td>`;
+  const isA = m.a === id;
+  const opp = escapeHtml(swNameOf(isA ? m.b : m.a, snap));
+  if (m.winner === "a" || m.winner === "b") {
+    const won = (isA && m.winner === "a") || (!isA && m.winner === "b");
+    return `<td><div style="font-weight:bold">${opp}</div><div class="${won ? "sw-cell-win" : "sw-cell-loss"}">${won ? "○" : "●"}</div></td>`;
+  }
+  return `<td><div style="font-weight:bold">${opp}</div><div class="sw-cell-pending">…</div></td>`;
+}
+function swMatrixHTML(list, rounds, roundCount, snap) {
+  if (list.length === 0) return `<p style="color:#999;font-size:0.88rem">対局結果がまだありません。</p>`;
+  const anyDecided = list.some(p => p.w > 0 || p.l > 0);
+  const medals = ["🥇","🥈","🥉"];
+  let head = `<tr><th>順位</th><th>対局者</th>`;
+  for (let i = 0; i < roundCount; i++) head += `<th>第${i+1}<br>回戦</th>`;
+  head += `<th>成績</th></tr>`;
+  const rows = list.map(p => {
+    const rankCell = anyDecided ? (medals[p.rank - 1] || p.rank) : "－";
+    let row = `<tr><td>${rankCell}</td><td style="text-align:left">${escapeHtml(p.name)}</td>`;
+    for (let r = 0; r < roundCount; r++) row += swCellHTML(p.id, r, rounds, snap);
+    const bhLabel = (p.w > 0 || p.l > 0) ? `<br><span style="font-size:0.62rem;color:#999">BH${p.bh}</span>` : "";
+    row += `<td>${p.w}勝${p.l}敗${bhLabel}</td></tr>`;
+    return row;
+  }).join("");
+  const bhNote = anyDecided ? `<details style="margin-top:6px"><summary style="font-size:0.8rem;color:#b89752;cursor:pointer">BH（ブフホルツ）とは？</summary>
+    <p class="note" style="margin:8px 0 0">BHは「これまで対戦した相手の勝数を、全部足した数字」です。同じ勝数の人が並んだとき、勝ち数の多い相手と対戦していた人を上位にします。順位は「①勝数 → ②直接対決の結果 → ③BH → ④参加者の並び順」の順で決めています。</p>
+  </details>` : "";
+  return `<div class="matrix-wrap"><table>${head}${rows}</table></div>${bhNote}`;
+}
+
+// ---------- 🏆トーナメントタブ（スイス式） ----------
+function renderSwissPanel() {
+  const el = document.getElementById("panel-bracket");
+  const ids = state.swissIds;
+  const rounds = state.swiss.results;
+  const roundCount = state.swiss.rounds;
+
+  let html = `<h3 style="margin-bottom:4px">${escapeHtml(tournamentTitle(state.edition))}<span style="font-size:0.72rem;font-weight:normal;color:#b89752;margin-left:8px">スイス式</span></h3>`;
+  if (state.eventDate) html += `<p class="note" style="margin-top:-2px">開催日：${escapeHtml(formatDateDisplay(state.eventDate))}</p>`;
+
+  if (ids.length < 3) {
+    el.innerHTML = html + `<p class="note" style="margin:0">⚙️設定タブで、参加者（3人以上）を選んでください。</p>`;
+    return;
+  }
+  if (!roundCount) {
+    el.innerHTML = html + `<p class="note" style="margin:0">⚙️設定タブで、回戦数を入力して保存してください。</p>`;
+    return;
+  }
+  if (swActiveRound > rounds.length) swActiveRound = rounds.length;
+  if (swActiveRound > roundCount - 1) swActiveRound = roundCount - 1;
+
+  html += `<p class="note" style="margin-top:-2px">〇＝勝ち／●＝負け／…＝結果待ち／－＝その回戦は未生成、を表します。</p>`;
+  html += swMatrixHTML(swMatrixList(ids, rounds), rounds, roundCount);
+
+  html += `<h4 class="section-head">📝 結果を入力</h4>`;
+  html += `<div class="sw-round-tabs">`;
+  for (let i = 0; i < roundCount; i++) {
+    const done = rounds[i] && swRoundComplete(rounds[i]);
+    html += `<button type="button" class="sw-round-tab ${i===swActiveRound?"active":""} ${done?"done":""}" data-round="${i}">第${i+1}回戦</button>`;
+  }
+  html += `</div>`;
+
+  const idx = swActiveRound;
+  if (idx < rounds.length) {
+    if (idx < rounds.length - 1) html += `<p class="note" style="margin-top:0">この回戦を修正すると、第${idx+2}回戦以降の組み合わせは自動的に消去されます（組み直しが必要になります）。</p>`;
+    html += `<p class="note" style="margin-top:0">勝った人の名前をタップしてください。</p>`;
+    html += rounds[idx].map((m, mi) => {
+      if (swIsBye(m)) return `<div class="sw-match"><div class="sw-bye">${escapeHtml(swNameOf(m.a))}　この回戦はお休み（不戦敗にはなりません）</div></div>`;
+      const wa = m.winner === "a", wb = m.winner === "b";
+      const at = ` data-round="${idx}" data-match="${mi}"`;
+      return `<div class="sw-match">
+        <div class="sw-side ${wa?"winner":""}"${at} data-side="a">${wa?"👑 ":""}${escapeHtml(swNameOf(m.a))}</div>
+        <div class="sw-vs">vs</div>
+        <div class="sw-side ${wb?"winner":""}"${at} data-side="b">${wb?"👑 ":""}${escapeHtml(swNameOf(m.b))}</div>
+      </div>`;
+    }).join("");
+  } else if (idx === rounds.length) {
+    const prevOk = idx === 0 || swRoundComplete(rounds[idx - 1]);
+    if (prevOk) html += `<button class="btn" id="sw-gen-round">第${idx+1}回戦の組み合わせを作る</button>`;
+    else html += `<p class="note" style="margin-top:0">前の回戦の結果がまだ揃っていません。全試合の結果を入力すると、この回戦が組めるようになります。</p>`;
+  }
+
+  el.innerHTML = html;
+
+  el.querySelectorAll(".sw-round-tab").forEach(btn => {
+    btn.addEventListener("click", () => { swActiveRound = Number(btn.dataset.round); renderSwissPanel(); });
+  });
+  const gen = document.getElementById("sw-gen-round");
+  if (gen) gen.addEventListener("click", () => {
+    state.swiss.results = [...rounds, swGeneratePairing(ids, rounds)];
+    pushState();
+    showToast(`第${state.swiss.results.length}回戦の組み合わせを作りました`);
+  });
+  el.querySelectorAll(".sw-side").forEach(side => {
+    side.addEventListener("click", () => setSwissWinner(Number(side.dataset.round), Number(side.dataset.match), side.dataset.side));
+  });
+}
+
+function setSwissWinner(ri, mi, side) {
+  const rounds = state.swiss.results;
+  const m = rounds[ri][mi];
+  if (m.winner === side) return;
+  const isPast = ri < rounds.length - 1;
+  let msg = null;
+  if (isPast) msg = `第${ri+1}回戦の結果を変更します。第${ri+2}回戦以降はこの変更を反映していないため、自動的に組み合わせを消去します（あとで組み直してください）。よろしいですか？`;
+  else if (m.winner) msg = "すでに決まっている結果を変更しますか？";
+  if (msg && !confirm(msg)) return;
+  m.winner = side;
+  if (isPast) {
+    state.swiss.results = rounds.slice(0, ri + 1);
+    if (swActiveRound > ri) swActiveRound = ri;
+  }
+  pushState();
+}
+
+// ---------- ⚙️設定タブ（スイス式の参加者・回戦数） ----------
+function applyFormatFields() {
+  const swiss = document.getElementById("t-format").value === "swiss";
+  document.getElementById("setup-bracket-fields").style.display = swiss ? "none" : "";
+  document.getElementById("setup-swiss-fields").style.display = swiss ? "" : "none";
+}
+document.getElementById("t-format").addEventListener("change", () => { swDirty = true; applyFormatFields(); });
+document.getElementById("sw-rounds").addEventListener("input", () => { swDirty = true; });
+
+function swRenderSetup() {
+  const addWrap = document.getElementById("sw-add-list");
+  const selWrap = document.getElementById("sw-selected");
+  const countEl = document.getElementById("sw-count");
+  if (!addWrap || !selWrap) return;
+  const selected = new Set(swDraft);
+  const addable = rosterIdsSorted().filter(id => !selected.has(id));
+  addWrap.innerHTML = addable.length
+    ? addable.map(id => `<button type="button" class="sw-add-btn" data-id="${id}">＋ ${escapeHtml(roster[id].name)}</button>`).join("")
+    : `<p class="note" style="margin:0">${rosterIdsSorted().length ? "全員すでに選ばれています。" : "名簿に対局者を登録してください（管理者の仕事内）。"}</p>`;
+  selWrap.innerHTML = swDraft.length
+    ? swDraft.map((id, i) => `
+      <div class="sw-item" data-id="${id}">
+        <div class="sw-num">${i + 1}</div>
+        <div class="sw-name">${escapeHtml(swNameOf(id))}</div>
+        <button type="button" class="sw-remove" data-id="${id}" title="取り消す">✕</button>
+        <div class="sw-handle" title="ドラッグで並び替え">☰</div>
+      </div>`).join("")
+    : `<p class="note" style="margin:0">まだ参加者が選ばれていません。上のリストから追加してください。</p>`;
+  if (countEl) countEl.textContent = `現在 ${swDraft.length}人選択中` +
+    (swDraft.length === 8 ? "（8人のときは通常、形式を「8人勝ち抜き」にします）" : "");
+
+  addWrap.querySelectorAll(".sw-add-btn").forEach(btn => btn.addEventListener("click", () => {
+    swDirty = true; swDraft = [...swDraft, btn.dataset.id]; swRenderSetup();
+  }));
+  selWrap.querySelectorAll(".sw-remove").forEach(btn => btn.addEventListener("click", () => {
+    swDirty = true; swDraft = swDraft.filter(id => id !== btn.dataset.id); swRenderSetup();
+  }));
+  selWrap.querySelectorAll(".sw-handle").forEach(h => h.addEventListener("pointerdown", swDragStart));
+}
+
+// 並び順は☰ハンドルを長押ししてドラッグで入れ替える（「保存して全員に同期」で確定）
+let swDrag = null;
+function swDragStart(e) {
+  const item = e.currentTarget.closest(".sw-item");
+  if (!item) return;
+  e.preventDefault();
+  swDirty = true;
+  swDrag = { item };
+  item.classList.add("dragging");
+  try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
+  document.addEventListener("pointermove", swDragMove);
+  document.addEventListener("pointerup", swDragEnd);
+  document.addEventListener("pointercancel", swDragEnd);
+}
+function swDragMove(e) {
+  if (!swDrag) return;
+  const wrap = document.getElementById("sw-selected");
+  const { item } = swDrag;
+  const others = [...wrap.querySelectorAll(".sw-item")].filter(el => el !== item);
+  for (const other of others) {
+    const r = other.getBoundingClientRect();
+    if (e.clientY > r.top && e.clientY < r.bottom) {
+      const ch = [...wrap.children];
+      if (ch.indexOf(item) < ch.indexOf(other)) wrap.insertBefore(item, other.nextSibling);
+      else wrap.insertBefore(item, other);
+      wrap.querySelectorAll(".sw-item .sw-num").forEach((el, i) => { el.textContent = i + 1; });
+      break;
+    }
+  }
+}
+function swDragEnd() {
+  if (!swDrag) return;
+  swDrag.item.classList.remove("dragging");
+  swDrag = null;
+  document.removeEventListener("pointermove", swDragMove);
+  document.removeEventListener("pointerup", swDragEnd);
+  document.removeEventListener("pointercancel", swDragEnd);
+  swDraft = [...document.querySelectorAll("#sw-selected .sw-item")].map(el => el.dataset.id);
+  swRenderSetup();
+}
+
+// ---------- アーカイブ ----------
+function archiveSwissAndReset() {
+  if (archiveRef) {
+    const endDate = state.eventDate
+      ? formatDateDisplay(state.eventDate)
+      : (() => { const now = new Date(); return `${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()}`; })();
+    const names = {};
+    state.swissIds.forEach(id => { names[id] = swNameOf(id); });
+    archiveRef.push({
+      swiss: true,
+      title: tournamentTitle(state.edition),
+      edition: state.edition,
+      eventDate: state.eventDate,
+      endDate,
+      swissIds: state.swissIds,
+      swissNames: names, // 名簿から削除された後も名前が分かるよう、アーカイブ時点でスナップショットする
+      swissRounds: state.swiss.rounds,
+      swissResults: state.swiss.results
+    });
+  }
+  // 参加者・回戦数は引き継ぎ、開催回・開催日・結果を白紙に戻す（段位は変えない）
+  state.edition = ""; state.eventDate = "";
+  state.swiss.results = [];
+  swActiveRound = 0; swDirty = false;
+  pushState();
+  fillSettingsInputs();
+  showToast("アーカイブして新しい大会を開始しました（参加者・回戦数は引き継ぎ）");
+  renderArchive();
+}
+
+function renderArchivedSwiss(container, t) {
+  const ids = swToArr(t.swissIds);
+  const rounds = swNormRounds(t.swissResults);
+  const snap = t.swissNames || {};
+  const roundCount = t.swissRounds || rounds.length;
+  const info = archiveDisplayInfo(t);
+  let html = `<h4 class="section-head" style="margin-top:0">${escapeHtml(info.title)}${info.dateStr ? `（${escapeHtml(info.dateStr)}）` : ""}</h4>`;
+  html += swMatrixHTML(swMatrixList(ids, rounds, snap), rounds, roundCount, snap);
+  container.innerHTML = html;
+}
+
 function renderAll() { renderBracket(); }
 
 // ---------- 設定タブ ----------
 function fillSettingsInputs() {
   document.getElementById("t-edition").value = state.edition || "";
   document.getElementById("t-event-date").value = state.eventDate || "";
+  if (!swDirty) {
+    document.getElementById("t-format").value = state.format || "bracket";
+    swDraft = [...(state.swissIds || [])];
+    document.getElementById("sw-rounds").value = (state.swiss && state.swiss.rounds) || 3; // スイス式は通常3回戦
+  }
+  applyFormatFields();
+  swRenderSetup();
   buildSeedList();
 }
 
@@ -1191,12 +1650,41 @@ function renumberSeedList() {
   document.querySelectorAll("#seed-list .seed-item .seed-num").forEach((el, i) => { el.textContent = i + 1; });
 }
 
+function hasBracketResults() {
+  return JSON.stringify(state.results) !== JSON.stringify(emptyResults());
+}
+
 document.getElementById("save-setup").addEventListener("click", () => {
+  const fmt = document.getElementById("t-format").value;
+  if (state.format !== fmt) {
+    const curHas = state.format === "swiss" ? state.swiss.results.length > 0 : hasBracketResults();
+    if (curHas && !confirm("形式を切り替えます。今の形式の結果は画面に表示されなくなります（データは残ります）。よろしいですか？")) return;
+  }
+  if (fmt === "swiss") {
+    const rounds = parseInt(document.getElementById("sw-rounds").value, 10);
+    if (swDraft.length < 3) { showToast("参加者を3人以上選んでください"); return; }
+    if (!rounds || rounds < 1) { showToast("回戦数を正しく入力してください"); return; }
+    if (swDraft.length === 8 && !confirm("参加者が8人です。8人のときは通常、形式を「8人勝ち抜き」にします。スイス式のまま保存しますか？")) return;
+    const changed = state.swiss.results.length > 0 &&
+      (rounds !== state.swiss.rounds || JSON.stringify(swDraft) !== JSON.stringify(state.swissIds));
+    if (changed && !confirm("すでに対局結果があります。参加者や回戦数を変えると、結果と組み合わせに影響する可能性があります。よろしいですか？")) return;
+    state.format    = "swiss";
+    state.edition   = document.getElementById("t-edition").value.trim();
+    state.eventDate = document.getElementById("t-event-date").value;
+    state.swissIds  = [...swDraft];
+    state.swiss.rounds = rounds;
+    swDirty = false;
+    pushState();
+    showToast("設定を保存し、全員に同期しました！");
+    return;
+  }
   const items = [...document.querySelectorAll("#seed-list .seed-item")];
   const ids = items.map(el => el.querySelector(".seed-player").value);
   const nonEmpty = ids.filter(id => id);
   if (new Set(nonEmpty).size !== nonEmpty.length) { showToast("同じ対局者が複数選ばれています"); return; }
 
+  state.format    = "bracket";
+  swDirty = false;
   state.edition   = document.getElementById("t-edition").value.trim();
   state.eventDate = document.getElementById("t-event-date").value;
   state.playerIds = ids;
@@ -1217,13 +1705,15 @@ document.getElementById("admin-toggle").addEventListener("click", () => {
 
 document.getElementById("reset-results").addEventListener("click", () => {
   if (!confirm("対局結果をすべて消去します。対局者名はそのまま残ります。よろしいですか？")) return;
-  state.results = emptyResults();
+  if (state.format === "swiss") { state.swiss.results = []; swActiveRound = 0; }
+  else state.results = emptyResults();
   pushState();
   showToast("結果をリセットしました");
 });
 
 document.getElementById("new-tournament").addEventListener("click", () => {
   if (!confirm("現在の大会をアーカイブし、新しい大会を始めます。対局者と大石道場杯段位は、今回の昇段・降段結果を反映して名簿に引き継がれます（設定タブで編集できます）。開催回・開催日は入力し直してください。よろしいですか？")) return;
+  if (state.format === "swiss") { archiveSwissAndReset(); return; }
   if (archiveRef) {
     const endDate = state.eventDate
       ? formatDateDisplay(state.eventDate)
@@ -1245,7 +1735,7 @@ document.getElementById("new-tournament").addEventListener("click", () => {
     });
     if (rosterRef) rosterRef.set(roster);
   }
-  state = { edition:"", eventDate:"", playerIds: Array.isArray(state.playerIds) ? [...state.playerIds] : ["","","","","","","",""], players: [...state.players], ranks: nextRanks, results: emptyResults() };
+  state = { edition:"", eventDate:"", playerIds: Array.isArray(state.playerIds) ? [...state.playerIds] : ["","","","","","","",""], players: [...state.players], ranks: nextRanks, results: emptyResults(), format: state.format, swissIds: state.swissIds, swiss: state.swiss };
   pushState();
   fillSettingsInputs();
   showToast("対局者・大石道場杯段位を引き継いで新しい大会を開始しました");
@@ -1259,7 +1749,8 @@ document.getElementById("new-tournament").addEventListener("click", () => {
 document.getElementById("full-reset").addEventListener("click", () => {
   if (!confirm("現在の大会と、過去のアーカイブをすべて消去して真っさらに戻します（対局者名簿は残ります）。\nこの操作は取り消せません。本当によいですか？")) return;
   if (archiveRef) archiveRef.remove();
-  state = { edition:"", eventDate:"", playerIds:["","","","","","","",""], players:["","","","","","","",""], ranks:["","","","","","","",""], results: emptyResults() };
+  state = { edition:"", eventDate:"", playerIds:["","","","","","","",""], players:["","","","","","","",""], ranks:["","","","","","","",""], results: emptyResults(), format:"bracket", swissIds:[], swiss:{ rounds:null, results:[] } };
+  swDirty = false; swActiveRound = 0;
   pushState();
   fillSettingsInputs();
   showToast("完全リセットしました。");
@@ -1316,12 +1807,27 @@ function renderAllTimeRecord(archiveList) {
     });
   }
 
+  function mergeSwiss(ids, rounds, names) {
+    const { wins, losses } = swScores(rounds);
+    ids.forEach(id => {
+      const w = wins[id] || 0, l = losses[id] || 0;
+      if (!w && !l) return;
+      const key = `id:${id}`;
+      if (!tally[key]) tally[key] = { wins: 0, losses: 0 };
+      tally[key].wins += w; tally[key].losses += l;
+      displayName[key] = (roster[id] && roster[id].name) || (names && names[id]) || "";
+    });
+  }
+
   archiveList.forEach(t => {
+    if (t.swiss) { mergeSwiss(swToArr(t.swissIds), swNormRounds(t.swissResults), t.swissNames); return; }
     if (t.legacy) { mergeLegacy(t.records); return; }
     const players = Array.isArray(t.players) && t.players.length === 8 ? t.players : ["","","","","","","",""];
     mergeTournament(players, normalizeResults(t.results), t.playerIds);
   });
-  mergeTournament(state.players, state.results, state.playerIds); // 進行中の大会も合算する
+  // 進行中の大会も合算する（今の形式のものだけ）
+  if (state.format === "swiss") mergeSwiss(state.swissIds, state.swiss.results, null);
+  else mergeTournament(state.players, state.results, state.playerIds);
 
   const rows = Object.keys(tally)
     .map(key => ({ name: displayName[key] || "", wins: tally[key].wins, losses: tally[key].losses }))
@@ -1386,6 +1892,21 @@ function renderArchive() {
 
     let html = visible.map((t, i) => {
       const info = archiveDisplayInfo(t);
+      if (t.swiss) {
+        const sNames = swToArr(t.swissIds).map(id => swNameOf(id, t.swissNames)).join("・");
+        return `
+        <div class="archive-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+            <div>
+              <strong>${escapeHtml(info.title)}</strong>（${escapeHtml(info.dateStr)}）
+              <span style="display:inline-block;background:#2c3e50;color:#fff;font-size:0.66rem;font-weight:bold;padding:1px 7px;border-radius:10px;margin-left:6px;vertical-align:middle">スイス式</span><br>
+              <span style="color:#666">対局者：${escapeHtml(sNames)}</span>
+            </div>
+            <button type="button" class="archive-view-btn" data-idx="${i}" style="background:#fff;border:1px solid #ddd8cc;border-radius:6px;padding:5px 10px;font-size:0.78rem;cursor:pointer;flex-shrink:0;white-space:nowrap">結果を見る</button>
+          </div>
+          <div class="archive-detail" data-idx="${i}" data-type="swiss" style="display:none;margin-top:12px"></div>
+        </div>`;
+      }
       if (t.legacy) {
         // 順位が入力されている行を優先して昇順に並べる（未入力は元の登録順のまま後ろへ）
         const sortedRecords = (t.records || []).map((r, ri) => ({ r, ri })).sort((a, b) => {
@@ -1441,6 +1962,7 @@ function renderArchive() {
         } else {
           detail.style.display = ""; // 先に表示してから描画（幅計算のため）
           if (detail.dataset.type === "bracket") renderArchivedTournament(detail, visible[i]);
+          else if (detail.dataset.type === "swiss") renderArchivedSwiss(detail, visible[i]);
           btn.textContent = "閉じる";
         }
       });
