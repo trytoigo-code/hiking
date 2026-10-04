@@ -141,6 +141,8 @@
   .sogo-info { flex: 1; min-width: 0; }
   .sogo-name { font-weight: bold; font-size: 0.92rem; }
   .sogo-sub { color: #888; font-size: 0.76rem; margin-top: 3px; line-height: 1.6; }
+  .sogo-sub-line { display: flex; align-items: baseline; gap: 4px; }
+  .sogo-sub-icon { width: 1.3em; flex-shrink: 0; text-align: center; }
   .sogo-total { font-size: 1.15rem; font-weight: bold; color: #2c3e50; flex-shrink: 0; text-align: right; }
 
   .member-map-row {
@@ -627,7 +629,10 @@ function renderSogoTab() {
         <div class="sogo-num">${medals[i] || (i + 1)}</div>
         <div class="sogo-info">
           <div class="sogo-name">${escapeHtml(row.member.name || "（無題）")}</div>
-          <div class="sogo-sub">⚫囲碁 ${igLabel}　／　🀄麻雀 ${mjLabel}</div>
+          <div class="sogo-sub">
+            <div class="sogo-sub-line"><span class="sogo-sub-icon">⚫</span><span>囲碁 ${igLabel}</span></div>
+            <div class="sogo-sub-line"><span class="sogo-sub-icon">🀄</span><span>麻雀 ${mjLabel}</span></div>
+          </div>
         </div>
         <div class="sogo-total">${row.total}pt</div>
       </div>`;
