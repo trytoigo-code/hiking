@@ -1,0 +1,237 @@
+<!--
+================================================================================
+  このアプリについて
+  棋譜あるき — 設計思想と共同編集の進め方
+================================================================================
+
+【アプリの目的】
+  仲間に観てほしい囲碁の棋譜を共有する。棋譜のURL（つぶや棋譜・棋譜見てね等）を
+  登録し、対局者・登録者・登録者コメントを添える。観た人は感想を書き足せる。
+
+【利用環境】
+  - スマホ利用を最優先とする（モバイルファースト）
+  - GitHub Pages でホスティング（単一 kifu.html で完結）
+  - Firebase Realtime Database（igo.htmlなどと同じプロジェクト）
+    保存先：kifu/posts（投稿）。go-league/state/players は名前候補のため読み取りのみ
+
+【技術構成】
+  - バニラJS・外部ライブラリなし・ビルド不要・1ファイル完結
+  - 名前入力は星取の対局者名を候補に出す入力欄（候補にない名前も入力可）
+
+【セキュリティ】
+  - 合言葉認証あり（他アプリと共通）。localStorageに保存
+
+【共同編集の進め方】
+  ・このアプリの文脈と歴史を理解した上で提案する
+  ・小さな積み重ねを大切にし、既存の操作感や雰囲気を引き継ぐ
+  ・機能を追加・変更したら「主な機能」と「今後の改良候補」を合わせて更新する
+
+【主な機能（現時点）】
+  - 棋譜の登録（棋譜URLを2つまで：①つぶや棋譜・②棋譜見てね。どちらか一方だけでも可。
+    黒番・白番・登録者・登録者コメント）。星取と同じく①は緑・②は青のボタンで表示
+  - 一覧表示（新しい順）。①②のボタンで新規タブに開く
+  - 感想の追加（名前＋本文。1つの棋譜に何人でも書ける）
+  - 投稿の削除（確認あり）・感想の削除
+
+【今後の改良候補】
+  - 投稿の修正（URLの打ち間違い対応）
+  - 対局日・結果・手合いの登録
+  - 星取の対局との紐づけ
+================================================================================
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<title>棋譜あるき</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<style>
+  :root { color-scheme: light; }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { background: #fcfaf2; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", YuGothic, sans-serif; background: #fcfaf2; color: #333; }
+  #app { max-width: 500px; margin: 0 auto; min-height: 100vh; }
+  #header { background: #2c3e50; color: #fff; padding: 14px 16px 10px; text-align: center; position: sticky; top: 0; z-index: 101; }
+  #header h1 { font-size: 1.1rem; letter-spacing: 2px; }
+  #sync-row { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 5px; }
+  #sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; }
+  #sync-label { font-size: 0.7rem; color: #aed6f1; }
+  #content { padding: 16px; }
+  .add-btn { width: 100%; background: #2c3e50; color: #fff; border: none; border-radius: 10px; padding: 12px; font-size: 0.95rem; cursor: pointer; margin-bottom: 14px; font-family: inherit; }
+  .form-box { display: none; background: #fff; border: 1px solid #e0dbcd; border-radius: 10px; padding: 14px; margin-bottom: 14px; }
+  .form-box.open { display: block; }
+  .fg { margin-bottom: 10px; }
+  .fg label { display: block; font-size: 0.82rem; font-weight: bold; color: #555; margin-bottom: 4px; }
+  input, textarea { width: 100%; padding: 10px; border: 1px solid #ddd8cc; border-radius: 6px; font-size: 1rem; background: #fff; font-family: inherit; color: #333; }
+  textarea { resize: vertical; }
+  .row2 { display: flex; gap: 8px; }
+  .row2 .fg { flex: 1; min-width: 0; }
+  .btn-main { background: #2c3e50; color: #fff; border: none; border-radius: 8px; padding: 10px 20px; font-size: 0.9rem; cursor: pointer; margin-right: 8px; font-family: inherit; }
+  .btn-sub { background: #f0ede4; border: 1px solid #ddd; border-radius: 8px; padding: 10px 16px; font-size: 0.9rem; cursor: pointer; font-family: inherit; }
+  .card { background: #fff; border: 1px solid #e0dbcd; border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+  .card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+  .players { font-weight: bold; color: #2c3e50; font-size: 0.98rem; line-height: 1.5; }
+  .meta { font-size: 0.76rem; color: #999; margin-top: 2px; }
+  .del-sm { background: none; border: none; color: #bbb; font-size: 0.78rem; cursor: pointer; flex-shrink: 0; font-family: inherit; }
+  .lnk { font-size: 0.78rem; margin-top: 6px; }
+  .open-link.b2 { background: #2f6fd0; margin-left: 6px; }
+  .open-link { display: inline-block; margin-top: 8px; background: #27ae60; color: #fff; text-decoration: none; font-size: 0.85rem; font-weight: bold; padding: 7px 14px; border-radius: 16px; }
+  .poster-comment { margin-top: 8px; font-size: 0.86rem; color: #555; background: #faf8f0; border-left: 3px solid #b89752; padding: 6px 10px; white-space: pre-wrap; word-break: break-all; line-height: 1.6; }
+  .imp-title { font-size: 0.78rem; color: #b89752; font-weight: bold; margin: 12px 0 4px; }
+  .imp { font-size: 0.84rem; color: #444; padding: 6px 0; border-top: 1px dashed #e8e4da; white-space: pre-wrap; word-break: break-all; line-height: 1.6; }
+  .imp .who { font-weight: bold; }
+  .imp .x { float: right; background: none; border: none; color: #ccc; cursor: pointer; font-size: 0.78rem; }
+  .imp-toggle { margin-top: 8px; background: #fff; border: 1px solid #ddd8cc; border-radius: 16px; padding: 5px 14px; font-size: 0.8rem; color: #555; cursor: pointer; font-family: inherit; }
+  .imp-form { display: none; margin-top: 8px; padding: 10px; background: #faf8f0; border: 1px solid #e0dbcd; border-radius: 8px; }
+  .imp-form.open { display: block; }
+  #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #2c3e50; color: #fff; padding: 10px 20px; border-radius: 20px; font-size: 0.85rem; display: none; z-index: 999; white-space: nowrap; }
+</style>
+</head>
+<body>
+<script>
+(function(){
+  var KEY = 'gosenrigue_auth';
+  var PASS = 'ごせんりーぐ';
+  if(localStorage.getItem(KEY) !== 'ok'){
+    var input = prompt('合言葉を入力してください');
+    if(input === PASS){
+      localStorage.setItem(KEY, 'ok');
+    } else {
+      document.documentElement.innerHTML = '<body style="font-family:sans-serif;text-align:center;padding:60px"><h2>アクセスできません</h2></body>';
+      throw new Error('access denied');
+    }
+  }
+})();
+</script>
+<div id="app">
+  <div id="header">
+    <h1>👣 棋譜あるき</h1>
+    <div id="sync-row"><span id="sync-dot"></span><span id="sync-label">接続中...</span></div>
+  </div>
+  <div id="content">
+    <button class="add-btn" id="add-btn">＋ 棋譜を共有する</button>
+    <div class="form-box" id="form">
+      <div class="fg"><label>①つぶや棋譜URL</label><input type="url" id="f-url" placeholder="つぶや棋譜のリンクがあれば貼り付け"><p class="lnk"><a href="https://igo-kids.com/pk/post-kifu.php" target="_blank" rel="noopener noreferrer" style="color:#27ae60;font-weight:bold">つぶや棋譜を開く（棋譜を登録してURLを取得）</a></p></div>
+      <div class="fg"><label>②棋譜見てねURL</label><input type="url" id="f-url2" placeholder="棋譜見てねのリンクがあれば貼り付け"><p class="lnk"><a href="https://gokifuai.com/kifu" target="_blank" rel="noopener noreferrer" style="color:#2f6fd0;font-weight:bold">棋譜見てねを開く（棋譜を登録してURLを取得）</a></p></div>
+      <p class="lnk" style="margin:-4px 0 10px">※ ①②のどちらか一方だけでも登録できます。</p>
+      <div class="row2">
+        <div class="fg"><label>⚫黒番</label><input id="f-black" list="names" placeholder="対局者"></div>
+        <div class="fg"><label>⚪白番</label><input id="f-white" list="names" placeholder="対局者"></div>
+      </div>
+      <div class="fg"><label>登録者</label><input id="f-poster" list="names" placeholder="あなたの名前"></div>
+      <div class="fg"><label>登録者コメント（任意）</label><textarea id="f-comment" rows="3" placeholder="ここを観てほしい、など"></textarea></div>
+      <button class="btn-main" id="f-submit">登録する</button><button class="btn-sub" id="f-cancel">キャンセル</button>
+    </div>
+    <datalist id="names"></datalist>
+    <div id="list"></div>
+  </div>
+</div>
+<div id="toast"></div>
+<script>
+const firebaseConfig = {
+  apiKey:            "AIzaSyBSrQkPMPc-icuph244VBorNqRf2yP-U7Y",
+  authDomain:        "hiking-558a9.firebaseapp.com",
+  databaseURL:       "https://hiking-558a9-default-rtdb.firebaseio.com",
+  projectId:         "hiking-558a9",
+  storageBucket:     "hiking-558a9.firebasestorage.app",
+  messagingSenderId: "1066293850319",
+  appId:             "1:1066293850319:web:94409f01b194d5afe7c7ba"
+};
+let posts = {}, postsRef = null;
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+const pad = n => String(n).padStart(2, "0");
+function fmtDate(ts) { const d = new Date(ts || 0); return ts ? `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}` : ""; }
+let toastTimer = null;
+function toast(msg) { const el = $("toast"); el.textContent = msg; el.style.display = "block"; clearTimeout(toastTimer); toastTimer = setTimeout(() => el.style.display = "none", 2500); }
+function setSync(ok) { $("sync-dot").style.background = ok ? "#2ecc71" : "#e74c3c"; $("sync-label").textContent = ok ? "リアルタイム同期中" : "オフライン"; }
+
+try {
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+  postsRef = db.ref("kifu/posts");
+  postsRef.on("value", snap => { posts = snap.val() || {}; render(); setSync(true); }, () => setSync(false));
+  // 名前の候補（星取の対局者名。読み取りのみ）
+  db.ref("go-league/state/players").once("value", snap => {
+    const arr = snap.val();
+    if (Array.isArray(arr)) $("names").innerHTML = arr.map(n => `<option value="${esc(n)}">`).join("");
+  });
+} catch (e) { console.error(e); setSync(false); }
+
+function render() {
+  const entries = Object.entries(posts).sort((a, b) => (b[1].at || 0) - (a[1].at || 0));
+  if (!entries.length) { $("list").innerHTML = `<p style="color:#999;font-size:0.88rem">まだ棋譜がありません。最初の1局を共有してみましょう。</p>`; return; }
+  // 開いている感想フォームの状態を保つ
+  const openIds = new Set([...document.querySelectorAll(".imp-form.open")].map(f => f.dataset.id));
+  $("list").innerHTML = entries.map(([id, p]) => {
+    const imps = Object.entries(p.impressions || {}).sort((a, b) => (a[1].at || 0) - (b[1].at || 0));
+    const vs = (p.black || p.white) ? `⚫${esc(p.black || "？")}　vs　⚪${esc(p.white || "？")}` : "対局者未入力";
+    const ok = u => /^https?:\/\//.test(u || "");
+    const links = (ok(p.url) ? `<a class="open-link" href="${esc(p.url)}" target="_blank" rel="noopener noreferrer">📄 棋譜①（つぶや棋譜）</a>` : "")
+                + (ok(p.url2) ? `<a class="open-link b2" href="${esc(p.url2)}" target="_blank" rel="noopener noreferrer">📄 棋譜②（棋譜見てね）</a>` : "");
+    return `<div class="card">
+      <div class="card-top">
+        <div><div class="players">${vs}</div><div class="meta">${esc(p.poster || "登録者不明")}さんが共有 ・ ${fmtDate(p.at)}</div></div>
+        <button class="del-sm" data-act="del" data-id="${id}">削除</button>
+      </div>
+      ${links ? `<div>${links}</div>` : ""}
+      ${p.comment ? `<div class="poster-comment">${esc(p.comment)}</div>` : ""}
+      <div class="imp-title">💬 感想（${imps.length}）</div>
+      ${imps.map(([iid, m]) => `<div class="imp"><button class="x" data-act="delimp" data-id="${id}" data-iid="${iid}">✕</button><span class="who">${esc(m.name || "名無し")}</span>：${esc(m.text)}</div>`).join("")}
+      <button class="imp-toggle" data-act="toggle" data-id="${id}">＋ 感想を書く</button>
+      <div class="imp-form${openIds.has(id) ? " open" : ""}" data-id="${id}">
+        <div class="fg"><label>名前</label><input class="imp-name" list="names" value="${esc(localStorage.getItem("kifu_name") || "")}" placeholder="あなたの名前"></div>
+        <div class="fg"><label>感想</label><textarea class="imp-text" rows="3" placeholder="観ての感想"></textarea></div>
+        <button class="btn-main" data-act="sendimp" data-id="${id}">送信</button>
+      </div></div>`;
+  }).join("");
+}
+
+$("list").addEventListener("click", e => {
+  const b = e.target.closest("button[data-act]");
+  if (!b || !postsRef) return;
+  const id = b.dataset.id, act = b.dataset.act;
+  if (act === "toggle") { document.querySelector(`.imp-form[data-id="${id}"]`).classList.toggle("open"); }
+  else if (act === "del") { if (confirm("この棋譜の投稿を、感想ごと削除しますか？")) { postsRef.child(id).remove(); toast("削除しました"); } }
+  else if (act === "delimp") { if (confirm("この感想を削除しますか？")) postsRef.child(id).child("impressions").child(b.dataset.iid).remove(); }
+  else if (act === "sendimp") {
+    const form = document.querySelector(`.imp-form[data-id="${id}"]`);
+    const name = form.querySelector(".imp-name").value.trim();
+    const text = form.querySelector(".imp-text").value.trim();
+    if (!name) { alert("名前を入力してください"); return; }
+    if (!text) { alert("感想を入力してください"); return; }
+    localStorage.setItem("kifu_name", name);
+    postsRef.child(id).child("impressions").push({ name, text, at: Date.now() });
+    form.classList.remove("open");
+    toast("感想を送信しました");
+  }
+});
+
+$("add-btn").addEventListener("click", () => {
+  $("form").classList.toggle("open");
+  if (!$("f-poster").value) $("f-poster").value = localStorage.getItem("kifu_name") || "";
+});
+$("f-cancel").addEventListener("click", () => $("form").classList.remove("open"));
+$("f-submit").addEventListener("click", () => {
+  const url = $("f-url").value.trim(), url2 = $("f-url2").value.trim(), poster = $("f-poster").value.trim();
+  const ok = u => /^https?:\/\//.test(u);
+  if (!url && !url2) { alert("①か②、どちらかの棋譜URLを入力してください"); return; }
+  if ((url && !ok(url)) || (url2 && !ok(url2))) { alert("URLは http〜 で始まるものを入力してください"); return; }
+  if (!poster) { alert("登録者の名前を入力してください"); return; }
+  localStorage.setItem("kifu_name", poster);
+  if (postsRef) postsRef.push({
+    url: url || null, url2: url2 || null, poster, at: Date.now(),
+    black: $("f-black").value.trim() || null,
+    white: $("f-white").value.trim() || null,
+    comment: $("f-comment").value.trim() || null
+  });
+  ["f-url","f-url2","f-black","f-white","f-comment"].forEach(i => $(i).value = "");
+  $("form").classList.remove("open");
+  toast("棋譜を共有しました");
+});
+</script>
+</body>
+</html>
