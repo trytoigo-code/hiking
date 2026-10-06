@@ -16,7 +16,8 @@
 
 【技術構成】
   - バニラJS・外部ライブラリなし・ビルド不要・1ファイル完結
-  - 名前入力は星取の対局者名を候補に出す入力欄（候補にない名前も入力可）
+  - 名前入力は、星取の対局者名のボタンをタップして選ぶ方式（候補にない名前は手入力も可）。
+    スマホではdatalistの候補が出ないことがあるため、ボタン方式にしている
 
 【セキュリティ】
   - 合言葉認証あり（他アプリと共通）。localStorageに保存
@@ -31,10 +32,13 @@
     黒番・白番・登録者・登録者コメント）。星取と同じく①は緑・②は青のボタンで表示
   - 一覧表示（新しい順）。①②のボタンで新規タブに開く
   - 感想の追加（名前＋本文。1つの棋譜に何人でも書ける）
-  - 投稿の削除（確認あり）・感想の削除
+  - 投稿の修正（URL・対局者・登録者・コメント）
+  - 感想の修正（名前・本文）・削除
+  - 投稿の削除（確認あり）
+  - 修正フォーム（投稿・感想とも）を開いている間は、他の人の更新による再描画を保留する（入力中の内容を守るため。
+    閉じると最新の状態に更新される）
 
 【今後の改良候補】
-  - 投稿の修正（URLの打ち間違い対応）
   - 対局日・結果・手合いの登録
   - 星取の対局との紐づけ
 ================================================================================
@@ -76,6 +80,9 @@
   .players { font-weight: bold; color: #2c3e50; font-size: 0.98rem; line-height: 1.5; }
   .meta { font-size: 0.76rem; color: #999; margin-top: 2px; }
   .del-sm { background: none; border: none; color: #bbb; font-size: 0.78rem; cursor: pointer; flex-shrink: 0; font-family: inherit; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .chip { background: #f0ede4; border: 1px solid #ddd; border-radius: 16px; padding: 4px 12px; font-size: 0.8rem; color: #555; cursor: pointer; font-family: inherit; }
+  .chip.sel { background: #2c3e50; color: #fff; border-color: #2c3e50; }
   .lnk { font-size: 0.78rem; margin-top: 6px; }
   .open-link.b2 { background: #2f6fd0; margin-left: 6px; }
   .open-link { display: inline-block; margin-top: 8px; background: #27ae60; color: #fff; text-decoration: none; font-size: 0.85rem; font-weight: bold; padding: 7px 14px; border-radius: 16px; }
@@ -84,6 +91,7 @@
   .imp { font-size: 0.84rem; color: #444; padding: 6px 0; border-top: 1px dashed #e8e4da; white-space: pre-wrap; word-break: break-all; line-height: 1.6; }
   .imp .who { font-weight: bold; }
   .imp .x { float: right; background: none; border: none; color: #ccc; cursor: pointer; font-size: 0.78rem; }
+  .imp .e { float: right; background: none; border: none; color: #aaa; cursor: pointer; font-size: 0.78rem; margin-right: 8px; }
   .imp-toggle { margin-top: 8px; background: #fff; border: 1px solid #ddd8cc; border-radius: 16px; padding: 5px 14px; font-size: 0.8rem; color: #555; cursor: pointer; font-family: inherit; }
   .imp-form { display: none; margin-top: 8px; padding: 10px; background: #faf8f0; border: 1px solid #e0dbcd; border-radius: 8px; }
   .imp-form.open { display: block; }
@@ -118,14 +126,13 @@
       <div class="fg"><label>②棋譜見てねURL</label><input type="url" id="f-url2" placeholder="棋譜見てねのリンクがあれば貼り付け"><p class="lnk"><a href="https://gokifuai.com/kifu" target="_blank" rel="noopener noreferrer" style="color:#2f6fd0;font-weight:bold">棋譜見てねを開く（棋譜を登録してURLを取得）</a></p></div>
       <p class="lnk" style="margin:-4px 0 10px">※ ①②のどちらか一方だけでも登録できます。</p>
       <div class="row2">
-        <div class="fg"><label>⚫黒番</label><input id="f-black" list="names" placeholder="対局者"></div>
-        <div class="fg"><label>⚪白番</label><input id="f-white" list="names" placeholder="対局者"></div>
+        <div class="fg"><label>⚫黒番</label><input id="f-black" data-names="1" placeholder="対局者"></div>
+        <div class="fg"><label>⚪白番</label><input id="f-white" data-names="1" placeholder="対局者"></div>
       </div>
-      <div class="fg"><label>登録者</label><input id="f-poster" list="names" placeholder="あなたの名前"></div>
+      <div class="fg"><label>登録者</label><input id="f-poster" data-names="1" placeholder="あなたの名前"></div>
       <div class="fg"><label>登録者コメント（任意）</label><textarea id="f-comment" rows="3" placeholder="ここを観てほしい、など"></textarea></div>
       <button class="btn-main" id="f-submit">登録する</button><button class="btn-sub" id="f-cancel">キャンセル</button>
     </div>
-    <datalist id="names"></datalist>
     <div id="list"></div>
   </div>
 </div>
@@ -140,7 +147,7 @@ const firebaseConfig = {
   messagingSenderId: "1066293850319",
   appId:             "1:1066293850319:web:94409f01b194d5afe7c7ba"
 };
-let posts = {}, postsRef = null;
+let posts = {}, postsRef = null, nameList = [];
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 const pad = n => String(n).padStart(2, "0");
@@ -157,11 +164,33 @@ try {
   // 名前の候補（星取の対局者名。読み取りのみ）
   db.ref("go-league/state/players").once("value", snap => {
     const arr = snap.val();
-    if (Array.isArray(arr)) $("names").innerHTML = arr.map(n => `<option value="${esc(n)}">`).join("");
+    if (Array.isArray(arr)) { nameList = arr.filter(Boolean); refreshChips(); }
   });
 } catch (e) { console.error(e); setSync(false); }
 
+let renderPending = false;
+// 名前の入力欄の下に、星取の対局者名のボタンを並べる（タップで入力。手入力もできる）
+function refreshChips() {
+  document.querySelectorAll("input[data-names]").forEach(inp => {
+    let row = inp.nextElementSibling;
+    if (!row || !row.classList.contains("chips")) { row = document.createElement("div"); row.className = "chips"; inp.after(row); }
+    row.innerHTML = nameList.map(n => `<button type="button" class="chip${inp.value.trim() === n ? " sel" : ""}" data-name="${esc(n)}">${esc(n)}</button>`).join("");
+  });
+}
+document.addEventListener("click", e => {
+  const c = e.target.closest(".chip");
+  if (!c) return;
+  const inp = c.parentElement.previousElementSibling;
+  inp.value = inp.value.trim() === c.dataset.name ? "" : c.dataset.name; // もう一度押すと取り消し
+  refreshChips();
+});
+document.addEventListener("input", e => { if (e.target.matches("input[data-names]")) refreshChips(); });
+
 function render() {
+  // 修正フォームを開いている間は、他の人の更新で入力中の内容が消えないよう再描画を保留する
+  const editOpen = new Set([...document.querySelectorAll(".edit-form.open")].map(f => f.dataset.id));
+  if (editOpen.size || document.querySelector(".imp-edit.open")) { renderPending = true; return; }
+  renderPending = false;
   const entries = Object.entries(posts).sort((a, b) => (b[1].at || 0) - (a[1].at || 0));
   if (!entries.length) { $("list").innerHTML = `<p style="color:#999;font-size:0.88rem">まだ棋譜がありません。最初の1局を共有してみましょう。</p>`; return; }
   // 開いている感想フォームの状態を保つ
@@ -175,19 +204,36 @@ function render() {
     return `<div class="card">
       <div class="card-top">
         <div><div class="players">${vs}</div><div class="meta">${esc(p.poster || "登録者不明")}さんが共有 ・ ${fmtDate(p.at)}</div></div>
-        <button class="del-sm" data-act="del" data-id="${id}">削除</button>
+        <div style="flex-shrink:0"><button class="del-sm" data-act="edit" data-id="${id}">修正</button><button class="del-sm" style="margin-left:6px" data-act="del" data-id="${id}">削除</button></div>
       </div>
       ${links ? `<div>${links}</div>` : ""}
       ${p.comment ? `<div class="poster-comment">${esc(p.comment)}</div>` : ""}
+      <div class="imp-form edit-form${editOpen.has(id) ? " open" : ""}" data-id="${id}">
+        <div class="fg"><label>①つぶや棋譜URL</label><input type="url" class="e-url" value="${esc(p.url)}"></div>
+        <div class="fg"><label>②棋譜見てねURL</label><input type="url" class="e-url2" value="${esc(p.url2)}"></div>
+        <div class="row2">
+          <div class="fg"><label>⚫黒番</label><input class="e-black" data-names="1" value="${esc(p.black)}"></div>
+          <div class="fg"><label>⚪白番</label><input class="e-white" data-names="1" value="${esc(p.white)}"></div>
+        </div>
+        <div class="fg"><label>登録者</label><input class="e-poster" data-names="1" value="${esc(p.poster)}"></div>
+        <div class="fg"><label>登録者コメント</label><textarea class="e-comment" rows="3">${esc(p.comment)}</textarea></div>
+        <button class="btn-main" data-act="saveedit" data-id="${id}">更新する</button><button class="btn-sub" data-act="canceledit" data-id="${id}">キャンセル</button>
+      </div>
       <div class="imp-title">💬 感想（${imps.length}）</div>
-      ${imps.map(([iid, m]) => `<div class="imp"><button class="x" data-act="delimp" data-id="${id}" data-iid="${iid}">✕</button><span class="who">${esc(m.name || "名無し")}</span>：${esc(m.text)}</div>`).join("")}
+      ${imps.map(([iid, m]) => `<div class="imp"><button class="x" data-act="delimp" data-id="${id}" data-iid="${iid}">✕</button><button class="e" data-act="editimp" data-id="${id}" data-iid="${iid}">修正</button><span class="who">${esc(m.name || "名無し")}</span>：${esc(m.text)}</div>
+        <div class="imp-form imp-edit" data-id="${id}" data-iid="${iid}">
+          <div class="fg"><label>名前</label><input class="ie-name" data-names="1" value="${esc(m.name)}"></div>
+          <div class="fg"><label>感想</label><textarea class="ie-text" rows="3">${esc(m.text)}</textarea></div>
+          <button class="btn-main" data-act="saveimp" data-id="${id}" data-iid="${iid}">更新する</button><button class="btn-sub" data-act="cancelimp" data-id="${id}" data-iid="${iid}">キャンセル</button>
+        </div>`).join("")}
       <button class="imp-toggle" data-act="toggle" data-id="${id}">＋ 感想を書く</button>
       <div class="imp-form${openIds.has(id) ? " open" : ""}" data-id="${id}">
-        <div class="fg"><label>名前</label><input class="imp-name" list="names" value="${esc(localStorage.getItem("kifu_name") || "")}" placeholder="あなたの名前"></div>
+        <div class="fg"><label>名前</label><input class="imp-name" data-names="1" value="${esc(localStorage.getItem("kifu_name") || "")}" placeholder="あなたの名前"></div>
         <div class="fg"><label>感想</label><textarea class="imp-text" rows="3" placeholder="観ての感想"></textarea></div>
         <button class="btn-main" data-act="sendimp" data-id="${id}">送信</button>
       </div></div>`;
   }).join("");
+  refreshChips();
 }
 
 $("list").addEventListener("click", e => {
@@ -195,6 +241,33 @@ $("list").addEventListener("click", e => {
   if (!b || !postsRef) return;
   const id = b.dataset.id, act = b.dataset.act;
   if (act === "toggle") { document.querySelector(`.imp-form[data-id="${id}"]`).classList.toggle("open"); }
+  else if (act === "edit") { document.querySelector(`.edit-form[data-id="${id}"]`).classList.toggle("open"); if (!document.querySelector(".edit-form.open, .imp-edit.open") && renderPending) render(); }
+  else if (act === "canceledit") { document.querySelector(`.edit-form[data-id="${id}"]`).classList.remove("open"); render(); }
+  else if (act === "saveedit") {
+    const f = document.querySelector(`.edit-form[data-id="${id}"]`);
+    const v = c => f.querySelector(c).value.trim();
+    const url = v(".e-url"), url2 = v(".e-url2"), poster = v(".e-poster");
+    const ok = u => /^https?:\/\//.test(u);
+    if (!url && !url2) { alert("①か②、どちらかの棋譜URLを入力してください"); return; }
+    if ((url && !ok(url)) || (url2 && !ok(url2))) { alert("URLは http〜 で始まるものを入力してください"); return; }
+    if (!poster) { alert("登録者の名前を入力してください"); return; }
+    f.classList.remove("open");
+    postsRef.child(id).update({ url: url || null, url2: url2 || null, poster, black: v(".e-black") || null, white: v(".e-white") || null, comment: v(".e-comment") || null });
+    render();
+    toast("更新しました");
+  }
+  else if (act === "editimp") { document.querySelector(`.imp-edit[data-id="${id}"][data-iid="${b.dataset.iid}"]`).classList.toggle("open"); if (!document.querySelector(".edit-form.open, .imp-edit.open") && renderPending) render(); }
+  else if (act === "cancelimp") { document.querySelector(`.imp-edit[data-id="${id}"][data-iid="${b.dataset.iid}"]`).classList.remove("open"); render(); }
+  else if (act === "saveimp") {
+    const f = document.querySelector(`.imp-edit[data-id="${id}"][data-iid="${b.dataset.iid}"]`);
+    const name = f.querySelector(".ie-name").value.trim(), text = f.querySelector(".ie-text").value.trim();
+    if (!name) { alert("名前を入力してください"); return; }
+    if (!text) { alert("感想を入力してください"); return; }
+    f.classList.remove("open");
+    postsRef.child(id).child("impressions").child(b.dataset.iid).update({ name, text });
+    render();
+    toast("感想を更新しました");
+  }
   else if (act === "del") { if (confirm("この棋譜の投稿を、感想ごと削除しますか？")) { postsRef.child(id).remove(); toast("削除しました"); } }
   else if (act === "delimp") { if (confirm("この感想を削除しますか？")) postsRef.child(id).child("impressions").child(b.dataset.iid).remove(); }
   else if (act === "sendimp") {
@@ -213,6 +286,7 @@ $("list").addEventListener("click", e => {
 $("add-btn").addEventListener("click", () => {
   $("form").classList.toggle("open");
   if (!$("f-poster").value) $("f-poster").value = localStorage.getItem("kifu_name") || "";
+  refreshChips();
 });
 $("f-cancel").addEventListener("click", () => $("form").classList.remove("open"));
 $("f-submit").addEventListener("click", () => {
@@ -230,6 +304,7 @@ $("f-submit").addEventListener("click", () => {
   });
   ["f-url","f-url2","f-black","f-white","f-comment"].forEach(i => $(i).value = "");
   $("form").classList.remove("open");
+  refreshChips();
   toast("棋譜を共有しました");
 });
 </script>
