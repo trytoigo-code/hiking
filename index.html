@@ -35,6 +35,9 @@
         ・🎯囲碁 3連勝以上の人（相手問わず。いなければ出さない）
         ・🎯囲碁 半目職人（半目差での勝利数が最も多い人。実績が無ければ出さない）
         ・🤝囲碁 最多対戦の組み合わせ
+        ・👣棋譜あるき（kifu.html）の新着：直近TELOP_KIFU_RECENT_DAYS日以内に登録された棋譜・
+          追加された感想（kifu/posts を読み取り専用で参照。新しい順にTELOP_KIFU_MAX件まで。
+          投稿の修正は数えない。該当が無ければ出さない。流すときは他の項目より先頭）
     ③コメントのテロップ（別枠。1件ずつ流れて、流れ終わるたびに次を選び直す）：
       囲碁・麻雀の本文入り対局コメント全部（反応の有無は問わない）を対象に、毎回
       ランダムに1件選んで流す。以下2つの重みを掛け合わせた抽選：
@@ -602,6 +605,25 @@ function buildMahjongTelopItems(state) {
   return items;
 }
 
+// ---- 棋譜あるき（kifu.html）の新着：新しく登録された棋譜・追加された感想 ----
+// kifu/posts を読み取り専用で参照する。投稿の修正は「新着」に数えない（登録・感想の追加だけ）。
+const TELOP_KIFU_RECENT_DAYS = 7; // この日数以内に登録・追加されたものだけ流す
+const TELOP_KIFU_MAX = 4;         // 流す件数の上限（新しいものから）
+function buildKifuTelopItems(posts) {
+  const events = [];
+  Object.values(posts || {}).forEach(p => {
+    if (!p) return;
+    const vs = (p.black || p.white) ? `${p.black || "？"} vs ${p.white || "？"}` : "対局者未入力";
+    if (p.at) events.push({ at: p.at, text: `👣棋譜あるき 新着：${p.poster || "だれか"}さんが棋譜を共有（${vs}）` });
+    Object.values(p.impressions || {}).forEach(m => {
+      if (m && m.at) events.push({ at: m.at, text: `💬棋譜あるき 感想：${m.name || "だれか"}さんが感想を追加（${vs}の棋譜）` });
+    });
+  });
+  const limit = Date.now() - TELOP_KIFU_RECENT_DAYS * 86400000;
+  return events.filter(e => e.at >= limit).sort((a, b) => b.at - a.at).slice(0, TELOP_KIFU_MAX)
+    .map(e => { const d = new Date(e.at); return `${e.text}　${d.getMonth() + 1}/${d.getDate()}`; });
+}
+
 // ---- 通算対局数（囲碁・麻雀の両方が必要なので、単独では組み立てない） ----
 function buildTotalCountItem(igoState, mjState) {
   const igoCount = (igoState.history || []).length;
@@ -610,12 +632,13 @@ function buildTotalCountItem(igoState, mjState) {
   return `📊通算対局数：囲碁${igoCount}局・麻雀${mjHanchans}半荘`;
 }
 
-function renderTelop(igoState, mjState) {
+function renderTelop(igoState, mjState, kifuPosts) {
   const q = pickDailyGorokuQuote();
   document.getElementById("telop-quote").textContent = `📖今日の語録：「${q.text}」―${q.by}`;
 
   const totalCountItem = buildTotalCountItem(igoState || {}, mjState || {});
   const items = [
+    ...buildKifuTelopItems(kifuPosts || {}), // 新着は先頭に流す
     ...(totalCountItem ? [totalCountItem] : []),
     ...buildIgoTelopItems(igoState || {}),
     ...buildMahjongTelopItems(mjState || {})
@@ -650,10 +673,10 @@ function renderTelop(igoState, mjState) {
   try {
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-    let igoState = null, mjState = null;
+    let igoState = null, mjState = null, kifuPosts = null;
     function tryRender() {
-      if (igoState === null || mjState === null) return;
-      renderTelop(igoState, mjState);
+      if (igoState === null || mjState === null || kifuPosts === null) return;
+      renderTelop(igoState, mjState, kifuPosts);
     }
     db.ref("go-league/state").once("value")
       .then(snap => { igoState = snap.val() || {}; tryRender(); })
@@ -661,6 +684,9 @@ function renderTelop(igoState, mjState) {
     db.ref("mahjong/state").once("value")
       .then(snap => { mjState = snap.val() || {}; tryRender(); })
       .catch(() => { mjState = {}; tryRender(); });
+    db.ref("kifu/posts").once("value")
+      .then(snap => { kifuPosts = snap.val() || {}; tryRender(); })
+      .catch(() => { kifuPosts = {}; tryRender(); });
   } catch (e) {
     console.error("Firebase init failed:", e);
     renderTelop(null, null);
