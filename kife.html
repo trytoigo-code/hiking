@@ -224,7 +224,7 @@ function render() {
   if (!entries.length) { $("list").innerHTML = `<p style="color:#999;font-size:0.88rem">該当する棋譜がありません。</p>`; return; }
   const todayStart = new Date().setHours(0, 0, 0, 0);
   // 開いている感想フォームの状態を保つ
-  const openIds = new Set([...document.querySelectorAll(".imp-form.open")].map(f => f.dataset.id));
+  const openIds = new Set([...document.querySelectorAll(".imp-new.open")].map(f => f.dataset.id));
   $("list").innerHTML = entries.map(([id, p]) => {
     const imps = Object.entries(p.impressions || {}).sort((a, b) => (a[1].at || 0) - (b[1].at || 0));
     // 前日以前に登録された棋譜は折りたたむ（検索中は折りたたまず、すべて開いて表示する）
@@ -260,7 +260,7 @@ function render() {
           <button class="btn-main" data-act="saveimp" data-id="${id}" data-iid="${iid}">更新する</button><button class="btn-sub" data-act="cancelimp" data-id="${id}" data-iid="${iid}">キャンセル</button>
         </div>`).join("")}
       <button class="imp-toggle" data-act="toggle" data-id="${id}">＋ 感想を書く</button>
-      <div class="imp-form${openIds.has(id) ? " open" : ""}" data-id="${id}">
+      <div class="imp-form imp-new${openIds.has(id) ? " open" : ""}" data-id="${id}">
         <div class="fg"><label>名前</label><input class="imp-name" data-names="1" value="${esc(localStorage.getItem("kifu_name") || "")}" placeholder="あなたの名前"></div>
         <div class="fg"><label>感想</label><textarea class="imp-text" rows="3" placeholder="観ての感想"></textarea></div>
         <button class="btn-main" data-act="sendimp" data-id="${id}">送信</button>
@@ -273,7 +273,7 @@ $("list").addEventListener("click", e => {
   const b = e.target.closest("[data-act]");
   if (!b || !postsRef) return;
   const id = b.dataset.id, act = b.dataset.act;
-  if (act === "toggle") { document.querySelector(`.imp-form[data-id="${id}"]`).classList.toggle("open"); }
+  if (act === "toggle") { document.querySelector(`.imp-new[data-id="${id}"]`).classList.toggle("open"); }
   else if (act === "fold") {
     const card = b.closest(".card"), ind = b.querySelector(".fold-ind");
     const nowFolded = !card.classList.contains("folded"); // 開いていれば折りたたむ
@@ -311,7 +311,7 @@ $("list").addEventListener("click", e => {
   else if (act === "del") { if (confirm("この棋譜の投稿を、感想ごと削除しますか？")) { postsRef.child(id).remove(); toast("削除しました"); } }
   else if (act === "delimp") { if (confirm("この感想を削除しますか？")) postsRef.child(id).child("impressions").child(b.dataset.iid).remove(); }
   else if (act === "sendimp") {
-    const form = document.querySelector(`.imp-form[data-id="${id}"]`);
+    const form = document.querySelector(`.imp-new[data-id="${id}"]`);
     const name = form.querySelector(".imp-name").value.trim();
     const text = form.querySelector(".imp-text").value.trim();
     if (!name) { alert("名前を入力してください"); return; }
