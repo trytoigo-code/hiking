@@ -44,7 +44,7 @@
   - 対局者での検索（黒番・白番の部分一致。空白区切りで複数語＝すべて含む棋譜。
     例：「山田 鈴木」で山田さんと鈴木さんの対局。検索中は折りたたまず全件を開いて表示）
   - 投稿の削除（確認あり）
-  - 修正フォーム（投稿・感想とも）を開いている間は、他の人の更新による再描画を保留する（入力中の内容を守るため。
+  - 修正・感想の入力フォームを開いている間は、他の人の更新による再描画を保留する（入力中の内容を守るため。
     閉じると最新の状態に更新される）
 
 【今後の改良候補】
@@ -174,19 +174,10 @@ let toastTimer = null;
 function toast(msg) { const el = $("toast"); el.textContent = msg; el.style.display = "block"; clearTimeout(toastTimer); toastTimer = setTimeout(() => el.style.display = "none", 2500); }
 function setSync(ok) { $("sync-dot").style.background = ok ? "#2ecc71" : "#e74c3c"; $("sync-label").textContent = ok ? "リアルタイム同期中" : "オフライン"; }
 
-try {
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.database();
-  postsRef = db.ref("kifu/posts");
-  postsRef.on("value", snap => { posts = snap.val() || {}; render(); setSync(true); }, () => setSync(false));
-  // 名前の候補（星取の対局者名。読み取りのみ）
-  db.ref("go-league/state/players").once("value", snap => {
-    const arr = snap.val();
-    if (Array.isArray(arr)) { nameList = arr.filter(Boolean); refreshChips(); }
-  });
-} catch (e) { console.error(e); setSync(false); }
 
 let renderPending = false;
+const OPEN_FORMS = ".edit-form.open, .imp-edit.open, .imp-new.open";
+function flushRender() { if (renderPending && !document.querySelector(OPEN_FORMS)) render(); }
 // 並び順：登録順（登録日時）／更新順（登録・修正・感想の追加や修正のうち、いちばん新しい日時）
 let sortMode = localStorage.getItem("kifu_sort") === "updated" ? "updated" : "created";
 const lastUpdated = p => Math.max(p.at || 0, p.editedAt || 0, ...Object.values(p.impressions || {}).map(m => Math.max(m.at || 0, m.editedAt || 0)));
@@ -211,8 +202,7 @@ document.addEventListener("input", e => { if (e.target.matches("input[data-names
 
 function render() {
   // 修正フォームを開いている間は、他の人の更新で入力中の内容が消えないよう再描画を保留する
-  const editOpen = new Set([...document.querySelectorAll(".edit-form.open")].map(f => f.dataset.id));
-  if (editOpen.size || document.querySelector(".imp-edit.open")) { renderPending = true; return; }
+  if (document.querySelector(OPEN_FORMS)) { renderPending = true; return; }
   renderPending = false;
   const all = Object.entries(posts).sort((a, b) => sortKey(b[1]) - sortKey(a[1]));
   // 対局者検索：空白区切りの語がすべて、黒番・白番のどちらかに含まれる棋譜を表示（空白は無視して比較）
@@ -223,8 +213,6 @@ function render() {
   if (!all.length) { $("list").innerHTML = `<p style="color:#999;font-size:0.88rem">まだ棋譜がありません。最初の1局を共有してみましょう。</p>`; return; }
   if (!entries.length) { $("list").innerHTML = `<p style="color:#999;font-size:0.88rem">該当する棋譜がありません。</p>`; return; }
   const todayStart = new Date().setHours(0, 0, 0, 0);
-  // 開いている感想フォームの状態を保つ
-  const openIds = new Set([...document.querySelectorAll(".imp-new.open")].map(f => f.dataset.id));
   $("list").innerHTML = entries.map(([id, p]) => {
     const imps = Object.entries(p.impressions || {}).sort((a, b) => (a[1].at || 0) - (b[1].at || 0));
     // 前日以前に登録された棋譜は折りたたむ（検索中は折りたたまず、すべて開いて表示する）
@@ -241,7 +229,7 @@ function render() {
       </div>
       ${links ? `<div>${links}</div>` : ""}
       ${p.comment ? `<div class="poster-comment">${esc(p.comment)}</div>` : ""}
-      <div class="imp-form edit-form${editOpen.has(id) ? " open" : ""}" data-id="${id}">
+      <div class="imp-form edit-form" data-id="${id}">
         <div class="fg"><label>①つぶや棋譜URL</label><input type="url" class="e-url" value="${esc(p.url)}"></div>
         <div class="fg"><label>②棋譜見てねURL</label><input type="url" class="e-url2" value="${esc(p.url2)}"></div>
         <div class="row2">
@@ -260,7 +248,7 @@ function render() {
           <button class="btn-main" data-act="saveimp" data-id="${id}" data-iid="${iid}">更新する</button><button class="btn-sub" data-act="cancelimp" data-id="${id}" data-iid="${iid}">キャンセル</button>
         </div>`).join("")}
       <button class="imp-toggle" data-act="toggle" data-id="${id}">＋ 感想を書く</button>
-      <div class="imp-form imp-new${openIds.has(id) ? " open" : ""}" data-id="${id}">
+      <div class="imp-form imp-new" data-id="${id}">
         <div class="fg"><label>名前</label><input class="imp-name" data-names="1" value="${esc(localStorage.getItem("kifu_name") || "")}" placeholder="あなたの名前"></div>
         <div class="fg"><label>感想</label><textarea class="imp-text" rows="3" placeholder="観ての感想"></textarea></div>
         <button class="btn-main" data-act="sendimp" data-id="${id}">送信</button>
@@ -273,15 +261,16 @@ $("list").addEventListener("click", e => {
   const b = e.target.closest("[data-act]");
   if (!b || !postsRef) return;
   const id = b.dataset.id, act = b.dataset.act;
-  if (act === "toggle") { document.querySelector(`.imp-new[data-id="${id}"]`).classList.toggle("open"); }
+  if (act === "toggle") { document.querySelector(`.imp-new[data-id="${id}"]`).classList.toggle("open"); flushRender(); }
   else if (act === "fold") {
     const card = b.closest(".card"), ind = b.querySelector(".fold-ind");
     const nowFolded = !card.classList.contains("folded"); // 開いていれば折りたたむ
     card.classList.toggle("folded", nowFolded);
+    if (nowFolded) { card.querySelectorAll(".imp-form.open").forEach(f => f.classList.remove("open")); flushRender(); } // 隠れたフォームが開いたまま更新を止めないように
     if (nowFolded) expanded.delete(id); else expanded.add(id);
     if (ind) ind.textContent = nowFolded ? "▶" : "▼";
   }
-  else if (act === "edit") { document.querySelector(`.edit-form[data-id="${id}"]`).classList.toggle("open"); if (!document.querySelector(".edit-form.open, .imp-edit.open") && renderPending) render(); }
+  else if (act === "edit") { document.querySelector(`.edit-form[data-id="${id}"]`).classList.toggle("open"); flushRender(); }
   else if (act === "canceledit") { document.querySelector(`.edit-form[data-id="${id}"]`).classList.remove("open"); render(); }
   else if (act === "saveedit") {
     const f = document.querySelector(`.edit-form[data-id="${id}"]`);
@@ -296,7 +285,7 @@ $("list").addEventListener("click", e => {
     render();
     toast("更新しました");
   }
-  else if (act === "editimp") { document.querySelector(`.imp-edit[data-id="${id}"][data-iid="${b.dataset.iid}"]`).classList.toggle("open"); if (!document.querySelector(".edit-form.open, .imp-edit.open") && renderPending) render(); }
+  else if (act === "editimp") { document.querySelector(`.imp-edit[data-id="${id}"][data-iid="${b.dataset.iid}"]`).classList.toggle("open"); flushRender(); }
   else if (act === "cancelimp") { document.querySelector(`.imp-edit[data-id="${id}"][data-iid="${b.dataset.iid}"]`).classList.remove("open"); render(); }
   else if (act === "saveimp") {
     const f = document.querySelector(`.imp-edit[data-id="${id}"][data-iid="${b.dataset.iid}"]`);
@@ -317,19 +306,23 @@ $("list").addEventListener("click", e => {
     if (!name) { alert("名前を入力してください"); return; }
     if (!text) { alert("感想を入力してください"); return; }
     localStorage.setItem("kifu_name", name);
-    postsRef.child(id).child("impressions").push({ name, text, at: Date.now() });
     form.classList.remove("open");
+    postsRef.child(id).child("impressions").push({ name, text, at: Date.now() });
     toast("感想を送信しました");
   }
 });
 
-$("q").addEventListener("input", render);
+function renderFromControl() {
+  if (document.querySelector(OPEN_FORMS)) toast("開いているフォームを閉じると反映されます");
+  render();
+}
+$("q").addEventListener("input", renderFromControl);
 function markSortBtns() { document.querySelectorAll(".sort-btn").forEach(b => b.classList.toggle("active", b.dataset.sort === sortMode)); }
 document.querySelectorAll(".sort-btn").forEach(b => b.addEventListener("click", () => {
   sortMode = b.dataset.sort;
   localStorage.setItem("kifu_sort", sortMode);
   markSortBtns();
-  render();
+  renderFromControl();
 }));
 markSortBtns();
 $("add-btn").addEventListener("click", () => {
@@ -356,6 +349,19 @@ $("f-submit").addEventListener("click", () => {
   refreshChips();
   toast("棋譜を共有しました");
 });
+
+// ---------- Firebase（画面まわりの定義がすべて終わってから接続する）----------
+try {
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+  postsRef = db.ref("kifu/posts");
+  postsRef.on("value", snap => { posts = snap.val() || {}; render(); setSync(true); }, () => setSync(false));
+  // 名前の候補（星取の対局者名。読み取りのみ）
+  db.ref("go-league/state/players").once("value", snap => {
+    const arr = snap.val();
+    if (Array.isArray(arr)) { nameList = arr.filter(Boolean); refreshChips(); }
+  });
+} catch (e) { console.error(e); setSync(false); }
 </script>
 </body>
 </html>
