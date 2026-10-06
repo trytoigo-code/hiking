@@ -20,6 +20,11 @@
     手入力も可）。黒番・白番は手入力のみ（候補ボタンは出さない）。
     スマホではdatalistの候補が出ないことがあるため、ボタン方式にしている
 
+【表示回数】
+  - ヘッダーに「👁 N回表示」を常時表示する。個人アカウントが無いため「誰が見たか」は分からない
+    参考値で、同じ端末では1日1回までしかカウントされない。Firebase pageviews/kifu に保存し、
+    他のアプリ（igo/mahjong/goroku/dangi）とは別に数える
+
 【セキュリティ】
   - 合言葉認証あり（他アプリと共通）。localStorageに保存
 
@@ -29,6 +34,8 @@
   ・機能を追加・変更したら「主な機能」と「今後の改良候補」を合わせて更新する
 
 【主な機能（現時点）】
+  - 対局日（登録時は必須：日付を選ぶか「不明」にチェック。保存は playDate="YYYY-MM-DD" か
+    playDateUnknown=true。対局日欄が出来る前の投稿は未入力として表示し、修正時も空のまま保存できる）
   - 棋譜の登録（棋譜URLを2つまで：①つぶや棋譜・②棋譜見てね。どちらか一方だけでも可。
     黒番・白番・登録者・登録者コメント）。星取と同じく①は緑・②は青のボタンで表示
   - 一覧表示（新しい順）。①②のボタンで新規タブに開く
@@ -41,8 +48,9 @@
   - 前日以前の棋譜は折りたたみ表示（対局者・登録者・日付・感想数だけの1行。
     タップで開閉。開いた状態は再描画しても保つ。当日分は最初から開いている）。
     「前日以前」の基準は、登録順のときは登録日、更新順のときは更新日
-  - 対局者での検索（黒番・白番の部分一致。空白区切りで複数語＝すべて含む棋譜。
-    例：「山田 鈴木」で山田さんと鈴木さんの対局。検索中は折りたたまず全件を開いて表示）
+  - 対局者・対局日での検索（黒番・白番・対局日の部分一致。空白区切りで複数語＝すべて含む棋譜。
+    例：「山田 鈴木」で2人の対局、「2018/12」で2018年12月の対局、「不明」で対局日不明の棋譜。
+    日付は 2018/12/2・2018-12-2・2018年12月2日 のどの書き方でも可。検索中は折りたたまず全件を開いて表示）
   - 投稿の削除（確認あり）
   - 修正・感想の入力フォームを開いている間は、他の人の更新による再描画を保留する（入力中の内容を守るため。
     閉じると最新の状態に更新される）
@@ -72,6 +80,7 @@
   #sync-row { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 5px; }
   #sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; }
   #sync-label { font-size: 0.7rem; color: #aed6f1; }
+  #pageview-row { font-size: 0.68rem; color: #8ba9c2; margin-top: 3px; text-align: center; }
   #content { padding: 16px; }
   .add-btn { width: 100%; background: #2c3e50; color: #fff; border: none; border-radius: 10px; padding: 12px; font-size: 0.95rem; cursor: pointer; margin-bottom: 14px; font-family: inherit; }
   .form-box { display: none; background: #fff; border: 1px solid #e0dbcd; border-radius: 10px; padding: 14px; margin-bottom: 14px; }
@@ -98,6 +107,9 @@
   .fold-ind { color: #b89752; font-size: 0.7rem; margin-right: 4px; }
   .sort-btn { padding: 5px 12px; border-radius: 14px; border: 1px solid #ddd8cc; background: #fff; font-size: 0.78rem; font-weight: bold; color: #555; cursor: pointer; font-family: inherit; }
   .sort-btn.active { background: #2c3e50; color: #fff; border-color: #2c3e50; }
+  .fg label.chk-row { display: flex; align-items: center; gap: 8px; margin: 6px 0 0; font-weight: normal; font-size: 0.85rem; color: #555; }
+  .chk-row input { width: auto; flex-shrink: 0; }
+  input:disabled { background: #f3f1ea; }
   .lnk { font-size: 0.78rem; margin-top: 6px; }
   .open-link.b2 { background: #2f6fd0; margin-left: 6px; }
   .open-link { display: inline-block; margin-top: 8px; background: #27ae60; color: #fff; text-decoration: none; font-size: 0.85rem; font-weight: bold; padding: 7px 14px; border-radius: 16px; }
@@ -133,6 +145,7 @@
   <div id="header">
     <h1>👣 棋譜あるき</h1>
     <div id="sync-row"><span id="sync-dot"></span><span id="sync-label">接続中...</span></div>
+    <div id="pageview-row">👁 <span id="pageview-count">－</span>回表示</div>
   </div>
   <div id="content">
     <button class="add-btn" id="add-btn">＋ 棋譜を共有する</button>
@@ -144,15 +157,16 @@
         <div class="fg"><label>⚫黒番</label><input id="f-black" placeholder="対局者"></div>
         <div class="fg"><label>⚪白番</label><input id="f-white" placeholder="対局者"></div>
       </div>
+      <div class="fg"><label>対局日（必須。分からなければ「不明」にチェック）</label><input type="date" id="f-pdate"><label class="chk-row"><input type="checkbox" class="punk" id="f-punk">不明（対局日が分からない）</label></div>
       <div class="fg"><label>登録者</label><input id="f-poster" data-names="1" placeholder="あなたの名前"></div>
       <div class="fg"><label>登録者コメント（任意）</label><textarea id="f-comment" rows="3" placeholder="ここを観てほしい、など"></textarea></div>
       <button class="btn-main" id="f-submit">登録する</button><button class="btn-sub" id="f-cancel">キャンセル</button>
     </div>
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px"><span class="lnk" style="margin:0">並び順（新しい順）：</span><button class="sort-btn" data-sort="created">登録順</button><button class="sort-btn" data-sort="updated">更新順</button></div>
-    <div class="fg" style="margin-bottom:6px"><input type="search" id="q" placeholder="🔍 対局者で検索（黒番・白番。2人の名前もOK）"></div>
+    <div class="fg" style="margin-bottom:6px"><input type="search" id="q" placeholder="🔍 対局者・対局日で検索（例：山田 鈴木、2018/12、不明）"></div>
     <div id="q-info" class="lnk" style="margin:0 0 10px"></div>
     <div id="list"></div>
-    <p style="text-align:center;color:#bbb;font-size:0.7rem;margin-top:24px">kifu.html 版：2026-10-06 ③</p>
+    <p style="text-align:center;color:#bbb;font-size:0.7rem;margin-top:24px">kifu.html 版：2026-10-06 ⑤</p>
   </div>
 </div>
 <div id="toast"></div>
@@ -181,6 +195,16 @@ const OPEN_FORMS = ".edit-form.open, .imp-edit.open, .imp-new.open";
 function flushRender() { if (renderPending && !document.querySelector(OPEN_FORMS)) render(); }
 // 並び順：登録順（登録日時）／更新順（登録・修正・感想の追加や修正のうち、いちばん新しい日時）
 let sortMode = localStorage.getItem("kifu_sort") === "updated" ? "updated" : "created";
+// 対局日：playDate（"YYYY-MM-DD"）か、playDateUnknown（不明）。どちらも無いものは未入力（従来の投稿）
+const fmtISO = iso => iso ? iso.split("-").map(Number).join("/") : "";
+const pdText = p => p.playDateUnknown ? "不明" : (p.playDate ? fmtISO(p.playDate) : "未入力");
+const pdTarget = p => p.playDateUnknown ? "不明" : (p.playDate ? p.playDate.replace(/-/g, "/") : "");
+// 検索語を日付の書き方にそろえる（2018-12-2・2018年12月2日 → 2018/12/02。年・年月だけでもよい）
+const normDateTerm = t => {
+  let x = t.replace(/[-.．年月]/g, "/").replace(/日/g, "").replace(/\/+$/, "");
+  if (/^\d{4}(\/\d{1,2}){0,2}$/.test(x)) x = x.split("/").map((v, i) => i ? v.padStart(2, "0") : v).join("/");
+  return x;
+};
 const lastUpdated = p => Math.max(p.at || 0, p.editedAt || 0, ...Object.values(p.impressions || {}).map(m => Math.max(m.at || 0, m.editedAt || 0)));
 const sortKey = p => sortMode === "updated" ? lastUpdated(p) : (p.at || 0);
 const expanded = new Set(); // 折りたたみを開いた棋譜（再描画しても開いたままにする）
@@ -201,15 +225,20 @@ document.addEventListener("click", e => {
 });
 document.addEventListener("input", e => { if (e.target.matches("input[data-names]")) refreshChips(); });
 
+function syncPdates() {
+  document.querySelectorAll(".punk").forEach(c => { const d = c.closest(".fg").querySelector("input[type=date]"); d.disabled = c.checked; if (c.checked) d.value = ""; });
+}
+document.addEventListener("change", e => { if (e.target.classList && e.target.classList.contains("punk")) syncPdates(); });
+
 function render() {
   // 修正フォームを開いている間は、他の人の更新で入力中の内容が消えないよう再描画を保留する
   if (document.querySelector(OPEN_FORMS)) { renderPending = true; return; }
   renderPending = false;
   const all = Object.entries(posts).sort((a, b) => sortKey(b[1]) - sortKey(a[1]));
-  // 対局者検索：空白区切りの語がすべて、黒番・白番のどちらかに含まれる棋譜を表示（空白は無視して比較）
+  // 検索：空白区切りの語がすべて、黒番・白番・対局日のどれかに含まれる棋譜を表示（空白は無視して比較）
   const norm = t => String(t || "").toLowerCase().replace(/\s/g, "");
   const terms = $("q").value.split(/\s+/).map(norm).filter(Boolean);
-  const entries = terms.length ? all.filter(([, p]) => { const who = norm(p.black) + "|" + norm(p.white); return terms.every(t => who.includes(t)); }) : all;
+  const entries = terms.length ? all.filter(([, p]) => { const who = norm(p.black) + "|" + norm(p.white), dt = pdTarget(p); return terms.every(t => who.includes(t) || dt.includes(normDateTerm(t))); }) : all;
   $("q-info").textContent = terms.length ? `${entries.length}件ヒット` : "";
   if (!all.length) { $("list").innerHTML = `<p style="color:#999;font-size:0.88rem">まだ棋譜がありません。最初の1局を共有してみましょう。</p>`; return; }
   if (!entries.length) { $("list").innerHTML = `<p style="color:#999;font-size:0.88rem">該当する棋譜がありません。</p>`; return; }
@@ -225,7 +254,7 @@ function render() {
                 + (ok(p.url2) ? `<a class="open-link b2" href="${esc(p.url2)}" target="_blank" rel="noopener noreferrer">📄 棋譜②（棋譜見てね）</a>` : "");
     return `<div class="card${folded ? " folded" : ""}">
       <div class="card-top">
-        <div${foldable ? ` class="foldable" data-act="fold" data-id="${id}"` : ""}><div class="players">${foldable ? `<span class="fold-ind">${folded ? "▶" : "▼"}</span>` : ""}${vs}</div><div class="meta">${esc(p.poster || "登録者不明")}さんが共有 ・ ${fmtDate(p.at)}${fmtDate(lastUpdated(p)) !== fmtDate(p.at) ? ` ・ 更新${fmtDate(lastUpdated(p))}` : ""} ・ 💬${imps.length}</div></div>
+        <div${foldable ? ` class="foldable" data-act="fold" data-id="${id}"` : ""}><div class="players">${foldable ? `<span class="fold-ind">${folded ? "▶" : "▼"}</span>` : ""}${vs}</div><div class="meta">📅 対局日：${pdText(p)}</div><div class="meta">${esc(p.poster || "登録者不明")}さんが共有 ・ 登録${fmtDate(p.at)}${fmtDate(lastUpdated(p)) !== fmtDate(p.at) ? ` ・ 更新${fmtDate(lastUpdated(p))}` : ""} ・ 💬${imps.length}</div></div>
         <div class="btns" style="flex-shrink:0"><button class="del-sm" data-act="edit" data-id="${id}">修正</button><button class="del-sm" style="margin-left:6px" data-act="del" data-id="${id}">削除</button></div>
       </div>
       ${links ? `<div>${links}</div>` : ""}
@@ -237,6 +266,7 @@ function render() {
           <div class="fg"><label>⚫黒番</label><input class="e-black" value="${esc(p.black)}"></div>
           <div class="fg"><label>⚪白番</label><input class="e-white" value="${esc(p.white)}"></div>
         </div>
+        <div class="fg"><label>対局日</label><input type="date" class="e-pdate" value="${esc(p.playDate)}"><label class="chk-row"><input type="checkbox" class="punk"${p.playDateUnknown ? " checked" : ""}>不明（対局日が分からない）</label></div>
         <div class="fg"><label>登録者</label><input class="e-poster" data-names="1" value="${esc(p.poster)}"></div>
         <div class="fg"><label>登録者コメント</label><textarea class="e-comment" rows="3">${esc(p.comment)}</textarea></div>
         <button class="btn-main" data-act="saveedit" data-id="${id}">更新する</button><button class="btn-sub" data-act="canceledit" data-id="${id}">キャンセル</button>
@@ -256,6 +286,7 @@ function render() {
       </div></div>`;
   }).join("");
   refreshChips();
+  syncPdates();
 }
 
 $("list").addEventListener("click", e => {
@@ -282,7 +313,8 @@ $("list").addEventListener("click", e => {
     if ((url && !ok(url)) || (url2 && !ok(url2))) { alert("URLは http〜 で始まるものを入力してください"); return; }
     if (!poster) { alert("登録者の名前を入力してください"); return; }
     f.classList.remove("open");
-    postsRef.child(id).update({ editedAt: Date.now(), url: url || null, url2: url2 || null, poster, black: v(".e-black") || null, white: v(".e-white") || null, comment: v(".e-comment") || null });
+    const punk = f.querySelector(".punk").checked;
+    postsRef.child(id).update({ editedAt: Date.now(), playDate: punk ? null : (v(".e-pdate") || null), playDateUnknown: punk ? true : null, url: url || null, url2: url2 || null, poster, black: v(".e-black") || null, white: v(".e-white") || null, comment: v(".e-comment") || null });
     render();
     toast("更新しました");
   }
@@ -338,14 +370,18 @@ $("f-submit").addEventListener("click", () => {
   if (!url && !url2) { alert("①か②、どちらかの棋譜URLを入力してください"); return; }
   if ((url && !ok(url)) || (url2 && !ok(url2))) { alert("URLは http〜 で始まるものを入力してください"); return; }
   if (!poster) { alert("登録者の名前を入力してください"); return; }
+  const pdate = $("f-pdate").value, punk = $("f-punk").checked;
+  if (!pdate && !punk) { alert("対局日を入力するか、「不明」にチェックしてください"); return; }
   localStorage.setItem("kifu_name", poster);
   if (postsRef) postsRef.push({
     url: url || null, url2: url2 || null, poster, at: Date.now(),
+    playDate: punk ? null : pdate, playDateUnknown: punk ? true : null,
     black: $("f-black").value.trim() || null,
     white: $("f-white").value.trim() || null,
     comment: $("f-comment").value.trim() || null
   });
-  ["f-url","f-url2","f-black","f-white","f-comment"].forEach(i => $(i).value = "");
+  ["f-url","f-url2","f-black","f-white","f-comment","f-pdate"].forEach(i => $(i).value = "");
+  $("f-punk").checked = false; syncPdates();
   $("form").classList.remove("open");
   refreshChips();
   toast("棋譜を共有しました");
@@ -363,6 +399,25 @@ try {
     if (Array.isArray(arr)) { nameList = arr.filter(Boolean); refreshChips(); }
   });
 } catch (e) { console.error(e); setSync(false); }
+
+// ---------- 表示回数 ----------
+// 個人アカウントがないため「誰が見たか」は分からない。あくまで「このアプリが開かれた回数」の目安。
+// 同じ端末では1日1回までしかカウントされない（localStorageに最後にカウントした日付を保存して判定）。
+// Firebase pageviews/kifu に保存する（他のアプリとは別のカウント）。
+(function() {
+  try {
+    const pvRef = firebase.database().ref("pageviews/kifu");
+    const t = new Date();
+    const todayStr = `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`;
+    if (localStorage.getItem("pageview_date_kifu") !== todayStr) {
+      pvRef.transaction(cur => (cur || 0) + 1, (error, committed) => {
+        if (error) { console.error("表示回数の記録に失敗しました:", error); return; }
+        if (committed) localStorage.setItem("pageview_date_kifu", todayStr);
+      });
+    }
+    pvRef.on("value", snap => { $("pageview-count").textContent = snap.val() || 0; });
+  } catch (e) { console.error("表示回数:", e); }
+})();
 </script>
 </body>
 </html>
