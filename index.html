@@ -95,7 +95,7 @@
 
   メニューは、グループ見出し＋3列のタイル（アイコン＋短い名称）で並べる。説明文は置かない
   （縦スクロールを減らすため）。グループ構成：
-    戦績・順位（囲碁＝星取・麻雀＝点棒・総合順位）／囲碁をみがく（一局一得・囲碁読み物・棋譜あるき）／
+    戦績・順位（囲碁＝星取・麻雀＝点棒・総合順位）／囲碁をみがく（棋譜あるき・一局一得・囲碁読み物）／
     イベント（足あと・大石道場杯）
   アプリを追加したら、いずれかのグループにタイルを足す。タイルの名称は6文字前後に収める。
   タイトル下のテロップの仕組みは【テロップについて】を参照。
@@ -142,7 +142,7 @@
       border-radius: 8px;
       padding: 8px 12px;
       margin-bottom: 8px;
-      font-size: 0.88rem;
+      font-size: 0.78rem;
       color: #555;
       line-height: 1.6;
     }
@@ -169,7 +169,7 @@
     }
     #telop-comment-item {
       display: inline-block;
-      font-size: 0.82rem;
+      font-size: 0.74rem;
       color: #555;
       will-change: transform;
     }
@@ -188,7 +188,7 @@
     .telop-seg {
       display: inline-block;
       padding-right: 50px;
-      font-size: 0.82rem;
+      font-size: 0.74rem;
       color: #555;
     }
     @keyframes telop-scroll {
@@ -282,6 +282,10 @@
 
   <div class="group-title">囲碁をみがく</div>
   <div class="tile-grid">
+    <a class="tile" href="kifu.html?v=3">
+      <span class="tile-icon">👣</span>
+      <span class="tile-name">棋譜あるき</span>
+    </a>
     <a class="tile" href="goroku.html?group=yamaарuki">
       <span class="tile-icon">📖</span>
       <span class="tile-name">一局一得</span>
@@ -289,10 +293,6 @@
     <a class="tile" href="dangi.html?title=山あるき&group=yamaарuki">
       <span class="tile-icon">📝</span>
       <span class="tile-name">囲碁読み物</span>
-    </a>
-    <a class="tile" href="kifu.html?v=3">
-      <span class="tile-icon">👣</span>
-      <span class="tile-name">棋譜あるき</span>
     </a>
   </div>
 
