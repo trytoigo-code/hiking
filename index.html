@@ -93,7 +93,11 @@
   - 棋譜あるき（kifu.html）：仲間に観てほしい棋譜のURL共有。対局者・登録者・コメント・感想付き
   - 大石道場杯（tournament.html）：8人勝ち抜き大会の対戦表・結果共有
 
-  ボタンは名称のみを表示し、説明文は置かない（縦スクロールを減らすため。2026-09-26変更）。
+  メニューは、グループ見出し＋3列のタイル（アイコン＋短い名称）で並べる。説明文は置かない
+  （縦スクロールを減らすため）。グループ構成：
+    戦績・順位（囲碁＝星取・麻雀＝点棒・総合順位）／囲碁をみがく（一局一得・囲碁読み物・棋譜あるき）／
+    イベント（足あと・大石道場杯）
+  アプリを追加したら、いずれかのグループにタイルを足す。タイルの名称は6文字前後に収める。
   タイトル下のテロップの仕組みは【テロップについて】を参照。
 ================================================================================
 -->
@@ -192,26 +196,49 @@
       to   { transform: translateX(-50%); }
     }
 
-    .card {
-      display: block;
+    .group-title {
+      font-size: 0.78rem;
+      color: #7a5c3a;
+      letter-spacing: 0.05em;
+      border-left: 4px solid #b89752;
+      padding-left: 8px;
+      margin: 14px 0 6px;
+    }
+
+    .tile-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .tile {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      min-height: 64px;
+      padding: 6px 4px;
       text-decoration: none;
       background: #fff;
       border: 1px solid #e0dbcd;
       border-radius: 12px;
-      padding: 16px 18px;
-      margin-bottom: 10px;
       color: inherit;
       transition: 0.2s;
     }
 
-    .card:active {
-      transform: scale(0.98);
+    .tile:active {
+      transform: scale(0.96);
     }
 
-    .title {
-      font-size: 1.08rem;
+    .tile-icon { font-size: 1.4rem; line-height: 1; }
+
+    .tile-name {
+      font-size: 0.8rem;
       font-weight: bold;
       color: #2c3e50;
+      text-align: center;
+      line-height: 1.3;
     }
 
     .footer {
@@ -237,37 +264,50 @@
   </div>
   <div id="telop-comment-wrap"><span id="telop-comment-item">読み込み中…</span></div>
 
-  <a class="card" href="ashiato.html?title=山あるき&group=yamaарuki">
-    <div class="title">🐾 足あと</div>
-  </a>
+  <div class="group-title">戦績・順位</div>
+  <div class="tile-grid">
+    <a class="tile" href="igo.html">
+      <span class="tile-icon">⚫</span>
+      <span class="tile-name">囲碁</span>
+    </a>
+    <a class="tile" href="mahjong.html">
+      <span class="tile-icon">🀄</span>
+      <span class="tile-name">麻雀</span>
+    </a>
+    <a class="tile" href="sogo.html">
+      <span class="tile-icon">🏅</span>
+      <span class="tile-name">総合順位</span>
+    </a>
+  </div>
 
-  <a class="card" href="sogo.html">
-    <div class="title">🏅 総合順位</div>
-  </a>
+  <div class="group-title">囲碁をみがく</div>
+  <div class="tile-grid">
+    <a class="tile" href="goroku.html?group=yamaарuki">
+      <span class="tile-icon">📖</span>
+      <span class="tile-name">一局一得</span>
+    </a>
+    <a class="tile" href="dangi.html?title=山あるき&group=yamaарuki">
+      <span class="tile-icon">📝</span>
+      <span class="tile-name">囲碁読み物</span>
+    </a>
+    <a class="tile" href="kifu.html?v=3">
+      <span class="tile-icon">👣</span>
+      <span class="tile-name">棋譜あるき</span>
+    </a>
+  </div>
 
-  <a class="card" href="igo.html">
-    <div class="title">⚫ 囲碁リーグ戦「星取」</div>
-  </a>
+  <div class="group-title">イベント</div>
+  <div class="tile-grid">
+    <a class="tile" href="ashiato.html?title=山あるき&group=yamaарuki">
+      <span class="tile-icon">🐾</span>
+      <span class="tile-name">足あと</span>
+    </a>
+    <a class="tile" href="tournament.html">
+      <span class="tile-icon">🏆</span>
+      <span class="tile-name">大石道場杯</span>
+    </a>
+  </div>
 
-  <a class="card" href="mahjong.html">
-    <div class="title">🀄 麻雀リーグ戦「点棒」</div>
-  </a>
-
-  <a class="card" href="goroku.html?group=yamaарuki">
-    <div class="title">📖 囲碁 一局一得</div>
-  </a>
-
-  <a class="card" href="dangi.html?title=山あるき&group=yamaарuki">
-    <div class="title">📝 囲碁読み物</div>
-  </a>
-
-  <a class="card" href="kifu.html?v=3">
-    <div class="title">👣 棋譜あるき</div>
-  </a>
-
-  <a class="card" href="tournament.html">
-    <div class="title">🏆 大石道場杯</div>
-  </a>
 
   <div class="footer">
     GitHub Pages + Firebase
