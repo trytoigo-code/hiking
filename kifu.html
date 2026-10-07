@@ -45,7 +45,7 @@
   - 感想の追加（名前＋本文。1つの棋譜に何人でも書ける）
   - 投稿の修正（URL・対局者・登録者・コメント）
   - 感想の修正（名前・本文）・削除
-  - 並び順の切り替え（ボタンのみ表示：登録日 降順／更新日 降順／対局日 昇順／対局日 降順。
+  - 並び順の切り替え（ボタンのみ表示：登録 降順／更新 降順／対局 昇順／対局 降順（対局＝対局日）。
     対局日順は、対局日が不明・未入力の棋譜をどちらの向きでも最後に並べ、同じ日は登録が新しい順。
     選んだ順は端末に保存。折りたたみの基準は、対局日順のときは登録日。
     更新順の「更新」は、登録・投稿の修正・感想の追加や修正のうち最も新しい日時。
@@ -168,11 +168,11 @@
       <div class="fg"><label>登録者コメント（任意）</label><textarea id="f-comment" rows="3" placeholder="ここを観てほしい、など"></textarea></div>
       <button class="btn-main" id="f-submit">登録する</button><button class="btn-sub" id="f-cancel">キャンセル</button>
     </div>
-    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:10px"><button class="sort-btn" data-sort="created">登録日 降順</button><button class="sort-btn" data-sort="updated">更新日 降順</button><button class="sort-btn" data-sort="dateAsc">対局日 昇順</button><button class="sort-btn" data-sort="dateDesc">対局日 降順</button></div>
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:10px"><button class="sort-btn" data-sort="created">登録 降順</button><button class="sort-btn" data-sort="updated">更新 降順</button><button class="sort-btn" data-sort="dateAsc">対局 昇順</button><button class="sort-btn" data-sort="dateDesc">対局 降順</button></div>
     <div class="fg" style="margin-bottom:6px"><input type="search" id="q" placeholder="🔍 対局者・対局日で検索（例：山田 鈴木、2018/12、不明）"></div>
     <div id="q-info" class="lnk" style="margin:0 0 10px"></div>
     <div id="list"></div>
-    <p style="text-align:center;color:#bbb;font-size:0.7rem;margin-top:24px">kifu.html 版：2026-10-06 ⑧</p>
+    <p style="text-align:center;color:#bbb;font-size:0.7rem;margin-top:24px">kifu.html 版：2026-10-06 ⑨</p>
   </div>
 </div>
 <div id="toast"></div>
