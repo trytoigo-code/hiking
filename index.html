@@ -112,7 +112,8 @@
 
   <style>
     :root { color-scheme: light; }
-    html { background: #fcfaf2; }
+    /* iPhoneのSafari・Android端末のブラウザは、横に長い1行の文字（テロップ）を自動で大きく見せることがあるため、それを止める */
+    html { background: #fcfaf2; -webkit-text-size-adjust: 100%; -moz-text-size-adjust: 100%; text-size-adjust: 100%; }
     body {
       margin: 0;
       padding: 0;
@@ -142,7 +143,7 @@
       border-radius: 8px;
       padding: 8px 12px;
       margin-bottom: 8px;
-      font-size: 0.7rem;
+      font-size: 0.8rem;
       color: #555;
       line-height: 1.6;
     }
@@ -169,7 +170,7 @@
     }
     #telop-comment-item {
       display: inline-block;
-      font-size: 0.66rem;
+      font-size: 0.8rem;
       color: #555;
       will-change: transform;
     }
@@ -188,7 +189,7 @@
     .telop-seg {
       display: inline-block;
       padding-right: 50px;
-      font-size: 0.66rem;
+      font-size: 0.8rem;
       color: #555;
     }
     @keyframes telop-scroll {
