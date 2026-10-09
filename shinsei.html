@@ -32,14 +32,19 @@
 
 【主な機能（現時点）】
   - 📝入力タブ：対局日・対局相手（星取の対局者名ボタンか手入力）・新星の手合い
-      （相手の手合いは自動表示）・結果（新星の勝ち／負け）・決着（中押し／目数差／
-      時間切れ／不明）・目数差（「差は不明」にもできる）・メモ（任意）
+      （相手の手合いは自動表示）・結果（勝ち／負け／無勝負）・決着（中押し／目数差／
+      時間切れ／ジコ（黒勝ち）／不明）・目数差（「差は不明」にもできる）・
+      棋譜URL（①つぶや棋譜・②棋譜見てね。igo.htmlと同じ kifuUrl / kifuUrl2）・メモ（任意）
+      無勝負は勝敗がつかない対局（決着・目数差は入力しない。勝率には数えない）。
+      ジコ（黒勝ち）は、黒番の勝ちとして扱う（新星の結果と手合いが合わないと登録できない。
+      コミなしの手合い＝先・N子／向先・向Nのときだけ選べる）。
+      新星が目数差で負けたときは「10目差以内／以上」を記録する（目数差を入れると自動判定。
+      9.5目まで＝以内、10目〜＝以上。目数差が不明のときは手で選ぶ）
   - 📜履歴タブ：通算成績（勝敗・勝率）と、対局日の新しい順の一覧。各対局の修正・削除
       （修正は入力タブに内容を読み込んで「更新する」）
   - ⚙️設定タブ：新星の名前の登録、データエクスポート（JSON）
 
 【今後の改良候補】
-  - 持碁の記録
   - 手合いや月ごとの成績の集計
   - 月例碁会ごとの「今月見えた力・前回との違い・次に期待すること」の記録
   - 星取の対局との紐づけ・棋譜URLの登録
@@ -94,6 +99,12 @@
   .seg button { flex: 1; padding: 12px 6px; border: 1px solid #ddd8cc; border-radius: 8px; background: #fff; font-size: 0.95rem; font-weight: bold; color: #777; cursor: pointer; font-family: inherit; }
   .seg button.sel-win { background: #fdf1ef; border-color: #b03a2e; color: #b03a2e; }
   .seg button.sel-lose { background: #2c3e50; border-color: #2c3e50; color: #fff; }
+  .seg button.sel-draw { background: #f1f0ea; border-color: #7f8c8d; color: #555; }
+  .badge-draw { background: #7f8c8d; }
+  .badge-band { background: #7f5aa0; }
+  a.badge { text-decoration: none; }
+  .badge-kifu { background: #27ae60; }
+  .badge-kifu2 { background: #2f6fd0; }
 
   .btn { width: 100%; padding: 13px; background: #2c3e50; color: #fff; border: none; border-radius: 6px; font-size: 1rem; font-weight: bold; cursor: pointer; letter-spacing: 1px; font-family: inherit; }
   .btn:active { opacity: 0.85; }
@@ -175,15 +186,18 @@
         <div class="seg" id="f-result">
           <button type="button" data-v="win" id="btn-win">勝ち</button>
           <button type="button" data-v="lose" id="btn-lose">負け</button>
+          <button type="button" data-v="mushoubu" id="btn-mushoubu">無勝負</button>
         </div>
+        <p class="note" style="margin:6px 0 0">無勝負：指導のため打ち直しなど、勝敗がつかなかった対局</p>
       </div>
 
-      <div class="fg">
+      <div class="fg" id="type-fg">
         <label>決着</label>
         <select id="f-type">
           <option value="chuoshi">中押し</option>
           <option value="moku">目数差</option>
           <option value="jikan">時間切れ</option>
+          <option value="jigo">ジコ（黒勝ち）</option>
           <option value="fumei">不明</option>
         </select>
       </div>
@@ -192,6 +206,28 @@
         <label>目数差</label>
         <input type="number" id="f-margin" min="0.5" step="0.5" inputmode="decimal" placeholder="例: 3.5">
         <label class="chk-row"><input type="checkbox" id="f-margin-unknown">何目差か忘れた（差は不明として登録）</label>
+      </div>
+
+      <div class="fg" id="band-fg" style="display:none">
+        <label>10目差以内か、以上か</label>
+        <select id="f-band">
+          <option value="">（選択してください）</option>
+          <option value="within10">10目差以内（9.5目まで）</option>
+          <option value="over10">10目差以上（10目〜）</option>
+          <option value="unknown">分からない</option>
+        </select>
+        <p class="note" id="band-note" style="margin:6px 0 0"></p>
+      </div>
+
+      <div class="fg">
+        <label>①つぶや棋譜URL（任意）</label>
+        <input type="url" id="f-kifu1" placeholder="つぶや棋譜のリンクがあれば貼り付け">
+        <p class="note" style="margin:6px 0 0"><a href="https://igo-kids.com/pk/post-kifu.php" target="_blank" rel="noopener noreferrer" style="color:#27ae60;font-weight:bold">つぶや棋譜を開く（棋譜を登録してURLを取得）</a></p>
+      </div>
+      <div class="fg">
+        <label>②棋譜見てねURL（任意）</label>
+        <input type="url" id="f-kifu2" placeholder="棋譜見てねのリンクがあれば貼り付け">
+        <p class="note" style="margin:6px 0 0"><a href="https://gokifuai.com/kifu" target="_blank" rel="noopener noreferrer" style="color:#2f6fd0;font-weight:bold">棋譜見てねを開く（棋譜を登録してURLを取得）</a></p>
       </div>
 
       <div class="fg"><label>メモ（任意）</label><textarea id="f-memo" rows="2" placeholder="気づいたこと、印象に残った一手など"></textarea></div>
@@ -275,13 +311,44 @@ function setResult(v) {
   resultVal = v;
   $("btn-win").className = v === "win" ? "sel-win" : "";
   $("btn-lose").className = v === "lose" ? "sel-lose" : "";
+  $("btn-mushoubu").className = v === "mushoubu" ? "sel-draw" : "";
+  refreshVisibility();
 }
 $("btn-win").addEventListener("click", () => setResult("win"));
 $("btn-lose").addEventListener("click", () => setResult("lose"));
-$("f-type").addEventListener("change", () => { $("moku-fg").style.display = $("f-type").value === "moku" ? "" : "none"; });
+$("btn-mushoubu").addEventListener("click", () => setResult("mushoubu"));
+
+// 結果・決着に応じて、決着欄・目数差欄・10目差の欄の出し分けをする。
+// 新星が目数差で負けたときは、目数差の数字から10目差以内／以上を自動判定する
+// （数字が不明のときは、手で選ぶ）。
+let bandAuto = false;
+function refreshVisibility() {
+  const mush = resultVal === "mushoubu";
+  $("type-fg").style.display = mush ? "none" : "";
+  const moku = !mush && $("f-type").value === "moku";
+  $("moku-fg").style.display = moku ? "" : "none";
+  const showBand = moku && resultVal === "lose";
+  $("band-fg").style.display = showBand ? "" : "none";
+  if (!showBand) return;
+  const mg = parseFloat($("f-margin").value);
+  const auto = !$("f-margin-unknown").checked && !isNaN(mg) && mg > 0;
+  const sel = $("f-band");
+  if (auto) {
+    sel.value = mg < 10 ? "within10" : "over10";
+    sel.disabled = true; bandAuto = true;
+    $("band-note").textContent = "入力した目数差から自動で判定しました（10目未満＝以内、10目以上＝以上）。";
+  } else {
+    if (bandAuto) sel.value = "";
+    bandAuto = false; sel.disabled = false;
+    $("band-note").textContent = "目数差が分からないときは、分かる範囲で選んでください。";
+  }
+}
+$("f-type").addEventListener("change", refreshVisibility);
+$("f-margin").addEventListener("input", refreshVisibility);
 $("f-margin-unknown").addEventListener("change", () => {
   $("f-margin").disabled = $("f-margin-unknown").checked;
   if ($("f-margin-unknown").checked) $("f-margin").value = "";
+  refreshVisibility();
 });
 
 // ---------- 対局相手：名前ボタン ----------
@@ -307,10 +374,12 @@ function resetForm() {
   $("f-date").value = todayISO();
   $("f-opp").value = "";
   $("f-teai").value = "互先"; $("teai-pair").textContent = "互先";
-  setResult(null);
-  $("f-type").value = "chuoshi"; $("moku-fg").style.display = "none";
+  $("f-type").value = "chuoshi";
   $("f-margin").value = ""; $("f-margin").disabled = false; $("f-margin-unknown").checked = false;
+  $("f-band").value = ""; bandAuto = false;
+  $("f-kifu1").value = ""; $("f-kifu2").value = "";
   $("f-memo").value = "";
+  setResult(null);
   $("f-submit").textContent = "登録する";
   $("f-cancel").style.display = "none";
   $("editing-note").style.display = "none";
@@ -323,14 +392,16 @@ function loadForEdit(id) {
   $("f-date").value = g.date || todayISO();
   $("f-opp").value = g.opponent || "";
   $("f-teai").value = g.teai || "互先"; $("teai-pair").textContent = TEAI_PAIR[g.teai || "互先"] || "互先";
-  setResult(g.result === "win" || g.result === "lose" ? g.result : null);
   $("f-type").value = g.type || "fumei";
-  $("moku-fg").style.display = g.type === "moku" ? "" : "none";
   const unknown = g.type === "moku" && !g.margin;
   $("f-margin-unknown").checked = unknown;
   $("f-margin").disabled = unknown;
   $("f-margin").value = g.margin || "";
+  $("f-band").value = g.band || ""; bandAuto = false;
+  $("f-kifu1").value = g.kifuUrl || "";
+  $("f-kifu2").value = g.kifuUrl2 || "";
   $("f-memo").value = g.memo || "";
+  setResult(["win", "lose", "mushoubu"].includes(g.result) ? g.result : null);
   $("f-submit").textContent = "更新する";
   $("f-cancel").style.display = "";
   $("editing-note").style.display = "block";
@@ -345,14 +416,29 @@ $("f-submit").addEventListener("click", () => {
   const date = $("f-date").value, opp = $("f-opp").value.trim();
   if (!date) { alert("対局日を入力してください"); return; }
   if (!opp) { alert("対局相手の名前を入力してください"); return; }
-  if (!resultVal) { alert("結果（勝ち・負け）を選んでください"); return; }
-  const type = $("f-type").value;
-  let margin = null;
+  if (!resultVal) { alert("結果（勝ち・負け・無勝負）を選んでください"); return; }
+  const mush = resultVal === "mushoubu";
+  const type = mush ? null : $("f-type").value;
+  const teai = $("f-teai").value;
+  let margin = null, band = null;
   if (type === "moku" && !$("f-margin-unknown").checked) {
     margin = parseFloat($("f-margin").value);
     if (isNaN(margin) || margin <= 0) { alert("目数差を正しく入力してください（分からないときは「何目差か忘れた」にチェック）"); return; }
   }
-  const data = { date, opponent: opp, teai: $("f-teai").value, result: resultVal, type, margin, memo: $("f-memo").value.trim() || null };
+  if (type === "moku" && resultVal === "lose") {
+    band = margin ? (margin < 10 ? "within10" : "over10") : $("f-band").value;
+    if (!band) { alert("目数差で負けたときは、10目差以内か以上かを選んでください（分からないときは「分からない」）"); return; }
+  }
+  if (type === "jigo") {
+    const blackSide = teai === "先" || /^[2-9]子$/.test(teai);
+    const whiteSide = teai === "向先" || /^向[2-9]$/.test(teai);
+    if (resultVal === "win" && !blackSide) { alert("ジコ（黒勝ち）で新星が勝つのは、新星が黒番のときです。手合いを「先」「2子」〜のいずれかにしてください。"); return; }
+    if (resultVal === "lose" && !whiteSide) { alert("ジコ（黒勝ち）で新星が負けるのは、相手が黒番のときです。手合いを「向先」「向2」〜のいずれかにしてください。"); return; }
+  }
+  const k1 = $("f-kifu1").value.trim(), k2 = $("f-kifu2").value.trim();
+  const okUrl = u => /^https?:\/\//.test(u);
+  if ((k1 && !okUrl(k1)) || (k2 && !okUrl(k2))) { alert("棋譜URLは http〜 で始まるものを入力してください"); return; }
+  const data = { date, opponent: opp, teai, result: resultVal, type, margin, band, kifuUrl: k1 || null, kifuUrl2: k2 || null, memo: $("f-memo").value.trim() || null };
   if (!gamesRef) { alert("データベースに接続されていません"); return; }
   if (editingId) { gamesRef.child(editingId).update({ ...data, editedAt: Date.now() }); toast("更新しました"); }
   else { gamesRef.push({ ...data, at: Date.now() }); toast("対局を登録しました"); }
@@ -361,35 +447,49 @@ $("f-submit").addEventListener("click", () => {
 });
 
 // ---------- 履歴 ----------
-const TYPE_LABEL = { chuoshi: "中押し", moku: "目数差", jikan: "時間切れ", fumei: "不明" };
+const TYPE_LABEL = { chuoshi: "中押し", moku: "目数差", jikan: "時間切れ", jigo: "ジコ（黒勝ち）", fumei: "不明" };
+const BAND_LABEL = { within10: "10目差以内", over10: "10目差以上", unknown: "10目差の判別なし" };
 function fmtDate(iso) { if (!iso) return ""; const [y, m, d] = iso.split("-"); return `${y}/${parseInt(m)}/${parseInt(d)}`; }
 function resultText(g) {
-  const t = TYPE_LABEL[g.type] || "";
   if (g.type === "moku") return g.margin ? `${g.margin}目差` : "目数差（差不明）";
-  return t;
+  return TYPE_LABEL[g.type] || "";
 }
 function renderHistory() {
   $("history-title").textContent = `${nm()}の対局履歴`;
   const entries = Object.entries(games).sort((a, b) => (b[1].date || "").localeCompare(a[1].date || "") || (b[1].at || 0) - (a[1].at || 0));
   const w = entries.filter(([, g]) => g.result === "win").length;
   const l = entries.filter(([, g]) => g.result === "lose").length;
+  const m = entries.filter(([, g]) => g.result === "mushoubu").length;
+  const lostMoku = entries.filter(([, g]) => g.result === "lose" && g.type === "moku");
+  const cIn = lostMoku.filter(([, g]) => g.band === "within10").length;
+  const cOver = lostMoku.filter(([, g]) => g.band === "over10").length;
+  const cUnk = lostMoku.length - cIn - cOver;
+  const mokuLine = lostMoku.length
+    ? `<div style="font-size:0.82rem;color:#666;margin-top:4px">目数差で負け ${lostMoku.length}局：10目差以内 ${cIn}局／10目差以上 ${cOver}局${cUnk ? `／判別なし ${cUnk}局` : ""}</div>` : "";
   $("summary").innerHTML = entries.length
-    ? `<div class="summary">通算 <strong>${entries.length}局</strong>　${w}勝 ${l}敗${w + l ? `（勝率 ${(w / (w + l)).toFixed(2)}）` : ""}</div>`
+    ? `<div class="summary">通算 <strong>${w + l}局</strong>　${w}勝 ${l}敗${w + l ? `（勝率 ${(w / (w + l)).toFixed(2)}）` : ""}${m ? `　無勝負 ${m}局` : ""}${mokuLine}</div>`
     : "";
   if (!entries.length) {
     $("list").innerHTML = `<p style="color:#999;font-size:0.88rem">まだ対局がありません。📝入力タブから最初の1局を記録しましょう。</p>`;
     return;
   }
+  const okUrl = u => /^https?:\/\//.test(u || "");
   $("list").innerHTML = entries.map(([id, g]) => {
     const mine = g.teai || "互先", theirs = TEAI_PAIR[mine] || "互先";
     const tm = t => t && t !== "互先" ? `<span class="teai">（${t}）</span>` : "";
-    const win = g.result === "win";
+    const win = g.result === "win", lose = g.result === "lose", mush = g.result === "mushoubu";
+    const kifu = (okUrl(g.kifuUrl) ? `<a class="badge badge-kifu" href="${esc(g.kifuUrl)}" target="_blank" rel="noopener noreferrer">📄棋譜①</a>` : "")
+               + (okUrl(g.kifuUrl2) ? `<a class="badge badge-kifu2" href="${esc(g.kifuUrl2)}" target="_blank" rel="noopener noreferrer">📄棋譜②</a>` : "");
+    const badges = mush
+      ? `<span class="badge badge-draw">無勝負</span>`
+      : `<span class="badge ${win ? "badge-win" : "badge-lose"}">${win ? "勝ち" : "負け"}</span><span class="badge badge-type">${esc(resultText(g))}</span>`
+        + (lose && g.type === "moku" && g.band ? `<span class="badge badge-band">${BAND_LABEL[g.band] || ""}</span>` : "");
     return `<div class="game">
       <div class="game-top">
         <div>
           <div class="game-date">${fmtDate(g.date)}</div>
-          <div class="game-vs">${win ? "👑 " : ""}<strong>${esc(nm())}</strong>${tm(mine)}　vs　${!win ? "👑 " : ""}${esc(g.opponent)}${tm(theirs)}</div>
-          <div style="margin-top:4px"><span class="badge ${win ? "badge-win" : "badge-lose"}">${win ? "勝ち" : "負け"}</span><span class="badge badge-type">${esc(resultText(g))}</span></div>
+          <div class="game-vs">${win ? "👑 " : ""}<strong>${esc(nm())}</strong>${tm(mine)}　vs　${lose ? "👑 " : ""}${esc(g.opponent)}${tm(theirs)}</div>
+          <div style="margin-top:4px">${badges}${kifu}</div>
         </div>
         <div class="game-btns"><button class="link-sm" data-act="edit" data-id="${id}">修正</button><button class="link-sm" data-act="del" data-id="${id}">削除</button></div>
       </div>
