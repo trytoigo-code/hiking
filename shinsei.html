@@ -40,7 +40,12 @@
       コミなしの手合い＝先・N子／向先・向Nのときだけ選べる）。
       新星が目数差で負けたときは「10目差以内／以上」を記録する（目数差を入れると自動判定。
       9.5目まで＝以内、10目〜＝以上。目数差が不明のときは手で選ぶ）
-  - 📜履歴タブ：通算成績（勝敗・勝率）と、対局日の新しい順の一覧。各対局の修正・削除
+  - 📜履歴タブ：通算成績（勝敗・勝率）と、対局日の新しい順の一覧。各対局の修正・削除。
+      igo.htmlの履歴タブに近い作り：対局相手別のボタン（相手の名前＋対局数。押すとその相手だけに絞り込み、
+      もう一度押すか「すべて」で全件に戻る）と「📄棋譜ありのみ」ボタンで絞り込める。絞り込みに合わせて、
+      ①最近の流れ（○×。古い順に左から）②相手別成績（絞り込んでいないときだけ）③決着内容の内訳
+      （中押し・目数差〔うち半目・うち負けの10目差以内／以上〕・時間切れ・ジコ・無勝負・不明）
+      ④対局履歴、を表示する。指導などの無勝負は、最近の流れ・相手別成績には入れず、決着内容には数える
       （修正は入力タブに内容を読み込んで「更新する」）
   - ⚙️設定タブ：新星の名前の登録、データエクスポート（JSON）
 
@@ -127,6 +132,12 @@
   .game-memo { margin-top: 8px; font-size: 0.84rem; color: #555; background: #faf8f0; border-left: 3px solid #b89752; padding: 6px 10px; white-space: pre-wrap; word-break: break-all; line-height: 1.6; }
   .game-btns { flex-shrink: 0; }
   .link-sm { background: none; border: none; color: #aaa; font-size: 0.78rem; cursor: pointer; font-family: inherit; padding: 2px 4px; }
+
+  .help-details { margin: -4px 0 12px; }
+  .help-details > summary { font-size: 0.8rem; font-weight: bold; color: #2c3e50; cursor: pointer; list-style: none; padding: 2px 0; }
+  .help-details > summary::-webkit-details-marker { display: none; }
+  .help-details > summary::before { content: "▶ "; font-size: 0.65rem; color: #b89752; }
+  .help-details[open] > summary::before { content: "▼ "; }
 
   #setup-banner { display: none; background: #fff3cd; border: 1px solid #ffc107; color: #856404; padding: 12px 14px; border-radius: 8px; margin-bottom: 14px; font-size: 0.85rem; line-height: 1.7; }
   #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #2c3e50; color: #fff; padding: 10px 20px; border-radius: 20px; font-size: 0.85rem; display: none; z-index: 999; white-space: nowrap; }
@@ -239,7 +250,13 @@
     <!-- 履歴 -->
     <div class="panel" id="panel-history">
       <h3 id="history-title">対局履歴</h3>
+      <details class="help-details">
+        <summary>ボタンの使い方</summary>
+        <p class="note" style="margin:6px 0 0">対局相手のボタンで絞り込めます。1人選ぶとその相手との対局だけを表示し、成績や決着内容もその相手の分に切り替わります。もう一度押すか「すべて」で全件に戻ります。「📄棋譜ありのみ」は、棋譜URLが登録されている対局だけを表示します。</p>
+      </details>
+      <div id="hist-opp-chips" style="margin:0 0 12px"></div>
       <div id="summary"></div>
+      <div id="hist-sections"></div>
       <div id="list"></div>
     </div>
 
@@ -447,6 +464,7 @@ $("f-submit").addEventListener("click", () => {
 });
 
 // ---------- 履歴 ----------
+let oppFilter = null; // 履歴の対局相手の絞り込み（null＝すべて）
 const TYPE_LABEL = { chuoshi: "中押し", moku: "目数差", jikan: "時間切れ", jigo: "ジコ（黒勝ち）", fumei: "不明" };
 const BAND_LABEL = { within10: "10目差以内", over10: "10目差以上", unknown: "10目差の判別なし" };
 function fmtDate(iso) { if (!iso) return ""; const [y, m, d] = iso.split("-"); return `${y}/${parseInt(m)}/${parseInt(d)}`; }
@@ -454,25 +472,97 @@ function resultText(g) {
   if (g.type === "moku") return g.margin ? `${g.margin}目差` : "目数差（差不明）";
   return TYPE_LABEL[g.type] || "";
 }
+let kifuOnly = false; // 履歴：棋譜ありの対局だけに絞り込む
+function secHead(t) { return `<h4 style="border-left:4px solid #b89752;padding-left:8px;color:#2c3e50;margin:18px 0 10px;font-size:0.95rem">${t}</h4>`; }
+// 最近の流れ（○勝ち・×負け。古い順に左から並べる。無勝負は入れない）
+function flowHTML(list) {
+  const decided = list.filter(([, g]) => g.result === "win" || g.result === "lose");
+  if (!decided.length) return '<span style="color:#999">—</span>';
+  return [...decided].reverse().map(([, g]) => g.result === "win"
+    ? '<span style="color:#2c3e50;font-size:1.1rem;font-weight:bold;margin-right:2px">○</span>'
+    : '<span style="color:#e74c3c;font-size:1.1rem;font-weight:bold;margin-right:2px">×</span>').join("");
+}
+function wlOf(list) {
+  let w = 0, l = 0;
+  list.forEach(([, g]) => { if (g.result === "win") w++; else if (g.result === "lose") l++; });
+  return { w, l };
+}
+function wlText(list) { const { w, l } = wlOf(list); return `${w}勝 ${l}敗`; }
+// 決着内容の内訳（指導などの無勝負も、決着の種類としては数える）
+function decisionHTML(list) {
+  if (!list.length) return '<p style="color:#999;font-size:0.88rem">対局記録なし</p>';
+  const by = t => list.filter(([, g]) => g.type === t && g.result !== "mushoubu");
+  const chuoshi = by("chuoshi"), moku = by("moku"), jikan = by("jikan"), jigo = by("jigo"), fumei = by("fumei");
+  const mush = list.filter(([, g]) => g.result === "mushoubu");
+  const sub = (label, arr, withWl) => arr.length
+    ? `<div style="padding-left:16px;color:#777;font-size:0.82rem">うち${label}　${arr.length}局${withWl ? `（${wlText(arr)}）` : ""}</div>` : "";
+  const lost = moku.filter(([, g]) => g.result === "lose");
+  const lostIn = lost.filter(([, g]) => g.band === "within10");
+  const lostOver = lost.filter(([, g]) => g.band === "over10");
+  const lostUnk = lost.filter(([, g]) => g.band !== "within10" && g.band !== "over10");
+  let h = '<div style="font-size:0.88rem;color:#333;line-height:2">';
+  if (chuoshi.length) h += `<div>中押し　${chuoshi.length}局　（${wlText(chuoshi)}）</div>`;
+  if (moku.length) {
+    h += `<div>目数差　${moku.length}局　（${wlText(moku)}）</div>`;
+    h += sub("半目", moku.filter(([, g]) => g.margin === 0.5), true);
+    h += sub("負けが10目差以内", lostIn, false);
+    h += sub("負けが10目差以上", lostOver, false);
+    h += sub("負けで10目差の判別なし", lostUnk, false);
+  }
+  h += `<div>時間切れ　${jikan.length}局　（${wlText(jikan)}）</div>`;
+  if (jigo.length) h += `<div>ジコ（黒勝ち）　${jigo.length}局　（${wlText(jigo)}）</div>`;
+  h += `<div>無勝負　${mush.length}局</div>`;
+  if (fumei.length) h += `<div>不明　${fumei.length}局　（${wlText(fumei)}）</div>`;
+  return h + "</div>";
+}
 function renderHistory() {
   $("history-title").textContent = `${nm()}の対局履歴`;
-  const entries = Object.entries(games).sort((a, b) => (b[1].date || "").localeCompare(a[1].date || "") || (b[1].at || 0) - (a[1].at || 0));
-  const w = entries.filter(([, g]) => g.result === "win").length;
-  const l = entries.filter(([, g]) => g.result === "lose").length;
-  const m = entries.filter(([, g]) => g.result === "mushoubu").length;
-  const lostMoku = entries.filter(([, g]) => g.result === "lose" && g.type === "moku");
-  const cIn = lostMoku.filter(([, g]) => g.band === "within10").length;
-  const cOver = lostMoku.filter(([, g]) => g.band === "over10").length;
-  const cUnk = lostMoku.length - cIn - cOver;
-  const mokuLine = lostMoku.length
-    ? `<div style="font-size:0.82rem;color:#666;margin-top:4px">目数差で負け ${lostMoku.length}局：10目差以内 ${cIn}局／10目差以上 ${cOver}局${cUnk ? `／判別なし ${cUnk}局` : ""}</div>` : "";
-  $("summary").innerHTML = entries.length
-    ? `<div class="summary">通算 <strong>${w + l}局</strong>　${w}勝 ${l}敗${w + l ? `（勝率 ${(w / (w + l)).toFixed(2)}）` : ""}${m ? `　無勝負 ${m}局` : ""}${mokuLine}</div>`
+  const allEntries = Object.entries(games).sort((a, b) => (b[1].date || "").localeCompare(a[1].date || "") || (b[1].at || 0) - (a[1].at || 0));
+  // 対局相手別のボタン（対局数の多い順）。絞り込み中の相手が消えていたら解除する
+  const oppCount = {};
+  allEntries.forEach(([, g]) => { if (g.opponent) oppCount[g.opponent] = (oppCount[g.opponent] || 0) + 1; });
+  if (oppFilter && !oppCount[oppFilter]) oppFilter = null;
+  const oppNames = Object.keys(oppCount).sort((a, b) => oppCount[b] - oppCount[a] || a.localeCompare(b, "ja"));
+  $("hist-opp-chips").innerHTML = oppNames.length
+    ? `<div class="chips" style="margin:0 0 6px"><button type="button" class="chip${!oppFilter ? " sel" : ""}" data-opp="">すべて</button>`
+      + `<button type="button" class="chip" data-action="kifu-only" style="${kifuOnly ? "background:#27ae60;border-color:#27ae60;color:#fff" : ""}">📄棋譜ありのみ</button></div>`
+      + `<div class="chips" style="margin:0">` + oppNames.map(n => `<button type="button" class="chip${oppFilter === n ? " sel" : ""}" data-opp="${esc(n)}">${esc(n)}（${oppCount[n]}）</button>`).join("") + `</div>`
     : "";
-  if (!entries.length) {
+  let entries = allEntries;
+  if (kifuOnly) entries = entries.filter(([, g]) => g.kifuUrl || g.kifuUrl2);
+  if (oppFilter) entries = entries.filter(([, g]) => g.opponent === oppFilter);
+  $("summary").innerHTML = ""; $("hist-sections").innerHTML = "";
+  if (!allEntries.length) {
     $("list").innerHTML = `<p style="color:#999;font-size:0.88rem">まだ対局がありません。📝入力タブから最初の1局を記録しましょう。</p>`;
     return;
   }
+  if (!entries.length) {
+    $("list").innerHTML = `<p style="color:#999;font-size:0.88rem">該当する対局がありません。</p>`;
+    return;
+  }
+  const { w, l } = wlOf(entries);
+  const m = entries.filter(([, g]) => g.result === "mushoubu").length;
+  $("summary").innerHTML = `<div class="summary">${oppFilter ? esc(oppFilter) + "さんとの対戦" : "通算"} <strong>${w + l}局</strong>　${w}勝 ${l}敗${w + l ? `（勝率 ${(w / (w + l)).toFixed(2)}）` : ""}${m ? `　無勝負 ${m}局` : ""}</div>`;
+
+  // igo.htmlの履歴タブと同じ構成：最近の流れ／相手別成績／決着内容／対局履歴
+  let sec = secHead("最近の流れ");
+  sec += `<div style="background:#f9f8f4;border-radius:6px;padding:12px 14px;margin-bottom:4px">
+    <div style="display:flex;flex-wrap:wrap;gap:2px;margin-bottom:6px">${flowHTML(entries)}</div>
+    <div style="font-size:0.85rem;color:#666">${w}勝 ${l}敗（${w + l}局）</div></div>`;
+  if (!oppFilter) {
+    const oppMap = {};
+    entries.forEach(e => { const g = e[1]; if (g.result === "win" || g.result === "lose") (oppMap[g.opponent] = oppMap[g.opponent] || []).push(e); });
+    const names = Object.keys(oppMap).sort((a, b) => oppMap[b].length - oppMap[a].length || a.localeCompare(b, "ja"));
+    sec += secHead("相手別成績");
+    sec += names.length ? names.map(n => `<div style="padding:8px 0;border-bottom:1px solid #f0ede3">
+        <div><strong>vs ${esc(n)}</strong>　${wlText(oppMap[n])}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:1px;margin-top:4px">${flowHTML(oppMap[n])}</div></div>`).join("")
+      : '<p style="color:#999;font-size:0.88rem">データなし</p>';
+  }
+  sec += secHead("決着内容") + decisionHTML(entries);
+  sec += secHead("対局履歴");
+  $("hist-sections").innerHTML = sec;
+
   const okUrl = u => /^https?:\/\//.test(u || "");
   $("list").innerHTML = entries.map(([id, g]) => {
     const mine = g.teai || "互先", theirs = TEAI_PAIR[mine] || "互先";
@@ -497,6 +587,12 @@ function renderHistory() {
     </div>`;
   }).join("");
 }
+$("hist-opp-chips").addEventListener("click", e => {
+  const c = e.target.closest(".chip"); if (!c) return;
+  if (c.dataset.action === "kifu-only") kifuOnly = !kifuOnly;
+  else oppFilter = (c.dataset.opp && c.dataset.opp !== oppFilter) ? c.dataset.opp : null; // もう一度押すと解除
+  renderHistory();
+});
 $("list").addEventListener("click", e => {
   const b = e.target.closest("[data-act]"); if (!b) return;
   const id = b.dataset.id;
