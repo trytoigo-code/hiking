@@ -34,6 +34,7 @@
 【技術構成】
   - バニラJS（React・Babel 不使用）
   - 星取・点棒それぞれのレーティング計算ロジック（Elo方式）を、この中に複製して使用する
+    （星取は、シーズンをまたぐ持ち越し＝igo.htmlの go-league/state/startRatings も読んで、同じ開始値から計算する）
     （igo.html/mahjong.htmlの実装と同じ定数・同じ計算式。星取側の「手合い差の重み」は
     標準（×1）固定とする）
   - 外部ライブラリなし・ビルド不要・1ファイル完結
@@ -256,7 +257,7 @@ const isConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY";
 // ---------- State ----------
 // igoState・mjStateは、igo.html/mahjong.html自身のFirebaseノードを読み取り専用で参照する
 // （このアプリからは一切書き込まない）。configだけ、このアプリ専用ノードに読み書きする。
-let igoState = { players: [], history: [] };
+let igoState = { players: [], history: [], startRatings: {} };
 let mjState  = { players: [], history: [], chipRate: 1 };
 let config   = { members: [], weights: { igo: 0.7, mahjong: 0.3 } };
 let igoLoaded = false, mjLoaded = false, configLoaded = false;
@@ -275,7 +276,8 @@ if (isConfigured) {
       const data = snap.val();
       igoState = {
         players: (data && Array.isArray(data.players)) ? data.players : [],
-        history: (data && Array.isArray(data.history)) ? data.history : []
+        history: (data && Array.isArray(data.history)) ? data.history : [],
+        startRatings: (data && data.startRatings && typeof data.startRatings === "object") ? data.startRatings : {}
       };
       igoLoaded = true;
       onDataReady();
@@ -435,7 +437,9 @@ function igoChronological(history) {
 function computeIgoRatings(state) {
   const names = state.players || [];
   const r = {}, n = {};
-  names.forEach(p => { r[p] = RATING_BASE; n[p] = 0; });
+  // 前のシーズンの終わりのレートと対局数から始める（igo.htmlの state.startRatings。無い人は1500・0局）
+  const sr = state.startRatings || {};
+  names.forEach(p => { const s0 = sr[p]; r[p] = s0 ? s0.rating : RATING_BASE; n[p] = s0 ? (s0.games || 0) : 0; });
   const expect = d => 1 / (1 + Math.pow(10, -d / 400));
   const kOf = p => n[p] < IGO_K_SWITCH_GAMES ? IGO_K_NEW : IGO_K_SETTLED;
 
@@ -465,7 +469,7 @@ function computeIgoRatings(state) {
 
   const result = {};
   names.forEach(p => {
-    if (n[p] > 0) result[p] = { rating: r[p], games: n[p], provisional: n[p] < RATING_PROVISIONAL_GAMES };
+    if (n[p] > 0 || sr[p]) result[p] = { rating: r[p], games: n[p], provisional: n[p] < RATING_PROVISIONAL_GAMES };
   });
   return result;
 }
