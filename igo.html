@@ -59,6 +59,9 @@
       レーティング表示中は、順位の中に「レーティングの仕組み」の説明を折りたたみで表示する
       （換算値・暫定の基準は定数から組み立てるため、定数を変えても説明と食い違わない）。
       現在のシーズンのみ対象。
+      レーティング表示中は、順位の上に推移グラフを表示する（横軸はレートの対象になった対局の順で全員共通、
+      縦軸はレート。全員の線を色分けで重ね、対局のない人の線は横に伸ばす。名前のボタンをタップすると
+      その人の線を強調し、他は薄くする。点線は開始時の1500。手合い差の重みの切り替えにも連動する）。
   - 順位表タブの折りたたみ表示（「順位」「上手・下手成績」「互先 黒白成績」「ご無沙汰ランキング」は
       見出しをタップして開閉する。初期状態は閉じている。開閉の状態は、結果の登録などで
       画面が更新されても保たれる）
@@ -140,7 +143,6 @@
   - レーティングと対局数の次シーズンへの持ち越し（現状は新シーズンで全員1500・0局に戻る。
       持ち越しの方針を選べる設定画面を作る案。手合いは持ち越されるので、レートも揃えたい。
       名前で本人を判別しているため、改名・人数変更の扱いも要検討）
-  - レーティングの推移グラフ（対局順に計算しているので、各対局後のレートを並べれば作れる）
   - 結果入力画面のカード型UI
   - 対戦数が少ない（まだ対局していない）組み合わせの表示
   - ダークモード対応
@@ -486,6 +488,7 @@
           <button class="filter-btn" id="sort-rating">レーティング（参考値）</button>
         </div>
         <div id="rating-options" style="display:none"></div>
+        <div id="rating-chart" style="display:none"></div>
         <div id="rating-help" style="display:none"></div>
         <div id="rank-list"></div>
       </details>
@@ -1349,6 +1352,9 @@ function computeRatings(scale) {
   const names = state.players;
   const r = {}, n = {}, wins = {}, losses = {};
   names.forEach(p => { r[p] = RATING_BASE; n[p] = 0; wins[p] = 0; losses[p] = 0; });
+  // 推移グラフ用：レートの対象になった対局ごとに、全員のその時点のレートを記録する（series[名前][0]は開始時の1500）
+  const series = {}, gameDates = [];
+  names.forEach(p => { series[p] = [RATING_BASE]; });
 
   const expect = d => 1 / (1 + Math.pow(10, -d / 400));
   const kOf = p => n[p] < RATING_K_SWITCH_GAMES ? RATING_K_NEW : RATING_K_SETTLED;
@@ -1375,12 +1381,78 @@ function computeRatings(scale) {
     r[w] += kw * miss;
     r[l] -= kl * miss;
     n[w]++; n[l]++; wins[w]++; losses[l]++;
+    names.forEach(p => series[p].push(r[p]));
+    gameDates.push(m.date || "");
   });
 
-  return names
+  const out = names
     .filter(p => n[p] > 0)
     .map(p => ({ name: p, rating: r[p], games: n[p], wins: wins[p], losses: losses[p] }))
     .sort((a, b) => b.rating - a.rating);
+  out.series = series; out.gameDates = gameDates;
+  return out;
+}
+
+// ---------- レーティングの推移グラフ ----------
+// 横軸は、レートの対象になった対局の順（全員共通）。縦軸はレート。対局のない人の線は、その間そのまま横に伸びる。
+// 名前のボタンをタップすると、その人の線を太く強調し、他の人は薄くする（もう一度押すと解除）。
+let ratingChartFocus = null;
+const esc = str => String(str == null ? "" : str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const RATING_CHART_COLORS = ["#c0392b", "#2980b9", "#27ae60", "#d68910", "#8e44ad", "#16a085", "#c2185b"];
+
+function ratingChartHTML(ratings, focus) {
+  const total = (ratings.gameDates || []).length;
+  if (ratings.length === 0 || total < 1) return `<p class="note" style="margin-top:0">レーティングの対象になる対局が、まだありません。</p>`;
+  const colorOf = p => RATING_CHART_COLORS[Math.max(0, state.players.indexOf(p)) % RATING_CHART_COLORS.length];
+  const W = 300, H = 170, padL = 30, padR = 8, padT = 10, padB = 22;
+  const all = ratings.flatMap(rt => ratings.series[rt.name]);
+  const vMin = Math.min(...all), vMax = Math.max(...all);
+  const range = vMax - vMin;
+  const step = range <= 150 ? 25 : range <= 300 ? 50 : 100;
+  const lo = Math.floor((vMin - 5) / step) * step, hi = Math.ceil((vMax + 5) / step) * step;
+  const x = i => padL + (W - padL - padR) * i / total;
+  const y = v => padT + (H - padT - padB) * (1 - (v - lo) / (hi - lo));
+
+  let grid = "";
+  for (let v = lo; v <= hi; v += step) {
+    const base = v === RATING_BASE;
+    grid += `<line x1="${padL}" y1="${y(v).toFixed(1)}" x2="${W - padR}" y2="${y(v).toFixed(1)}" stroke="${base ? "#bbb" : "#eee"}" stroke-width="1"${base ? ' stroke-dasharray="3 3"' : ""}/>`
+          + `<text x="${padL - 3}" y="${(y(v) + 3).toFixed(1)}" font-size="8" text-anchor="end" fill="#999">${v}</text>`;
+  }
+  // 強調中の人を最後（いちばん手前）に描く
+  const order = ratings.map(rt => rt.name).sort((a, b) => (a === focus) - (b === focus));
+  let lines = "";
+  order.forEach(name => {
+    const pts = ratings.series[name].map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+    const dim = focus && name !== focus;
+    const color = colorOf(name), last = ratings.series[name][total];
+    lines += `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="${name === focus ? 3 : 1.8}" stroke-linejoin="round" opacity="${dim ? 0.2 : 1}"/>`
+           + `<circle cx="${x(total).toFixed(1)}" cy="${y(last).toFixed(1)}" r="${name === focus ? 4 : 3}" fill="${color}" opacity="${dim ? 0.2 : 1}"/>`;
+  });
+  const d0 = ratings.gameDates[0], d1 = ratings.gameDates[total - 1];
+  const axis = total > 1
+    ? `<text x="${x(1).toFixed(1)}" y="${H - 6}" font-size="8" text-anchor="start" fill="#999">${esc(d0)}</text><text x="${x(total).toFixed(1)}" y="${H - 6}" font-size="8" text-anchor="end" fill="#999">${esc(d1)}</text>`
+    : `<text x="${x(1).toFixed(1)}" y="${H - 6}" font-size="8" text-anchor="end" fill="#999">${esc(d0)}</text>`;
+
+  const buttons = ratings.map(rt => `<button type="button" class="filter-btn rating-focus-btn ${focus === rt.name ? "active" : ""}" data-name="${esc(rt.name)}" style="display:inline-flex;align-items:center;gap:5px"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${colorOf(rt.name)}"></span>${esc(rt.name)} ${Math.round(rt.rating)}</button>`).join("");
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;background:#faf9f5;border:1px solid #e8e4da;border-radius:6px">${grid}${lines}${axis}</svg>`
+    + `<div style="display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 4px">${buttons}</div>`
+    + `<p class="note" style="margin:4px 0 12px">横軸はレートの対象になった対局の順（全${total}局）です。名前をタップすると、その人の線を強調します。点線は開始時の${RATING_BASE}です。</p>`;
+}
+
+function renderRatingChart(ratings) {
+  const el = document.getElementById("rating-chart");
+  if (!el) return;
+  if (sortMode !== "rating" || !ratings) { el.style.display = "none"; el.innerHTML = ""; return; }
+  if (ratingChartFocus && !ratings.some(rt => rt.name === ratingChartFocus)) ratingChartFocus = null;
+  el.style.display = "";
+  el.innerHTML = ratingChartHTML(ratings, ratingChartFocus);
+  el.querySelectorAll(".rating-focus-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      ratingChartFocus = ratingChartFocus === btn.dataset.name ? null : btn.dataset.name;
+      renderRatingChart(ratings);
+    });
+  });
 }
 
 // レーティング表示中だけ、説明と「手合い差の重み」ボタンを順位の上に出す
@@ -1431,8 +1503,10 @@ function renderStandings() {
   const raw = calcStats();
   const isRating = sortMode === "rating";
   const ratingMap = {};
-  if (isRating) computeRatings(ratingScale).forEach(r => { ratingMap[r.name] = r; });
+  const ratingList = isRating ? computeRatings(ratingScale) : null;
+  if (isRating) ratingList.forEach(r => { ratingMap[r.name] = r; });
   renderRatingOptions();
+  renderRatingChart(ratingList);
 
   const sorted = raw.slice().sort((a,b) => {
     if (isRating) {
