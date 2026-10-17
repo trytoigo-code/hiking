@@ -39,12 +39,6 @@
 
 【主な機能（現時点）】
   - 対局者設定（現時点では7名、拡張余地あり）
-      改名への対応：設定タブで名前を直して保存すると、同じ枠で名前が変わったものを改名とみなし、確認のうえで
-      過去の対局履歴・手合い・連勝・コメント（投稿者・リアクション）の名前もまとめて書き換える。並べ替え・
-      入れ替え、初期名（対局者1〜7）の出入りは改名とみなさない。過去シーズンのアーカイブは当時のまま残す。
-      キャンセルを選ぶと、名前だけ変えて過去の記録は旧名のまま残る（従来の動き）。
-      他のアプリ側の注意：sogo.html のメンバー対応づけ（星取での名前）は、改名後に手動で選び直す。
-      shinsei.html は星取の枠の番号で相手を識別しているので、そのまま追随する
   - 結果入力（中押し・時間切れ・目数差・持碁）
       目数差は、何目差か忘れた場合に「差は不明」として登録できる（入力・修正の両方に
       チェックあり。数字は保存せず、履歴には「目数差不明」バッジを表示する。
@@ -54,7 +48,7 @@
       後から思い出したら、修正画面で数字を入れ直せる）
   - 順位表示（勝数順/勝率順/レーティング（参考値）の切り替え対応）
       レーティング（参考値）：手合いを考慮して強さを数値にした参考値。対局した順（対局日の
-      古い順。同じ日は登録順）に1局ずつ更新する方式（Elo方式）。初めての人は1500から始め、各対局で
+      古い順。同じ日は登録順）に1局ずつ更新する方式（Elo方式）。全員1500から始め、各対局で
       勝敗と手合い差（HANDICAP_ELO）から勝つ確率を予想し、意外な結果ほど大きく動く。
       1局で動く幅は、その人の対局が20局未満の間は大きめ（最大40点）、以降は小さめ（最大24点）。
       保存はせず、表示のたびに全履歴から計算し直す。
@@ -64,17 +58,7 @@
       レーティング表示中に画面上で切り替え可能。順位表・手合い割の判定には使わない。
       レーティング表示中は、順位の中に「レーティングの仕組み」の説明を折りたたみで表示する
       （換算値・暫定の基準は定数から組み立てるため、定数を変えても説明と食い違わない）。
-      シーズンをまたぐ持ち越し：「新シーズンを始める」で、そのシーズンの終わりのレートと対局数を
-      state.startRatings に保存し、次のシーズンの開始値にする（1500には戻らない。対局数も引き継ぐので、
-      Kの切り替えと「暫定」の判定も続く。計算は手合い差の重み標準×1）。今シーズン対局のなかった人も、
-      開始値のレートで順位に載る。設定タブの「シーズン開始時のレート」で、対局者ごとに開始値を手動で直せる
-      （途中参加・実力とのずれの補正。空欄で1500に戻る。変更するとそのシーズン全体が計算し直される。
-      「手動」の印は次のシーズンへ引き継ぐ時点で外れる）。アーカイブには startRatings（開始時）と
-      endRatings（終了時）を保存する。完全リセットでは開始値も消えて全員1500に戻る。
-      sogo.html・shinsei.html の複製ロジックも startRatings を読む。
-      レーティング表示中は、順位の上に推移グラフを表示する（横軸はレートの対象になった対局の順で全員共通、
-      縦軸はレート。全員の線を色分けで重ね、対局のない人の線は横に伸ばす。名前のボタンをタップすると
-      その人の線を強調し、他は薄くする。点線は1500。手合い差の重みの切り替えにも連動する）。
+      現在のシーズンのみ対象。
   - 順位表タブの折りたたみ表示（「順位」「上手・下手成績」「互先 黒白成績」「ご無沙汰ランキング」は
       見出しをタップして開閉する。初期状態は閉じている。開閉の状態は、結果の登録などで
       画面が更新されても保たれる）
@@ -115,7 +99,7 @@
       記録するが、他の指導対局と同様に連勝・手合い・各種成績の集計には使われない。
       履歴には「無勝負」バッジと「📚指導対局」バッジを両方表示する）
   - 初期手合い設定（ペアごとに手合いを手動設定可能）
-  - シーズンリセット（履歴をFirebaseに保存後リセット・手合いとレーティングは引き継ぎ）
+  - シーズンリセット（履歴をFirebaseに保存後リセット・手合いは引き継ぎ）
   - 過去シーズンのアーカイブ表示（Firebase go-league/seasons/ に保存）
   - 管理者メニュー（折りたたみ式・対局者設定・初期手合い設定・シーズン管理を収録）
   - 完全リセット（履歴・アーカイブ・シーズン番号を消去してシーズン1に戻す。手合いは保持）
@@ -143,7 +127,8 @@
       ①はデータ上 kifuUrl（従来の棋譜URL欄をそのまま①用にした）、②は kifuUrl2 に保存する。
       履歴に「📄棋譜①」（緑）・「📄棋譜②」（青）のバッジとして表示され、タップで新規タブに開く。
       履歴タブ上部にバッジの意味を説明する注記あり。履歴フィルターの「棋譜ありのみ」は、
-      ①②のどちらかが登録されている対局に絞り込める）
+      ①②のどちらかが登録されている対局に絞り込める。修正画面にも、結果入力と同じ
+      「つぶや棋譜を開く／棋譜見てねを開く」リンクあり）
   - Firebase によるリアルタイム同期
   - データエクスポート（設定タブからJSONファイルとしてダウンロード。日付入りファイル名で保存）
   - 表示回数（ヘッダーに常時表示。個人アカウントが無いため「誰が見たか」は分からない
@@ -153,8 +138,10 @@
 
 【今後の改良候補】
   - レーティングの手合い換算値（HANDICAP_ELO）を実データで調整する
-  - 人数変更（現状は7名固定）の扱い。対局者の入れ替え時、開始時のレートをどう引き継ぐか
-  - 過去シーズンのアーカイブの名前と、sogo.html の対応づけ（星取での名前）の改名への追随
+  - レーティングと対局数の次シーズンへの持ち越し（現状は新シーズンで全員1500・0局に戻る。
+      持ち越しの方針を選べる設定画面を作る案。手合いは持ち越されるので、レートも揃えたい。
+      名前で本人を判別しているため、改名・人数変更の扱いも要検討）
+  - レーティングの推移グラフ（対局順に計算しているので、各対局後のレートを並べれば作れる）
   - 結果入力画面のカード型UI
   - 対戦数が少ない（まだ対局していない）組み合わせの表示
   - ダークモード対応
@@ -397,19 +384,14 @@
         <button class="btn" id="save-levels" style="background:#b89752">手合いを保存して同期</button>
         <p class="note" style="margin-top:8px">※ 対局記録を修正・削除すると手合いと連勝数は自動で再計算されます。手動で直接変更したい場合はここを使ってください。</p>
 
-        <h3 style="margin-top:24px">シーズン開始時のレート</h3>
-        <p class="note">レーティングは、前のシーズンの終わりの値から引き継ぎます（初めての人は空欄＝1500から）。途中から参加する人や、実力とずれた人は、ここで開始時のレートを直せます。空欄にすると1500に戻ります。変更すると、このシーズンのレーティングが、すべて計算し直されます。</p>
-        <div id="start-rating-list"></div>
-        <button class="btn" id="save-start-ratings" style="background:#b89752">開始時のレートを保存して同期</button>
-
         <h3 style="margin-top:24px">シーズン管理</h3>
-        <p class="note">対局履歴と連勝カウントをリセットします。手合いと、レーティング（レートと対局数）は引き継ぎます。</p>
+        <p class="note">対局履歴と連勝カウントをリセットします。手合いは引き継ぎます。</p>
         <div id="season-info" style="margin-bottom:12px;font-size:0.9rem;color:#2c3e50"></div>
         <button class="btn" id="season-reset" style="background:#e74c3c">新シーズンを始める</button>
         <div id="past-seasons" style="margin-top:16px"></div>
 
         <h3 style="margin-top:24px">完全リセット</h3>
-        <p class="note">テスト中など、すべてをやり直したいときに使います。履歴・アーカイブ・シーズン番号をすべて消去してシーズン1に戻します。手合いは保持されますが、引き継いだレーティングは消えて、全員1500に戻ります。</p>
+        <p class="note">テスト中など、すべてをやり直したいときに使います。履歴・アーカイブ・シーズン番号をすべて消去してシーズン1に戻します。手合いは保持されます。</p>
         <button class="btn" id="full-reset" style="background:#888">シーズン1からやり直す</button>
 
         <h3 style="margin-top:24px">データエクスポート</h3>
@@ -505,7 +487,6 @@
           <button class="filter-btn" id="sort-rating">レーティング（参考値）</button>
         </div>
         <div id="rating-options" style="display:none"></div>
-        <div id="rating-chart" style="display:none"></div>
         <div id="rating-help" style="display:none"></div>
         <div id="rank-list"></div>
       </details>
@@ -640,10 +621,12 @@
     <div class="fg">
       <label>①つぶや棋譜URL（任意）</label>
       <input type="url" id="edit-kifu-url" placeholder="つぶや棋譜のリンクがあれば貼り付け">
+      <p class="note" style="margin:6px 0 0"><a href="https://igo-kids.com/pk/post-kifu.php" target="_blank" rel="noopener noreferrer" style="color:#27ae60;font-weight:bold">つぶや棋譜を開く（棋譜を登録してURLを取得）</a></p>
     </div>
     <div class="fg">
       <label>②棋譜見てねURL（任意）</label>
       <input type="url" id="edit-kifu-url2" placeholder="棋譜見てねのリンクがあれば貼り付け">
+      <p class="note" style="margin:6px 0 0"><a href="https://gokifuai.com/kifu" target="_blank" rel="noopener noreferrer" style="color:#2f6fd0;font-weight:bold">棋譜見てねを開く（棋譜を登録してURLを取得）</a></p>
     </div>
     <div style="display:flex;gap:10px;margin-top:8px">
       <button class="btn" id="edit-save">保存する</button>
@@ -684,8 +667,7 @@ let state = {
   history: [],
   levels:  {},  // ペアごとの手合い { "西|山田": 1, ... }
   streaks: {},  // ペアごとの現在の連勝数  { "西|山田": 3, ... }
-  season:  1,   // 現在のシーズン番号
-  startRatings: {} // シーズン開始時のレートと対局数 { "西": { rating: 1523.4, games: 41, manual: true }, ... }（無い人は1500・0局）
+  season:  1    // 現在のシーズン番号
 };
 let stateRef = null;
 let seasonsRef = null;
@@ -711,8 +693,7 @@ if (isConfigured) {
           history: Array.isArray(data.history) ? data.history : [],
           levels:  (data.levels  && typeof data.levels  === "object") ? data.levels  : {},
           streaks: (data.streaks && typeof data.streaks === "object") ? data.streaks : {},
-          season:  (typeof data.season === "number") ? data.season : 1,
-          startRatings: (data.startRatings && typeof data.startRatings === "object") ? data.startRatings : {}
+          season:  (typeof data.season === "number") ? data.season : 1
         };
         // 後方互換: 既存データにlevels/streaksがなければ履歴から移行
         if (Object.keys(state.levels).length === 0 && state.history.length > 0) {
@@ -847,69 +828,13 @@ fillPlayerInputs();
   el.addEventListener("blur",  () => editingPlayers = false);
 });
 
-// ---------- 改名の検出と、履歴の名前の書き換え ----------
-// 対局履歴・手合い・連勝・コメントは、対局者を「名前」で記録している。そのため、設定タブで名前を直すだけだと、
-// 過去の記録が旧名のまま取り残され、レーティングや成績が別人として切れてしまう。
-// 保存するとき、同じ枠で名前が変わったものを「改名」とみなし、確認のうえで過去の記録の名前もまとめて書き換える。
-// 次の場合は改名とみなさない：旧名が新しい名簿のどこかに残っている／新名がもともと名簿にいた
-// （＝並べ替え・入れ替え）、初期名（対局者1〜7）の出入り。
-function detectRenames(oldNames, newNames) {
-  const renames = {};
-  const isInitial = n => /^対局者\d+$/.test(n);
-  newNames.forEach((nn, i) => {
-    const on = oldNames[i];
-    if (!on || on === nn) return;
-    if (isInitial(on) || isInitial(nn)) return;
-    if (newNames.includes(on) || oldNames.includes(nn)) return;
-    renames[on] = nn;
-  });
-  return renames;
-}
-// 履歴・手合い・連勝・コメント（投稿者・リアクションの名前）・絞り込みの選択中の名前を、旧名→新名に書き換える。
-// 過去シーズンのアーカイブは、その当時の記録としてそのまま残す。
-function applyRenames(map) {
-  const rn = n => (n != null && Object.prototype.hasOwnProperty.call(map, n)) ? map[n] : n;
-  let changed = 0;
-  state.history.forEach(m => {
-    ["winner", "loser", "p1", "p2"].forEach(k => { if (m[k] != null && rn(m[k]) !== m[k]) { m[k] = rn(m[k]); changed++; } });
-    const c = m.comment;
-    if (c && typeof c === "object") {
-      if (c.author) c.author = rn(c.author);
-      if (c.reactions) Object.keys(c.reactions).forEach(e => { c.reactions[e] = (c.reactions[e] || []).map(rn); });
-    }
-  });
-  const fixKeys = obj => {
-    const out = {};
-    Object.keys(obj || {}).forEach(k => { out[k.split("|").map(rn).join("|")] = obj[k]; });
-    return out;
-  };
-  state.levels  = fixKeys(state.levels);
-  state.streaks = fixKeys(state.streaks);
-  state.startRatings = fixKeys(state.startRatings); // 開始時のレートの名前も追随させる
-  selectedPlayers = selectedPlayers.map(rn);
-  handicapSelectedPlayers = handicapSelectedPlayers.map(rn);
-  lastSorted = []; // 順位変動の比較は、名前が変わったので一度リセット
-  return changed;
-}
-
 document.getElementById("save-players").addEventListener("click", () => {
-  const newNames = [0,1,2,3,4,5,6].map(i => {
+  state.players = [0,1,2,3,4,5,6].map(i => {
     const v = document.getElementById("p" + i).value.trim();
     return v || `対局者${i+1}`;
   });
-  const renames = detectRenames(state.players, newNames);
-  const pairs = Object.entries(renames);
-  let renamedMsg = "";
-  if (pairs.length) {
-    const list = pairs.map(([a, b]) => `${a} → ${b}`).join("\n");
-    if (confirm(`名前が変わりました。\n\n${list}\n\n過去の対局履歴・手合い・コメントの名前も、新しい名前に書き換えますか？\n\nOK：書き換えて保存\nキャンセル：書き換えずに保存（過去の記録は旧名のまま残ります）`)) {
-      const n = applyRenames(renames);
-      renamedMsg = `（履歴の名前${n}か所を書き換えました）`;
-    }
-  }
-  state.players = newNames;
   pushState();
-  showToast("対局者名を全員に同期しました！" + renamedMsg);
+  showToast("対局者名を全員に同期しました！");
 });
 
 // ---------- Match Input ----------
@@ -1178,7 +1103,6 @@ function resetInputForm() {
 
 // ---------- Render（全体描画の呼び出し口） ----------
 function renderAll() {
-  renderStartRatingList();
   buildSelects();
   renderWinsChart();
   renderStandings();
@@ -1421,18 +1345,13 @@ let ratingScale = 1;                  // 手合い差の重み（画面で 0.5 /
 
 // 対局した順（対局日の古い順。同じ日は登録順）に1局ずつレートを更新する（Elo方式）。
 // 各対局で「勝者側の実効レート＋手合い加点 − 敗者側の実効レート」から勝つ確率を予想し、
-// 予想より意外な結果ほど、勝者は大きく上がり、敗者は大きく下がる。初めての人は1500から、前のシーズンがあればその終わりの値から始める。
+// 予想より意外な結果ほど、勝者は大きく上がり、敗者は大きく下がる。全員1500から始める。
 // 1局で動く幅（K）は、その人の対局数が少ないうち（RATING_K_SWITCH_GAMES局未満）は大きく、重ねると小さくする。
 // 保存はせず、表示のたびに全履歴から計算し直す。
 function computeRatings(scale) {
   const names = state.players;
   const r = {}, n = {}, wins = {}, losses = {};
-  // 前のシーズンの終わりのレートと対局数から始める（無い人は1500・0局）。対局数は、Kの切り替えと「暫定」の判定に使う
-  const sr = state.startRatings || {};
-  names.forEach(p => { const s0 = sr[p]; r[p] = s0 ? s0.rating : RATING_BASE; n[p] = s0 ? (s0.games || 0) : 0; wins[p] = 0; losses[p] = 0; });
-  // 推移グラフ用：レートの対象になった対局ごとに、全員のその時点のレートを記録する（series[名前][0]は開始時のレート）
-  const series = {}, gameDates = [];
-  names.forEach(p => { series[p] = [r[p]]; });
+  names.forEach(p => { r[p] = RATING_BASE; n[p] = 0; wins[p] = 0; losses[p] = 0; });
 
   const expect = d => 1 / (1 + Math.pow(10, -d / 400));
   const kOf = p => n[p] < RATING_K_SWITCH_GAMES ? RATING_K_NEW : RATING_K_SETTLED;
@@ -1459,78 +1378,12 @@ function computeRatings(scale) {
     r[w] += kw * miss;
     r[l] -= kl * miss;
     n[w]++; n[l]++; wins[w]++; losses[l]++;
-    names.forEach(p => series[p].push(r[p]));
-    gameDates.push(m.date || "");
   });
 
-  const out = names
-    .filter(p => n[p] > 0 || sr[p])
+  return names
+    .filter(p => n[p] > 0)
     .map(p => ({ name: p, rating: r[p], games: n[p], wins: wins[p], losses: losses[p] }))
     .sort((a, b) => b.rating - a.rating);
-  out.series = series; out.gameDates = gameDates;
-  return out;
-}
-
-// ---------- レーティングの推移グラフ ----------
-// 横軸は、レートの対象になった対局の順（全員共通）。縦軸はレート。対局のない人の線は、その間そのまま横に伸びる。
-// 名前のボタンをタップすると、その人の線を太く強調し、他の人は薄くする（もう一度押すと解除）。
-let ratingChartFocus = null;
-const esc = str => String(str == null ? "" : str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-const RATING_CHART_COLORS = ["#c0392b", "#2980b9", "#27ae60", "#d68910", "#8e44ad", "#16a085", "#c2185b"];
-
-function ratingChartHTML(ratings, focus) {
-  const total = (ratings.gameDates || []).length;
-  if (ratings.length === 0 || total < 1) return `<p class="note" style="margin-top:0">レーティングの対象になる対局が、まだありません。</p>`;
-  const colorOf = p => RATING_CHART_COLORS[Math.max(0, state.players.indexOf(p)) % RATING_CHART_COLORS.length];
-  const W = 300, H = 170, padL = 30, padR = 8, padT = 10, padB = 22;
-  const all = ratings.flatMap(rt => ratings.series[rt.name]);
-  const vMin = Math.min(...all), vMax = Math.max(...all);
-  const range = vMax - vMin;
-  const step = range <= 150 ? 25 : range <= 300 ? 50 : 100;
-  const lo = Math.floor((vMin - 5) / step) * step, hi = Math.ceil((vMax + 5) / step) * step;
-  const x = i => padL + (W - padL - padR) * i / total;
-  const y = v => padT + (H - padT - padB) * (1 - (v - lo) / (hi - lo));
-
-  let grid = "";
-  for (let v = lo; v <= hi; v += step) {
-    const base = v === RATING_BASE;
-    grid += `<line x1="${padL}" y1="${y(v).toFixed(1)}" x2="${W - padR}" y2="${y(v).toFixed(1)}" stroke="${base ? "#bbb" : "#eee"}" stroke-width="1"${base ? ' stroke-dasharray="3 3"' : ""}/>`
-          + `<text x="${padL - 3}" y="${(y(v) + 3).toFixed(1)}" font-size="8" text-anchor="end" fill="#999">${v}</text>`;
-  }
-  // 強調中の人を最後（いちばん手前）に描く
-  const order = ratings.map(rt => rt.name).sort((a, b) => (a === focus) - (b === focus));
-  let lines = "";
-  order.forEach(name => {
-    const pts = ratings.series[name].map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
-    const dim = focus && name !== focus;
-    const color = colorOf(name), last = ratings.series[name][total];
-    lines += `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="${name === focus ? 3 : 1.8}" stroke-linejoin="round" opacity="${dim ? 0.2 : 1}"/>`
-           + `<circle cx="${x(total).toFixed(1)}" cy="${y(last).toFixed(1)}" r="${name === focus ? 4 : 3}" fill="${color}" opacity="${dim ? 0.2 : 1}"/>`;
-  });
-  const d0 = ratings.gameDates[0], d1 = ratings.gameDates[total - 1];
-  const axis = total > 1
-    ? `<text x="${x(1).toFixed(1)}" y="${H - 6}" font-size="8" text-anchor="start" fill="#999">${esc(d0)}</text><text x="${x(total).toFixed(1)}" y="${H - 6}" font-size="8" text-anchor="end" fill="#999">${esc(d1)}</text>`
-    : `<text x="${x(1).toFixed(1)}" y="${H - 6}" font-size="8" text-anchor="end" fill="#999">${esc(d0)}</text>`;
-
-  const buttons = ratings.map(rt => `<button type="button" class="filter-btn rating-focus-btn ${focus === rt.name ? "active" : ""}" data-name="${esc(rt.name)}" style="display:inline-flex;align-items:center;gap:5px"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${colorOf(rt.name)}"></span>${esc(rt.name)} ${Math.round(rt.rating)}</button>`).join("");
-  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;background:#faf9f5;border:1px solid #e8e4da;border-radius:6px">${grid}${lines}${axis}</svg>`
-    + `<div style="display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 4px">${buttons}</div>`
-    + `<p class="note" style="margin:4px 0 12px">横軸はレートの対象になった対局の順（全${total}局）です。名前をタップすると、その人の線を強調します。点線は${RATING_BASE}です。</p>`;
-}
-
-function renderRatingChart(ratings) {
-  const el = document.getElementById("rating-chart");
-  if (!el) return;
-  if (sortMode !== "rating" || !ratings) { el.style.display = "none"; el.innerHTML = ""; return; }
-  if (ratingChartFocus && !ratings.some(rt => rt.name === ratingChartFocus)) ratingChartFocus = null;
-  el.style.display = "";
-  el.innerHTML = ratingChartHTML(ratings, ratingChartFocus);
-  el.querySelectorAll(".rating-focus-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      ratingChartFocus = ratingChartFocus === btn.dataset.name ? null : btn.dataset.name;
-      renderRatingChart(ratings);
-    });
-  });
 }
 
 // レーティング表示中だけ、説明と「手合い差の重み」ボタンを順位の上に出す
@@ -1543,7 +1396,7 @@ function renderRatingOptions() {
   const scaleOpts = [[0.5, "小"], [1, "標準"], [1.5, "大"]];
   el.style.display = "";
   el.innerHTML = `
-    <p class="note" style="margin-top:0">勝敗と手合いから強さを数値にした参考値です（初めての人は1500から。前のシーズンがあれば、その終わりの値から続きます）。順位表や手合い割の判定には使われません。${RATING_PROVISIONAL_GAMES}局未満の人は「暫定」です。</p>
+    <p class="note" style="margin-top:0">勝敗と手合いから強さを数値にした参考値です（全員1500から始まります）。順位表や手合い割の判定には使われません。${RATING_PROVISIONAL_GAMES}局未満の人は「暫定」です。</p>
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;flex-wrap:wrap">
       <span style="font-size:0.78rem;color:#777">手合い差の重み：</span>
       ${scaleOpts.map(([v, label]) => `<button class="filter-btn rating-scale-btn ${ratingScale===v?"active":""}" data-scale="${v}">${label}</button>`).join("")}
@@ -1562,14 +1415,14 @@ const RATING_HELP_HTML = `
   <details class="help-details">
     <summary>レーティングの仕組み</summary>
     <div class="note" style="margin:6px 0 0;line-height:1.7">
-      <div>・勝敗と手合いから推定した「強さの目安」です。数字が大きいほど強く、初めての人は${RATING_BASE}から始まります。</div>
+      <div>・勝敗と手合いから推定した「強さの目安」です。数字が大きいほど強く、全員${RATING_BASE}から始まります。</div>
       <div>・手合いは強さの差を補うものなので、その分を考慮して計算します。ハンデを背負った上手が勝つほどレートが上がり、ハンデをもらった下手が勝っても、上がり方は小さくなります。</div>
       <div>・手合いの換算は、互先${HANDICAP_ELO[0]}／先${HANDICAP_ELO[1]}／2子${HANDICAP_ELO[2]}／3子${HANDICAP_ELO[3]}／4子${HANDICAP_ELO[4]}点です（上手側の向先・向2などは、先・2子と同じ段差として扱います）。仮置きの値です。「手合い差の重み」の小・標準・大は、この換算を0.5倍・1倍・1.5倍にする切り替えです。</div>
       <div>・レートの差が100点なら強い方が約64%、200点なら約76%勝つ、という目安です。</div>
       <div>・対局した順（対局日の古い順、同じ日は登録順）に1局ずつ計算します。新しい対局ほど、今のレートに反映されます。保存はせず、表示のたびに全履歴から計算し直します。</div>
       <div>・1局で動く幅は、対局が${RATING_K_SWITCH_GAMES}局未満の間は最大${RATING_K_NEW}点、それ以降は最大${RATING_K_SETTLED}点です。予想どおりの勝ちは小さく、意外な勝ちほど大きく動きます。</div>
       <div>・数えない対局：指導対局、無勝負。持碁は黒番（下手）の勝ちとして数えます。イレギュラー対局は、記録した手合いのまま数えます（連勝カウントとは扱いが違います）。</div>
-      <div>・今のシーズンの対局が計算の対象です。新シーズンを始めると、その時点のレートと対局数を引き継ぐので、1500には戻りません（対局数も引き継ぐため、「暫定」やKの切り替えも続きます）。途中から入る人や、実力とずれた人は、設定タブの「シーズン開始時のレート」で直せます。</div>
+      <div>・現在のシーズンの対局だけが対象です（新シーズンを始めると、全員1500からやり直しです）。</div>
       <div>・${RATING_PROVISIONAL_GAMES}局未満の人は「暫定」です。対局が少ないうちは、順番や相手の偏りの影響を受けやすい値です。100点以内の差は、誤差の範囲として読んでください。</div>
       <div>・順位表や手合い割の判定には使いません。あくまで参考値です。</div>
     </div>
@@ -1581,10 +1434,8 @@ function renderStandings() {
   const raw = calcStats();
   const isRating = sortMode === "rating";
   const ratingMap = {};
-  const ratingList = isRating ? computeRatings(ratingScale) : null;
-  if (isRating) ratingList.forEach(r => { ratingMap[r.name] = r; });
+  if (isRating) computeRatings(ratingScale).forEach(r => { ratingMap[r.name] = r; });
   renderRatingOptions();
-  renderRatingChart(ratingList);
 
   const sorted = raw.slice().sort((a,b) => {
     if (isRating) {
@@ -2920,14 +2771,8 @@ document.getElementById("season-reset").addEventListener("click", async () => {
   if (!confirm(
     `シーズン${state.season}を終了して新シーズンを始めます。\n` +
     `対局履歴と連勝カウントをリセットします。\n` +
-    `手合いと、レーティング（レートと対局数）は引き継ぎます。\n\nよろしいですか？`
+    `手合いは引き継ぎます。\n\nよろしいですか？`
   )) return;
-
-  // このシーズンの終わりのレートと対局数を、次のシーズンの開始値にする（標準の手合い重み×1で計算）。
-  // 今シーズン対局のなかった人の開始値は、そのまま保つ。手動で設定した印は、引き継ぐ時点で外す。
-  const carried = {};
-  Object.keys(state.startRatings || {}).forEach(k => { carried[k] = { rating: state.startRatings[k].rating, games: state.startRatings[k].games || 0 }; });
-  computeRatings(1).forEach(rt => { carried[rt.name] = { rating: Number(rt.rating.toFixed(2)), games: rt.games }; });
 
   // 現在のシーズンデータをFirebaseに保存
   if (seasonsRef) {
@@ -2938,8 +2783,6 @@ document.getElementById("season-reset").addEventListener("click", async () => {
       players: state.players,
       history: state.history,
       levels:  state.levels,
-      startRatings: state.startRatings || {}, // このシーズンの開始時のレート
-      endRatings: carried,                    // このシーズンの終わりのレート（次のシーズンの開始値）
       endDate: dateStr
     });
   }
@@ -2947,11 +2790,10 @@ document.getElementById("season-reset").addEventListener("click", async () => {
   // リセット
   state.season = (state.season || 1) + 1;
   state.history = [];
-  state.startRatings = carried;
   Object.keys(state.streaks).forEach(k => state.streaks[k] = 0);
   lastSorted = [];
   pushState();
-  showToast(`シーズン${state.season - 1}を保存しました。シーズン${state.season}開始！（レートは引き継ぎ）`);
+  showToast(`シーズン${state.season - 1}を保存しました。シーズン${state.season}開始！`);
 });
 
 // ---------- 完全リセット ----------
@@ -2960,7 +2802,6 @@ document.getElementById("full-reset").addEventListener("click", () => {
   if (seasonsRef) seasonsRef.remove();
   state.season  = 1;
   state.history = [];
-  state.startRatings = {};
   Object.keys(state.streaks).forEach(k => state.streaks[k] = 0);
   lastSorted = [];
   pushState();
@@ -2988,41 +2829,6 @@ document.getElementById("export-btn").addEventListener("click", () => {
 });
 
 // ---------- シーズン情報表示 ----------
-// ---------- シーズン開始時のレート（設定タブ） ----------
-function renderStartRatingList() {
-  const el = document.getElementById("start-rating-list");
-  if (!el) return;
-  if (el.contains(document.activeElement) && document.activeElement.tagName === "INPUT") return; // 入力中は作り直さない
-  const sr = state.startRatings || {};
-  el.innerHTML = state.players.map(p => {
-    const s0 = sr[p];
-    const info = s0 ? `対局数 ${s0.games || 0}${s0.manual ? "・手動で設定" : ""}` : "初めて（1500から）";
-    return `<div class="fg" style="display:flex;align-items:center;gap:8px">
-      <div style="flex:1;min-width:0"><div style="font-weight:bold;font-size:0.9rem;color:#2c3e50">${esc(p)}</div><div style="font-size:0.72rem;color:#999">${info}</div></div>
-      <input type="number" step="1" inputmode="numeric" class="start-rating-input" data-name="${esc(p)}" value="${s0 ? Math.round(s0.rating) : ""}" placeholder="1500" style="width:100px;text-align:center">
-    </div>`;
-  }).join("");
-}
-document.getElementById("save-start-ratings").addEventListener("click", () => {
-  const sr = { ...(state.startRatings || {}) };
-  let changed = 0, bad = false;
-  document.querySelectorAll(".start-rating-input").forEach(inp => {
-    const name = inp.dataset.name, raw = inp.value.trim(), cur = sr[name];
-    if (raw === "") { if (cur) { delete sr[name]; changed++; } return; }
-    const v = Number(raw);
-    if (!isFinite(v) || v < 0 || v > 3000) { bad = true; return; }
-    if (cur && Math.round(cur.rating) === Math.round(v)) return; // 変えていない人の細かい値は、そのまま残す
-    sr[name] = { rating: v, games: cur ? (cur.games || 0) : 0, manual: true };
-    changed++;
-  });
-  if (bad) { showToast("0〜3000の数字を入力してください"); return; }
-  if (!changed) { showToast("変更はありません"); return; }
-  if (!confirm(`開始時のレートを${changed}人分変更します。このシーズンのレーティングが、すべて計算し直されます。よろしいですか？`)) return;
-  state.startRatings = sr;
-  pushState();
-  showToast("開始時のレートを保存しました");
-});
-
 function renderSeasonInfo() {
   const el = document.getElementById("season-info");
   if (el) el.textContent = `現在：シーズン ${state.season}`;
