@@ -129,10 +129,12 @@
   - よく対戦している組み合わせ（順位タブ。同じ2人の対局数が多い上位7組を表示。同数のときは
       最近対局した組み合わせが上。指導対局・無勝負・イレギュラー対局も「対局した回数」として
       数える。順位と同じ横バー付き（1位を100%とした割合）。現在のシーズンのみ）
-  - 僅差三兄弟（順位タブ。勝敗に関わらず、僅差（CLOSE_GAME_MAX_MOKU＝6.5目以内。
-      履歴タブの「僅差のみ」と同じ基準）の対局が多い上位3人。指導対局・無勝負は除外。
-      同数のときは全対局に占める僅差の割合が高い人が上。各行に僅差率（僅差の局数÷全局数）を表示。
-      僅差の対局が無い間は非表示）
+  - 僅差三兄弟（順位タブ。僅差（CLOSE_GAME_MAX_MOKU＝6.5目以内。履歴タブの「僅差のみ」と
+      同じ基準）の対局に関わった人の上位3人。指導対局・無勝負は除外。並べ方は「局数」「僅差率」
+      「僅差勝率」のボタンで切り替え（僅差率＝僅差の局数÷全局数、僅差勝率＝僅差の対局での
+      勝ち数÷僅差の局数）。局数が少ない人が100%などで上位に出ないよう、僅差率は全局数が
+      KINSA_MIN_GAMES（5）以上、僅差勝率は僅差がKINSA_MIN_CLOSE（3）局以上の人だけが対象。
+      各行には3つの指標をすべて表示し、選択中のものを太字にする。僅差の対局が無い間は非表示）
   - 半目職人ランキング（順位タブ。半目差での勝利数。半目勝ちが1件も無い間は非表示）
   - 上手・下手成績（順位タブ。ご無沙汰ランキングより上に表示。手合い差のある対局＝互先を除く、で
       全体（上手勝ち/下手勝ちの局数・割合）と対局者ごとの勝敗を集計）
@@ -560,7 +562,9 @@
 
       <div id="kinsa-section" style="display:none">
         <h3 style="margin-top:24px">🔥 僅差三兄弟</h3>
-        <p class="note">勝敗に関わらず、僅差（6.5目以内）の対局が多い3人。</p>
+        <p class="note">勝敗に関わらず、僅差（6.5目以内）の対局が多い3人。並べ方を切り替えると顔ぶれが変わります。</p>
+        <div id="kinsa-modes" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px"></div>
+        <div id="kinsa-note" class="note" style="margin-top:0"></div>
         <div id="kinsa-list"></div>
       </div>
 
@@ -1723,16 +1727,25 @@ function parseMatchDate(dateStr) {
 // ---------- ご無沙汰ランキング・半目職人 ----------
 // 半目職人ランキング：半目差（0.5目）での勝利数。
 // 半目勝ちが1件も無いうちはセクションごと非表示にする。
-// 僅差三兄弟：勝敗に関わらず、僅差の対局（isCloseGame）に関わった回数が多い上位3人。
-// 指導対局は除外。同数のときは、全対局に占める僅差の割合が高い人を上にする。
+// 僅差三兄弟：僅差の対局（isCloseGame）に関わった人の上位3人。指導対局・無勝負は除外。
+// 並べ方は3通り（局数／僅差率／僅差勝率）。僅差率＝僅差の局数÷全局数、
+// 僅差勝率＝僅差の対局での勝ち数÷僅差の局数。少ない局数で100%などになりやすいため、
+// 僅差率は全局数がKINSA_MIN_GAMES以上、僅差勝率は僅差の局数がKINSA_MIN_CLOSE以上の人だけを対象にする。
 // 僅差の対局が1局もない間はセクションごと非表示。
+const KINSA_MIN_GAMES = 5;
+const KINSA_MIN_CLOSE = 3;
+let kinsaMode = "count"; // "count" | "rate" | "winrate"
+const KINSA_MODES = [["count", "局数"], ["rate", "僅差率"], ["winrate", "僅差勝率"]];
+
 function renderKinsa() {
   const section = document.getElementById("kinsa-section");
   const el = document.getElementById("kinsa-list");
+  const modesEl = document.getElementById("kinsa-modes");
+  const noteEl = document.getElementById("kinsa-note");
   if (!section || !el) return;
 
-  const close = {}, total = {};
-  state.players.forEach(p => { close[p] = 0; total[p] = 0; });
+  const close = {}, total = {}, cw = {}, cl = {};
+  state.players.forEach(p => { close[p] = 0; total[p] = 0; cw[p] = 0; cl[p] = 0; });
   state.history.forEach(m => {
     if (m.shidou || m.type === "mushoubu") return;
     const ps = m.type === "jigo" ? [m.p1, m.p2] : [m.winner, m.loser];
@@ -1742,26 +1755,52 @@ function renderKinsa() {
       total[p]++;
       if (isClose) close[p]++;
     });
+    if (isClose) {
+      if (cw[m.winner] !== undefined) cw[m.winner]++;
+      if (cl[m.loser] !== undefined) cl[m.loser]++;
+    }
   });
 
-  const rows = state.players
-    .map(p => ({ name: p, close: close[p], total: total[p] }))
-    .filter(r => r.close > 0)
-    .sort((a, b) => b.close - a.close || (b.close / b.total) - (a.close / a.total))
-    .slice(0, 3);
+  const all = state.players.map(p => ({
+    name: p, close: close[p], total: total[p], w: cw[p], l: cl[p],
+    rate: total[p] ? close[p] / total[p] : 0,
+    winrate: close[p] ? cw[p] / close[p] : 0
+  })).filter(r => r.close > 0);
 
-  if (rows.length === 0) { section.style.display = "none"; return; }
+  if (all.length === 0) { section.style.display = "none"; return; }
   section.style.display = "";
 
+  let rows, note;
+  if (kinsaMode === "rate") {
+    rows = all.filter(r => r.total >= KINSA_MIN_GAMES).sort((a, b) => b.rate - a.rate || b.close - a.close);
+    note = `僅差率＝僅差の局数÷全局数。全${KINSA_MIN_GAMES}局以上の人が対象です。`;
+  } else if (kinsaMode === "winrate") {
+    rows = all.filter(r => r.close >= KINSA_MIN_CLOSE).sort((a, b) => b.winrate - a.winrate || b.close - a.close);
+    note = `僅差勝率＝僅差の対局での勝ち数÷僅差の局数。僅差${KINSA_MIN_CLOSE}局以上の人が対象です。`;
+  } else {
+    rows = all.sort((a, b) => b.close - a.close || b.rate - a.rate);
+    note = "僅差の局数が多い順。同数のときは僅差率が高い人が上です。";
+  }
+  rows = rows.slice(0, 3);
+
+  modesEl.innerHTML = KINSA_MODES.map(([k, label]) =>
+    `<button class="filter-btn kinsa-mode-btn${kinsaMode === k ? " active" : ""}" data-mode="${k}">${label}</button>`).join("");
+  modesEl.querySelectorAll(".kinsa-mode-btn").forEach(btn => {
+    btn.addEventListener("click", () => { kinsaMode = btn.dataset.mode; renderKinsa(); });
+  });
+  noteEl.textContent = note;
+
   const medals = ["🥇","🥈","🥉"];
-  el.innerHTML = rows.map((r, i) => `
+  const hi = (mode, text) => kinsaMode === mode ? `<strong>${text}</strong>` : text;
+  el.innerHTML = rows.length ? rows.map((r, i) => `
     <div class="rank-row">
       <div class="rank-num">${medals[i]}</div>
       <div class="rank-info">
         <div><strong>${r.name}</strong></div>
-        <div class="rank-record">僅差 ${r.close}局／全${r.total}局　僅差率 <strong>${Math.round(r.close / r.total * 100)}%</strong></div>
+        <div class="rank-record">${hi("count", `僅差 ${r.close}局`)}／全${r.total}局　${hi("rate", `僅差率 ${Math.round(r.rate * 100)}%`)}</div>
+        <div class="rank-record">${hi("winrate", `僅差勝率 ${Math.round(r.winrate * 100)}%`)}（${r.w}勝${r.l}敗）</div>
       </div>
-    </div>`).join("");
+    </div>`).join("") : `<p style="color:#999;font-size:0.88rem">条件を満たす人がまだいません。</p>`;
 }
 
 function renderHanme() {
