@@ -129,6 +129,9 @@
   - よく対戦している組み合わせ（順位タブ。同じ2人の対局数が多い上位7組を表示。同数のときは
       最近対局した組み合わせが上。指導対局・無勝負・イレギュラー対局も「対局した回数」として
       数える。順位と同じ横バー付き（1位を100%とした割合）。現在のシーズンのみ）
+  - 僅差三兄弟（順位タブ。勝敗に関わらず、僅差（CLOSE_GAME_MAX_MOKU＝6.5目以内。
+      履歴タブの「僅差のみ」と同じ基準）の対局が多い上位3人。指導対局・無勝負は除外。
+      同数のときは全対局に占める僅差の割合が高い人が上。僅差の対局が無い間は非表示）
   - 半目職人ランキング（順位タブ。半目差での勝利数。半目勝ちが1件も無い間は非表示）
   - 上手・下手成績（順位タブ。ご無沙汰ランキングより上に表示。手合い差のある対局＝互先を除く、で
       全体（上手勝ち/下手勝ちの局数・割合）と対局者ごとの勝敗を集計）
@@ -553,6 +556,12 @@
       <h3 style="margin-top:24px">📈 月別の対局数</h3>
       <p class="note">現在のシーズンの、月ごとの対局数の推移（指導対局・無勝負も含みます）。</p>
       <div id="monthly-chart"></div>
+
+      <div id="kinsa-section" style="display:none">
+        <h3 style="margin-top:24px">🔥 僅差三兄弟</h3>
+        <p class="note">勝敗に関わらず、僅差（6.5目以内）の対局が多い3人。</p>
+        <div id="kinsa-list"></div>
+      </div>
 
       <div id="hanme-section" style="display:none">
         <h3 style="margin-top:24px">🎯 半目職人</h3>
@@ -1207,6 +1216,7 @@ function renderAll() {
   renderGonosata();
   renderPairCounts();
   renderMonthlyChart();
+  renderKinsa();
   renderHanme();
   renderRoleColorStats();
   renderHistory();
@@ -1712,6 +1722,47 @@ function parseMatchDate(dateStr) {
 // ---------- ご無沙汰ランキング・半目職人 ----------
 // 半目職人ランキング：半目差（0.5目）での勝利数。
 // 半目勝ちが1件も無いうちはセクションごと非表示にする。
+// 僅差三兄弟：勝敗に関わらず、僅差の対局（isCloseGame）に関わった回数が多い上位3人。
+// 指導対局は除外。同数のときは、全対局に占める僅差の割合が高い人を上にする。
+// 僅差の対局が1局もない間はセクションごと非表示。
+function renderKinsa() {
+  const section = document.getElementById("kinsa-section");
+  const el = document.getElementById("kinsa-list");
+  if (!section || !el) return;
+
+  const close = {}, total = {};
+  state.players.forEach(p => { close[p] = 0; total[p] = 0; });
+  state.history.forEach(m => {
+    if (m.shidou || m.type === "mushoubu") return;
+    const ps = m.type === "jigo" ? [m.p1, m.p2] : [m.winner, m.loser];
+    const isClose = isCloseGame(m);
+    ps.forEach(p => {
+      if (total[p] === undefined) return;
+      total[p]++;
+      if (isClose) close[p]++;
+    });
+  });
+
+  const rows = state.players
+    .map(p => ({ name: p, close: close[p], total: total[p] }))
+    .filter(r => r.close > 0)
+    .sort((a, b) => b.close - a.close || (b.close / b.total) - (a.close / a.total))
+    .slice(0, 3);
+
+  if (rows.length === 0) { section.style.display = "none"; return; }
+  section.style.display = "";
+
+  const medals = ["🥇","🥈","🥉"];
+  el.innerHTML = rows.map((r, i) => `
+    <div class="rank-row">
+      <div class="rank-num">${medals[i]}</div>
+      <div class="rank-info">
+        <div><strong>${r.name}</strong></div>
+        <div class="rank-record">僅差 ${r.close}局（全${r.total}局中）</div>
+      </div>
+    </div>`).join("");
+}
+
 function renderHanme() {
   const section = document.getElementById("hanme-section");
   const el = document.getElementById("hanme-list");
