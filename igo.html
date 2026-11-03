@@ -147,6 +147,11 @@
       履歴に「📄棋譜①」（緑）・「📄棋譜②」（青）・「📄下地会ブログ」（青緑）のバッジとして表示され、
       タップで新規タブに開く。履歴タブ上部にバッジの意味を説明する注記あり。履歴フィルターの
       「棋譜ありのみ」は、①②③のどれかが登録されている対局に絞り込める）
+  - 僅差の対局の絞り込み（履歴タブの「🔥僅差のみ」ボタン。目数差が6.5目以内の対局（半目・
+      コミ以内を含む）に絞り込む。目数差の数字が不明でも「コミ以内の差だった」にチェックの
+      ある対局は含める。置碁（手合いあり）・指導対局も含む全対局が対象。中押し・時間切れ・
+      持碁・無勝負は対象外。基準は CLOSE_GAME_MAX_MOKU で変更できる。棋譜ありのみ・
+      対局者の絞り込みとも組み合わせられる）
   - Firebase によるリアルタイム同期
   - データエクスポート（設定タブからJSONファイルとしてダウンロード。日付入りファイル名で保存）
   - 表示回数（ヘッダーに常時表示。個人アカウントが無いため「誰が見たか」は分からない
@@ -563,7 +568,7 @@
       <p class="key-note">📄棋譜バッジをタップすると棋譜を開けます。<span style="color:#27ae60">①緑＝つぶや棋譜</span>／<span style="color:#2f6fd0">②青＝棋譜見てね</span>／<span style="color:#16a085">③青緑＝下地会ブログ</span></p>
       <details class="help-details">
         <summary>ボタンの使い方</summary>
-        <p class="note" style="margin:6px 0 0">対局者のボタンで絞り込めます。1人選ぶとその人の対局、2人選ぶとその2人の直接対局を表示します（3人目を選ぶと古い選択が外れます）。もう一度押すと解除、「すべて」で全件に戻ります。</p>
+        <p class="note" style="margin:6px 0 0">対局者のボタンで絞り込めます。1人選ぶとその人の対局、2人選ぶとその2人の直接対局を表示します（3人目を選ぶと古い選択が外れます）。もう一度押すと解除、「すべて」で全件に戻ります。「📄棋譜ありのみ」は棋譜URLがある対局、「🔥僅差のみ」は目数差が6.5目以内の対局（置碁も含む）だけを表示します。</p>
       </details>
       <div id="history-filter" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;"></div>
       <div id="history-list"></div>
@@ -1668,6 +1673,15 @@ function badgeHTML(m) {
 
 let selectedPlayers = [];
 let kifuOnlyFilter = false; // 履歴：棋譜ありの対局だけに絞り込むフィルター
+let closeOnlyFilter = false; // 履歴：僅差の対局だけに絞り込むフィルター
+const CLOSE_GAME_MAX_MOKU = 6.5; // 僅差とみなす目数差の上限（コミ以内と同じ基準）
+// 僅差の対局か：目数差が基準以内、または目数差は不明だが「コミ以内」と記録されている対局。
+// 手合い・指導対局かどうかは問わない
+function isCloseGame(m) {
+  if (m.type !== "moku") return false;
+  if (m.mokusuu) return m.mokusuu <= CLOSE_GAME_MAX_MOKU;
+  return !!m.komiWithin;
+}
 let lastSorted = []; // 順位変動比較用
 let sortMode = "wins";
 let currentIrregularMatches = new Set(); // 履歴描画時に再計算する、イレギュラー対局の集合
@@ -2118,12 +2132,13 @@ function renderHistoryFilter() {
 
   const allBtn = `<button class="filter-btn${selectedPlayers.length===0?" active":""}" data-action="all">すべて</button>`;
   const kifuBtn = `<button class="filter-btn${kifuOnlyFilter?" active":""}" data-action="kifu-only" style="${kifuOnlyFilter?"background:#27ae60;border-color:#27ae60":""}">📄棋譜ありのみ</button>`;
+  const closeBtn = `<button class="filter-btn${closeOnlyFilter?" active":""}" data-action="close-only" style="${closeOnlyFilter?"background:#d35400;border-color:#d35400":""}">🔥僅差のみ</button>`;
   const playerBtns = ps.map(p =>
     `<button class="filter-btn player-btn${selectedPlayers.includes(p)?" active":""}" data-player="${p}">${p}</button>`
   ).join("");
 
   fc.innerHTML = `
-    <div style="margin-bottom:6px;display:flex;flex-wrap:wrap;gap:6px">${allBtn}${kifuBtn}</div>
+    <div style="margin-bottom:6px;display:flex;flex-wrap:wrap;gap:6px">${allBtn}${kifuBtn}${closeBtn}</div>
     <div style="display:flex;flex-wrap:wrap;gap:6px">${playerBtns}</div>
   `;
 
@@ -2134,6 +2149,11 @@ function renderHistoryFilter() {
 
   fc.querySelector("[data-action='kifu-only']").addEventListener("click", () => {
     kifuOnlyFilter = !kifuOnlyFilter;
+    renderHistory();
+  });
+
+  fc.querySelector("[data-action='close-only']").addEventListener("click", () => {
+    closeOnlyFilter = !closeOnlyFilter;
     renderHistory();
   });
 
@@ -2442,6 +2462,7 @@ function renderHistory() {
     .map((m, idx) => ({ m, idx }))
     .filter(({ m }) => {
       if (kifuOnlyFilter && !m.kifuUrl && !m.kifuUrl2 && !m.kifuUrl3) return false;
+      if (closeOnlyFilter && !isCloseGame(m)) return false;
       if (selectedPlayers.length === 0) return true;
       const { left, right } = getMatchPlayers(m);
       if (selectedPlayers.length === 1)
