@@ -37,7 +37,7 @@
   - 登録棋譜数と棋譜番号の表示（一覧の上に「登録棋譜 N件」、検索中は「N件ヒット（登録棋譜 M件）」。
     各棋譜に「No.N」。番号は登録が古い順に1から付け、並び順や検索で変わらない。
     棋譜を削除すると、それより新しい棋譜の番号は1つずつ繰り上がる）
-  - 対局日（登録時は必須：日付を選ぶか「不明」にチェック。保存は playDate="YYYY-MM-DD" か
+  - 対局日（登録時は必須：日付を選ぶか「不明」にチェック。フォームを開くと初期値は当日。保存は playDate="YYYY-MM-DD" か
     playDateUnknown=true。対局日欄が出来る前の投稿は未入力として表示し、修正時も空のまま保存できる）
   - 棋譜の登録（棋譜URLを3つまで：①つぶや棋譜・②棋譜見てね・③下地会ブログ（下地会ブログに掲載された棋譜用）。どれか1つだけでも可。
     黒番・白番・登録者・登録者コメント）。星取と同じく①は緑・②は青のボタンで表示
@@ -192,6 +192,7 @@ let posts = {}, postsRef = null, nameList = [];
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 const pad = n => String(n).padStart(2, "0");
+function todayISO() { const t = new Date(); return `${t.getFullYear()}-${pad(t.getMonth()+1)}-${pad(t.getDate())}`; }
 function fmtDate(ts) { const d = new Date(ts || 0); return ts ? `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}` : ""; }
 let toastTimer = null;
 function toast(msg) { const el = $("toast"); el.textContent = msg; el.style.display = "block"; clearTimeout(toastTimer); toastTimer = setTimeout(() => el.style.display = "none", 2500); }
@@ -390,6 +391,7 @@ markSortBtns();
 $("add-btn").addEventListener("click", () => {
   $("form").classList.toggle("open");
   if (!$("f-poster").value) $("f-poster").value = localStorage.getItem("kifu_name") || "";
+  if (!$("f-pdate").value && !$("f-punk").checked) $("f-pdate").value = todayISO(); // 対局日の初期値は当日
   refreshChips();
 });
 $("f-cancel").addEventListener("click", () => $("form").classList.remove("open"));
