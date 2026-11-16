@@ -60,24 +60,26 @@
       保存はせず、表示のたびに全履歴から計算し直す。
       指導対局・無勝負は除外。持碁は他の集計と同じく黒番（下手）の勝ち扱い。
       イレギュラー対局も、記録された手合いをそのまま使って計算に含める。
-      対局数が30局未満の人は「暫定」表示（FIDEの新人扱いの30局を参考にした）。手合い差の重み（小0.5／標準1／大1.5）は
-      レーティング表示中に画面上で切り替え可能。順位表・手合い割の判定には使わない。
-      レーティング表示中は、順位の中に「レーティングの仕組み」の説明を折りたたみで表示する
-      （換算値・暫定の基準は定数から組み立てるため、定数を変えても説明と食い違わない）。
+      対局数が30局未満の人は「暫定」表示（FIDEの新人扱いの30局を参考にした）。順位表・手合い割の判定には使わない。
+      レーティング表示中は、順位の中に「レーティングの仕組み」の説明を折りたたみで表示する。
+      説明文は表示のたびに、暫定局数・Kの定数と、その時点の手合い換算値（HANDICAP_ELO）から組み立てる。
+      そのため設定タブで換算値を変えても、説明の数字が実装と食い違わない。
       シーズンをまたぐ持ち越し：「新シーズンを始める」で、そのシーズンの終わりのレートと対局数を
       state.startRatings に保存し、次のシーズンの開始値にする（1500には戻らない。対局数も引き継ぐので、
-      Kの切り替えと「暫定」の判定も続く。計算は手合い差の重み標準×1）。今シーズン対局のなかった人も、
+      Kの切り替えと「暫定」の判定も続く）。今シーズン対局のなかった人も、
       開始値のレートで順位に載る。設定タブの「シーズン開始時のレート」で、対局者ごとに開始値を手動で直せる
       （途中参加・実力とのずれの補正。空欄で1500に戻る。変更するとそのシーズン全体が計算し直される。
       「手動」の印は次のシーズンへ引き継ぐ時点で外れる）。アーカイブには startRatings（開始時）と
-      endRatings（終了時）を保存する。完全リセットでは開始値も消えて全員1500に戻る。
+      endRatings（終了時）、およびそのシーズンで使っていた handicapElo（手合い換算値）を保存する。
+      完全リセットでは開始値も消えて全員1500に戻る（換算値 state.handicapElo は消さない）。
       sogo.html・shinsei.html の複製ロジックも startRatings を読む。
       レーティング表示中は、順位の上に推移グラフを表示する（横軸はレートの対象になった対局の順で全員共通、
       縦軸はレート。全員の線を色分けで重ね、対局のない人の線は横に伸ばす。名前のボタンをタップすると
-      その人の線を強調し、他は薄くする。点線は1500。手合い差の重みの切り替えにも連動する）。
+      その人の線を強調し、他は薄くする。点線は1500）。
       手合い換算値（HANDICAP_ELO）の調整：設定タブで手動変更できる。また「データから推定（簡易版）」で、
       過去の対局結果を一番うまく説明する換算値を候補の総当たりで探し、提案する。採用すると
       state.handicapElo に保存され全員に同期される。サンプルが少ない段差は参考表示になる。
+      順位表のレーティング表示では、現在の換算値を示し、説明文も換算値の変更に追随する。
   - 順位表タブの折りたたみ表示（「順位」「上手・下手成績」「互先 黒白成績」「ご無沙汰ランキング」は
       見出しをタップして開閉する。初期状態は閉じている。開閉の状態は、結果の登録などで
       画面が更新されても保たれる）
@@ -1230,7 +1232,6 @@ function renderAll() {
   applyHandicapEloFromState();
   renderStartRatingList();
   renderHandicapEloSettings();
-  refreshRatingHelp();
   buildSelects();
   renderWinsChart();
   renderStandings();
@@ -1472,9 +1473,10 @@ const RATING_PROVISIONAL_GAMES = 30; // これ未満の対局数は「暫定」�
 const RATING_K_SWITCH_GAMES = 20;    // これ未満の対局数の間は、1局で動く幅を大きめにする
 const RATING_K_NEW = 40;             // 上の局数未満のとき、1局で動く幅の上限（点）
 const RATING_K_SETTLED = 24;         // 上の局数以上のとき、1局で動く幅の上限（点）
-let ratingScale = 1;                  // 手合い差の重み（画面で 0.5 / 1 / 1.5 を切り替え）
 
-// state.handicapElo から HANDICAP_ELO を反映する（配列で長さ5・数値のみのときだけ採用）
+// state.handicapElo から実行時の HANDICAP_ELO を反映する。
+// 長さ5の数値配列のときだけ採用し、それ以外（未設定・古いデータ・壊れた値）は初期値に戻す。
+// Firebase の onValue と renderAll の両方から呼ぶ（読み込み直後と再描画のたびに一致させる）。
 function applyHandicapEloFromState() {
   const h = state.handicapElo;
   if (Array.isArray(h) && h.length === 5 && h.every(v => typeof v === "number" && isFinite(v))) {
@@ -1483,13 +1485,17 @@ function applyHandicapEloFromState() {
     HANDICAP_ELO = HANDICAP_ELO_DEFAULT.slice();
   }
 }
+// 初期値と1つでも違うか。順位表で「設定で変更済み／初期値」の表示に使う。
+function isCustomHandicapElo() {
+  return HANDICAP_ELO.some((v, i) => v !== HANDICAP_ELO_DEFAULT[i]);
+}
 
 // 対局した順（対局日の古い順。同じ日は登録順）に1局ずつレートを更新する（Elo方式）。
 // 各対局で「勝者側の実効レート＋手合い加点 − 敗者側の実効レート」から勝つ確率を予想し、
 // 予想より意外な結果ほど、勝者は大きく上がり、敗者は大きく下がる。初めての人は1500から、前のシーズンがあればその終わりの値から始める。
 // 1局で動く幅（K）は、その人の対局数が少ないうち（RATING_K_SWITCH_GAMES局未満）は大きく、重ねると小さくする。
 // 保存はせず、表示のたびに全履歴から計算し直す。
-function computeRatings(scale) {
+function computeRatings() {
   const names = state.players;
   const r = {}, n = {}, wins = {}, losses = {};
   // 前のシーズンの終わりのレートと対局数から始める（無い人は1500・0局）。対局数は、Kの切り替えと「暫定」の判定に使う
@@ -1516,7 +1522,7 @@ function computeRatings(scale) {
     const info = matchTeaiInfo(m);            // 手合い未設定なら加点なし
     let wb = 0;
     if (info) {
-      const bonus = HANDICAP_ELO[Math.min(info.absLevel, HANDICAP_ELO.length - 1)] * scale;
+      const bonus = HANDICAP_ELO[Math.min(info.absLevel, HANDICAP_ELO.length - 1)];
       wb = info.isUpperWinner ? -bonus : bonus; // 勝者が上手なら不利、下手なら有利として見る
     }
     const miss = 1 - expect(r[w] + wb - r[l]);  // 勝者が勝つと予想できなかった度合い（0〜1）
@@ -1598,39 +1604,41 @@ function renderRatingChart(ratings) {
   });
 }
 
-// レーティング表示中だけ、説明と「手合い差の重み」ボタンを順位の上に出す
+// レーティング表示中だけ、現在の換算値と説明を順位の上に出す。
+// ・換算値（HANDICAP_ELO）：設定タブで保存・推定した基準値。ここに出すのは現状の共有用。
+// ・説明文（rating-help）：換算値の変更に追随するよう、表示のたびに buildRatingHelpHTML で作り直す。
+//   details の開閉状態を保つため、help 要素自体は消さず innerHTML だけ差し替える。
 function renderRatingOptions() {
   const el = document.getElementById("rating-options");
   const help = document.getElementById("rating-help");
   if (!el) return;
-  if (help) help.style.display = sortMode === "rating" ? "" : "none"; // 折りたたみの開閉状態は作り直さず保つ
+  if (help) {
+    help.style.display = sortMode === "rating" ? "" : "none"; // 折りたたみの開閉状態は作り直さず保つ
+    if (sortMode === "rating") help.innerHTML = buildRatingHelpHTML();
+  }
   if (sortMode !== "rating") { el.style.display = "none"; el.innerHTML = ""; return; }
-  const scaleOpts = [[0.5, "小"], [1, "標準"], [1.5, "大"]];
+  const custom = isCustomHandicapElo();
+  const eloLine = `互先${HANDICAP_ELO[0]}／先${HANDICAP_ELO[1]}／2子${HANDICAP_ELO[2]}／3子${HANDICAP_ELO[3]}／4子${HANDICAP_ELO[4]}`;
   el.style.display = "";
   el.innerHTML = `
     <p class="note" style="margin-top:0">勝敗と手合いから強さを数値にした参考値です（初めての人は1500から。前のシーズンがあれば、その終わりの値から続きます）。順位表や手合い割の判定には使われません。${RATING_PROVISIONAL_GAMES}局未満の人は「暫定」です。</p>
-    <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;flex-wrap:wrap">
-      <span style="font-size:0.78rem;color:#777">手合い差の重み：</span>
-      ${scaleOpts.map(([v, label]) => `<button class="filter-btn rating-scale-btn ${ratingScale===v?"active":""}" data-scale="${v}">${label}</button>`).join("")}
+    <div style="background:#f1f0ea;border:1px solid #e0dbcd;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:0.8rem;color:#2c3e50;line-height:1.6">
+      <div><strong>手合い換算値</strong>（${custom ? "設定で変更済み" : "初期値"}）：${eloLine}</div>
+      <div style="color:#777;margin-top:2px">変更・データからの推定は設定タブ「レーティングの手合い換算値」で行います。</div>
     </div>`;
-  el.querySelectorAll(".rating-scale-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      ratingScale = parseFloat(btn.dataset.scale);
-      renderStandings();
-    });
-  });
 }
 
-// レーティングの仕組みの説明（順位の中に折りたたみで表示）。換算値や暫定の基準は定数から組み立てるので、
-// 定数を変えても説明と食い違わない。換算値を変更したあとも最新の値が表示されるように関数化。
+// レーティングの仕組みの説明（順位の中に折りたたみで表示）。換算値の変更に追随する。
 function buildRatingHelpHTML() {
+  const custom = isCustomHandicapElo();
+  const src = custom ? "設定タブで変更・推定した値" : "初期値（仮置き）";
   return `
   <details class="help-details">
     <summary>レーティングの仕組み</summary>
     <div class="note" style="margin:6px 0 0;line-height:1.7">
       <div>・勝敗と手合いから推定した「強さの目安」です。数字が大きいほど強く、初めての人は${RATING_BASE}から始まります。</div>
       <div>・手合いは強さの差を補うものなので、その分を考慮して計算します。ハンデを背負った上手が勝つほどレートが上がり、ハンデをもらった下手が勝っても、上がり方は小さくなります。</div>
-      <div>・手合いの換算は、互先${HANDICAP_ELO[0]}／先${HANDICAP_ELO[1]}／2子${HANDICAP_ELO[2]}／3子${HANDICAP_ELO[3]}／4子${HANDICAP_ELO[4]}点です（上手側の向先・向2などは、先・2子と同じ段差として扱います）。設定タブで変更・データ推定できます。「手合い差の重み」の小・標準・大は、この換算を0.5倍・1倍・1.5倍にする切り替えです。</div>
+      <div>・手合いの換算は、互先${HANDICAP_ELO[0]}／先${HANDICAP_ELO[1]}／2子${HANDICAP_ELO[2]}／3子${HANDICAP_ELO[3]}／4子${HANDICAP_ELO[4]}点です（上手側の向先・向2などは、先・2子と同じ段差として扱います）。${src}です。設定タブで手動変更や、過去データからの簡易推定ができます。</div>
       <div>・レートの差が100点なら強い方が約64%、200点なら約76%勝つ、という目安です。</div>
       <div>・対局した順（対局日の古い順、同じ日は登録順）に1局ずつ計算します。新しい対局ほど、今のレートに反映されます。保存はせず、表示のたびに全履歴から計算し直します。</div>
       <div>・1局で動く幅は、対局が${RATING_K_SWITCH_GAMES}局未満の間は最大${RATING_K_NEW}点、それ以降は最大${RATING_K_SETTLED}点です。予想どおりの勝ちは小さく、意外な勝ちほど大きく動きます。</div>
@@ -1641,18 +1649,13 @@ function buildRatingHelpHTML() {
     </div>
   </details>`;
 }
-function refreshRatingHelp() {
-  const el = document.getElementById("rating-help");
-  if (el) el.innerHTML = buildRatingHelpHTML();
-}
-refreshRatingHelp();
 
 // ---------- 順位表 ----------
 function renderStandings() {
   const raw = calcStats();
   const isRating = sortMode === "rating";
   const ratingMap = {};
-  const ratingList = isRating ? computeRatings(ratingScale) : null;
+  const ratingList = isRating ? computeRatings() : null;
   if (isRating) ratingList.forEach(r => { ratingMap[r.name] = r; });
   renderRatingOptions();
   renderRatingChart(ratingList);
@@ -3086,16 +3089,21 @@ document.getElementById("season-reset").addEventListener("click", async () => {
     `手合いと、レーティング（レートと対局数）は引き継ぎます。\n\nよろしいですか？`
   )) return;
 
-  // このシーズンの終わりのレートと対局数を、次のシーズンの開始値にする（標準の手合い重み×1で計算）。
+  // このシーズンの終わりのレートと対局数を、次のシーズンの開始値にする。
   // 今シーズン対局のなかった人の開始値は、そのまま保つ。手動で設定した印は、引き継ぐ時点で外す。
   const carried = {};
   Object.keys(state.startRatings || {}).forEach(k => { carried[k] = { rating: state.startRatings[k].rating, games: state.startRatings[k].games || 0 }; });
-  computeRatings(1).forEach(rt => { carried[rt.name] = { rating: Number(rt.rating.toFixed(2)), games: rt.games }; });
+  computeRatings().forEach(rt => { carried[rt.name] = { rating: Number(rt.rating.toFixed(2)), games: rt.games }; });
 
-  // 現在のシーズンデータをFirebaseに保存
+  // 現在のシーズンデータをFirebaseに保存。
+  // handicapElo も残す（このシーズンのレート計算の前提。未設定なら実行中の HANDICAP_ELO を記録）。
+  // 次のシーズンでは換算値はリセットせず引き継ぐ（手合い levels と同様。変えたいときだけ設定タブで変更）。
   if (seasonsRef) {
     const now = new Date();
     const dateStr = `${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()}`;
+    const archivedElo = (Array.isArray(state.handicapElo) && state.handicapElo.length === 5)
+      ? state.handicapElo.slice()
+      : HANDICAP_ELO.slice();
     await seasonsRef.child(state.season).set({
       season:  state.season,
       players: state.players,
@@ -3103,6 +3111,7 @@ document.getElementById("season-reset").addEventListener("click", async () => {
       levels:  state.levels,
       startRatings: state.startRatings || {}, // このシーズンの開始時のレート
       endRatings: carried,                    // このシーズンの終わりのレート（次のシーズンの開始値）
+      handicapElo: archivedElo,               // このシーズンで使っていた手合い換算値（再現・記録用）
       endDate: dateStr
     });
   }
@@ -3187,7 +3196,11 @@ document.getElementById("save-start-ratings").addEventListener("click", () => {
 });
 
 // ---------- レーティングの手合い換算値（設定タブ） ----------
-// 手動編集用UI。入力中は再描画で値が消えないようにする。
+// 手合い差をレートに換算するときの加点（HANDICAP_ELO）を、手動編集または過去データからの
+// 簡易推定で変えられるようにする。値は state.handicapElo に保存し、Firebase経由で全員に同期する。
+//
+// 入力中に Firebase の onValue → renderAll が走ると入力途中の数字が消えるため、
+// 開始時レートの入力欄と同じく、フォーカス中は描画をスキップする。
 function renderHandicapEloSettings() {
   const el = document.getElementById("handicap-elo-settings");
   if (!el) return;
@@ -3203,6 +3216,8 @@ function renderHandicapEloSettings() {
     </div>`).join("");
 }
 
+// 手動保存。互先（添字0）は常に0。単調増加は強制しないが、下の段差より小さい値があるときは確認する。
+// 保存後は pushState → renderAll で順位表のレーティングも換算値に追随して再計算される。
 document.getElementById("save-handicap-elo").addEventListener("click", () => {
   const next = HANDICAP_ELO.slice();
   let bad = false;
@@ -3227,25 +3242,46 @@ document.getElementById("save-handicap-elo").addEventListener("click", () => {
   showToast("換算値を保存しました");
 });
 
-// 簡易版：候補を総当たりして、過去対局の勝敗を一番うまく説明する換算値を探す
-// スコアは「勝者が勝つと予想された確率」の対数尤度（高いほど良い）
+// ---------- 手合い換算値の簡易推定 ----------
+// 目的：過去の対局結果を一番うまく説明する HANDICAP_ELO（先・2子・3子・4子）を、
+//       候補の総当たりで探して提案する。採用するかどうかは人間が決める。
+//
+// 使わない対局（表示用レーティング computeRatings と同じ除外）：
+//   ・指導対局（shidou）
+//   ・無勝負（mushoubu）
+//   ・現在の名簿にいない対局者が含まれるもの
+// 持碁は黒番（下手）の勝ちとして扱う（jigoWinner）。
+// 手合い未設定の対局は差0（加点なし）として含める。
+//
+// 候補：互先は常に0固定。先・2子・3子・4子はあらかじめ決めた刻みの候補だけを試す。
+//   明らかに不自然な単調減少（例：2子 < 先）は計算をスキップして時間を節約する。
+// 評価：各候補について、表示用と同じ Elo 更新（Kの切り替えも同じ）を対局日の古い順に流し、
+//   「その時点で勝者が勝つと予想された確率」の対数の平均（平均対数尤度）をスコアにする。
+//   高いほど「実際の勝敗をうまく説明できている」。
+//
+// 限界（簡易版のため）：
+//   ・刻みが粗いので、真の最適値が候補の間にある可能性
+//   ・3子・4子などサンプルが少ない段差はブレやすい（結果表示で局数を出し、5局未満は注意書き）
+//   ・過去データに合いすぎる過学習の可能性。提案は参考で、採用は確認付き
+// 対局数が10局未満のときは推定しない（目安）。
 function estimateHandicapElo() {
   const resultEl = document.getElementById("handicap-elo-estimate-result");
   if (!resultEl) return;
 
+  // レーティング対象の対局だけを、対局日の古い順に集める
   const games = [];
   chronologicalHistory().forEach(m => {
-    if (m.shidou || m.type === "mushoubu") return;
+    if (m.shidou || m.type === "mushoubu") return; // 指導・無勝負は除外（computeRatings と同じ）
     let w, l;
     if (m.type === "jigo") {
-      w = jigoWinner(m);
+      w = jigoWinner(m); // 持碁は黒番（下手）の勝ち
       if (!w) return;
       l = w === m.p1 ? m.p2 : m.p1;
     } else {
       w = m.winner; l = m.loser;
     }
     if (!state.players.includes(w) || !state.players.includes(l)) return;
-    const info = matchTeaiInfo(m);
+    const info = matchTeaiInfo(m); // 手合い未設定なら null → 差0・加点なし
     games.push({ w, l, absLevel: info ? info.absLevel : 0, isUpperWinner: info ? info.isUpperWinner : false });
   });
 
@@ -3256,14 +3292,18 @@ function estimateHandicapElo() {
 
   resultEl.innerHTML = `<p class="note">推定中…（対局${games.length}局）</p>`;
 
-  const cand1 = [30, 40, 50, 60, 70, 80, 90];
-  const cand2 = [100, 120, 140, 160, 180, 200, 220];
-  const cand3 = [200, 230, 260, 290, 320, 350];
-  const cand4 = [280, 320, 360, 400, 440];
+  // 候補の刻み（互先=0は固定なので候補に含めない）
+  const cand1 = [30, 40, 50, 60, 70, 80, 90];           // 先・向先
+  const cand2 = [100, 120, 140, 160, 180, 200, 220];   // 2子・向2
+  const cand3 = [200, 230, 260, 290, 320, 350];        // 3子・向3
+  const cand4 = [280, 320, 360, 400, 440];             // 4子・向4
 
+  // 各手合い差の対局数（結果表示用。少ない段差は参考程度と分かるようにする）
   const sampleCounts = [0, 0, 0, 0, 0];
   games.forEach(g => { if (g.absLevel >= 0 && g.absLevel <= 4) sampleCounts[g.absLevel]++; });
 
+  // 指定の換算値配列 helo で全対局を流し、平均対数尤度を返す（高いほど良い）
+  // グローバルの HANDICAP_ELO は触らない（候補評価専用）
   function scoreWith(helo) {
     const names = state.players;
     const r = {}, n = {};
@@ -3278,10 +3318,13 @@ function estimateHandicapElo() {
     let counted = 0;
     for (const g of games) {
       const bonus = helo[Math.min(g.absLevel, helo.length - 1)];
+      // 勝者が上手なら不利側（加点を引く）、下手なら有利側（加点を足す）
       const wb = g.isUpperWinner ? -bonus : bonus;
       const pWin = expect(r[g.w] + wb - r[g.l]);
+      // 数値安定のため下限を設ける（log(0) を避ける）
       logL += Math.log(Math.max(pWin, 1e-6));
       counted++;
+      // 表示用レーティングと同じ K（対局数が少ないうちは大きく、慣れたら小さく）
       const kw = n[g.w] < RATING_K_SWITCH_GAMES ? RATING_K_NEW : RATING_K_SETTLED;
       const kl = n[g.l] < RATING_K_SWITCH_GAMES ? RATING_K_NEW : RATING_K_SETTLED;
       const miss = 1 - pWin;
@@ -3292,15 +3335,17 @@ function estimateHandicapElo() {
     return counted ? logL / counted : -Infinity;
   }
 
+  // UI を固まらせないよう、重い総当たりは次のタスクに回す
   setTimeout(() => {
     let best = null;
     let bestScore = -Infinity;
-    const saved = HANDICAP_ELO.slice();
+    const saved = HANDICAP_ELO.slice(); // 念のための退避（scoreWith は HANDICAP_ELO を直接は触らない）
 
     for (const v1 of cand1) {
       for (const v2 of cand2) {
         for (const v3 of cand3) {
           for (const v4 of cand4) {
+            // 単調減少は不自然なのでスキップ（計算回数の削減）
             if (v2 < v1 || v3 < v2 || v4 < v3) continue;
             const helo = [0, v1, v2, v3, v4];
             const sc = scoreWith(helo);
@@ -3320,6 +3365,7 @@ function estimateHandicapElo() {
       return;
     }
 
+    // 現在値との差・各段差のサンプル数を並べて提案。5局未満は「サンプル少」と明示する
     const labels = ["互先", "先・向先", "2子・向2", "3子・向3", "4子・向4"];
     const rows = best.map((v, i) => {
       const cur = saved[i];
@@ -3345,6 +3391,7 @@ function estimateHandicapElo() {
         </div>
       </div>`;
 
+    // 採用：state に保存して同期。レーティングは換算値に追随して再計算される
     document.getElementById("adopt-handicap-elo").addEventListener("click", () => {
       if (!confirm("推定した換算値を採用します。レーティングが再計算されます。よろしいですか？")) return;
       state.handicapElo = best.slice();
@@ -3379,9 +3426,13 @@ function renderSeasonInfo() {
       <p style="font-size:0.85rem;font-weight:bold;color:#2c3e50;margin-bottom:8px">過去のシーズン</p>
       ${seasons.map(s => {
         const total = Array.isArray(s.history) ? s.history.length : 0;
+        // 新シーズン保存時に残した換算値（古いアーカイブには無い）
+        const elo = Array.isArray(s.handicapElo) && s.handicapElo.length === 5
+          ? ` / 換算値 先${s.handicapElo[1]}・2子${s.handicapElo[2]}・3子${s.handicapElo[3]}・4子${s.handicapElo[4]}`
+          : "";
         return `<div style="background:#f1f0ea;border:1px solid #e0dbcd;border-radius:6px;padding:8px 12px;margin-bottom:8px;font-size:0.85rem">
           <strong>シーズン ${s.season}</strong>（終了：${s.endDate}）<br>
-          <span style="color:#666">対局数：${total}局 / 対局者：${Array.isArray(s.players)?s.players.join("・"):""}</span>
+          <span style="color:#666">対局数：${total}局 / 対局者：${Array.isArray(s.players)?s.players.join("・"):""}${elo}</span>
         </div>`;
       }).join("")}`;
   });
