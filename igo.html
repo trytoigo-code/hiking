@@ -58,7 +58,7 @@
       勝敗と手合い差（HANDICAP_ELO）から勝つ確率を予想し、意外な結果ほど大きく動く。
       1局で動く幅は、その人の対局が20局未満の間は大きめ（最大40点）、以降は小さめ（最大24点）。
       保存はせず、表示のたびに全履歴から計算し直す。
-      指導対局・無勝負は除外。持碁は他の集計と同じく黒番（下手）の勝ち扱い。
+      指導対局・楽番・無勝負は除外。持碁は他の集計と同じく黒番（下手）の勝ち扱い。
       イレギュラー対局も、記録された手合いをそのまま使って計算に含める。
       対局数が30局未満の人は「暫定」表示（FIDEの新人扱いの30局を参考にした）。順位表・手合い割の判定には使わない。
       レーティング表示中は、順位の中に「レーティングの仕組み」の説明を折りたたみで表示する。
@@ -119,6 +119,13 @@
       選択すると指導対局チェックが自動でON・ロックされる。手合いは通常どおり選択して
       記録するが、他の指導対局と同様に連勝・手合い・各種成績の集計には使われない。
       履歴には「無勝負」バッジと「📚指導対局」バッジを両方表示する）
+  - 楽番対応（結果入力・修正時に「🍵楽番として記録する」にチェックを入れると、その対局を楽番として
+      記録できる。指導対局と同じ扱いで、連勝カウント・手合い変更の判定、順位表・勝敗グラフ・上手下手成績・
+      互先黒白成績・半目職人・僅差三兄弟・レーティング、および履歴タブの個人成績集計からは除外される
+      （isCasual(m)＝指導対局または楽番、で判定）。決着内容の内訳には含まれる。履歴には「🍵楽番」バッジを
+      表示する。指導対局とは同時に選べず、無勝負は指導対局に固定されるため楽番は選べない。
+      他アプリ側の注意：sogo.html・shinsei.html のレーティング計算の複製、index.html のテロップにも
+      同じ除外判定があるため、あわせて更新する）
   - 初期手合い設定（ペアごとに手合いを手動設定可能）
   - シーズンリセット（履歴をFirebaseに保存後リセット・手合いとレーティングは引き継ぎ）
   - 過去シーズンのアーカイブ表示（Firebase go-league/seasons/ に保存）
@@ -298,6 +305,7 @@
     .badge-f { background: #7f8c8d; }
     .badge-irregular { background: #d35400; }
     .badge-shidou { background: #2980b9; }
+    .badge-rakuban { background: #8d6e63; }
     .badge-mushoubu { background: #7f5aa0; }
 
     /* 各タブの目立たせたい説明（履歴・手合いタブ） */
@@ -508,6 +516,10 @@
         <input type="checkbox" id="shidou-flag" style="width:auto;flex-shrink:0">
         <label for="shidou-flag" style="margin:0;font-weight:normal;font-size:0.85rem;color:#2c3e50">📚 指導対局として記録する（連勝・手合い変更や順位表・成績の集計には使いません。決着内容の内訳には含まれます）</label>
       </div>
+      <div class="fg" style="display:flex;align-items:center;gap:8px;background:#fdf6e3;border:1px solid #efdca8;border-radius:6px;padding:10px 12px">
+        <input type="checkbox" id="rakuban-flag" style="width:auto;flex-shrink:0">
+        <label for="rakuban-flag" style="margin:0;font-weight:normal;font-size:0.85rem;color:#5c4a10">🍵 楽番として記録する（連勝・手合い変更や順位表・成績・レーティングには使いません。決着内容の内訳には含まれます）</label>
+      </div>
       <div class="fg">
         <label>①つぶや棋譜URL（任意）</label>
         <input type="url" id="kifu-url" placeholder="つぶや棋譜のリンクがあれば貼り付け">
@@ -675,6 +687,10 @@
     <div class="fg" style="display:flex;align-items:center;gap:8px;background:#eef5fb;border:1px solid #cfe3f2;border-radius:6px;padding:10px 12px">
       <input type="checkbox" id="edit-shidou" style="width:auto;flex-shrink:0">
       <label for="edit-shidou" style="margin:0;font-weight:normal;font-size:0.85rem;color:#2c3e50">📚 指導対局として記録する（連勝・手合い変更や順位表・成績の集計には使いません。決着内容の内訳には含まれます）</label>
+    </div>
+    <div class="fg" style="display:flex;align-items:center;gap:8px;background:#fdf6e3;border:1px solid #efdca8;border-radius:6px;padding:10px 12px">
+      <input type="checkbox" id="edit-rakuban" style="width:auto;flex-shrink:0">
+      <label for="edit-rakuban" style="margin:0;font-weight:normal;font-size:0.85rem;color:#5c4a10">🍵 楽番として記録する（連勝・手合い変更や順位表・成績・レーティングには使いません。決着内容の内訳には含まれます）</label>
     </div>
     <div class="fg">
       <label>①つぶや棋譜URL（任意）</label>
@@ -1034,12 +1050,15 @@ document.getElementById("result-type").addEventListener("change", function() {
     document.getElementById("label-right-teai").textContent = "対局者B";
     shidouEl.checked = true;
     shidouEl.disabled = true;
+    document.getElementById("rakuban-flag").checked = false; // 無勝負は指導対局に固定。楽番は選べない
+    document.getElementById("rakuban-flag").disabled = true;
   } else {
     document.getElementById("label-left").textContent = "勝者 👑";
     document.getElementById("label-right").textContent = "敗者";
     document.getElementById("label-left-teai").textContent = "勝者の手合い";
     document.getElementById("label-right-teai").textContent = "敗者";
     shidouEl.disabled = false;
+    document.getElementById("rakuban-flag").disabled = false;
   }
 
   // 持碁選択時は手合い選択肢を黒番（下手）のみに絞る
@@ -1149,6 +1168,7 @@ document.getElementById("add-match").addEventListener("click", () => {
     }
   }
   if (document.getElementById("shidou-flag").checked) m.shidou = true;
+  if (document.getElementById("rakuban-flag").checked) m.rakuban = true;
   const kifuVal = document.getElementById("kifu-url").value.trim();
   if (kifuVal) m.kifuUrl = kifuVal;
   const kifuVal2 = document.getElementById("kifu-url2").value.trim();
@@ -1178,7 +1198,7 @@ const STREAK_RULE_HTML = `
       <div>・すでに手合いがついている場合、下手の人が3連勝すると、手合いが1段階戻ります。</div>
       <div>・途中で相手が勝つと、連勝カウントは相手の1連勝からやり直しです。</div>
       <div>・持碁は、黒番（下手）の勝ちとして数えます。</div>
-      <div>・数えない対局：イレギュラー対局（記録した手合いが、その時点の正規の手合いと違う対局）、指導対局、無勝負。</div>
+      <div>・数えない対局：イレギュラー対局（記録した手合いが、その時点の正規の手合いと違う対局）、指導対局、楽番、無勝負。</div>
     </div>
   </details>`;
 ["streak-rule-input", "streak-rule-handicap"].forEach(id => {
@@ -1211,6 +1231,8 @@ function resetInputForm() {
   document.getElementById("mokusuu").disabled = false;
   document.getElementById("shidou-flag").checked = false;
   document.getElementById("shidou-flag").disabled = false;
+  document.getElementById("rakuban-flag").checked = false;
+  document.getElementById("rakuban-flag").disabled = false;
   document.getElementById("kifu-url").value = "";
   document.getElementById("kifu-url2").value = "";
   document.getElementById("kifu-url3").value = "";
@@ -1284,11 +1306,15 @@ function matchTeaiInfo(m) {
   return { absLevel, isUpperWinner: UPPER_TEAI.includes(teaiW) };
 }
 
+// 指導対局・楽番：連勝・手合い変更、順位表・成績、レーティングの集計から除外する対局
+// （決着内容の内訳には含める）
+function isCasual(m) { return !!(m.shidou || m.rakuban); }
+
 function calcStats(filterCategory) {
   const s = {};
   state.players.forEach(p => s[p] = { name:p, wins:0, losses:0, total:0 });
   state.history.forEach(m => {
-    if (m.shidou) return; // 指導対局は順位表・勝敗グラフの集計から除外
+    if (isCasual(m)) return; // 指導対局・楽番は順位表・勝敗グラフの集計から除外
     if (filterCategory && filterCategory !== "all" && matchTeaiCategory(m) !== filterCategory) return;
     if (m.type === "jigo") {
       const jw = jigoWinner(m);
@@ -1509,7 +1535,7 @@ function computeRatings() {
   const kOf = p => n[p] < RATING_K_SWITCH_GAMES ? RATING_K_NEW : RATING_K_SETTLED;
 
   chronologicalHistory().forEach(m => {
-    if (m.shidou || m.type === "mushoubu") return; // 指導対局・無勝負は除外
+    if (isCasual(m) || m.type === "mushoubu") return; // 指導対局・無勝負は除外
     let w, l;
     if (m.type === "jigo") {
       w = jigoWinner(m);                      // 持碁は黒番（下手）の勝ち扱い
@@ -1642,7 +1668,7 @@ function buildRatingHelpHTML() {
       <div>・レートの差が100点なら強い方が約64%、200点なら約76%勝つ、という目安です。</div>
       <div>・対局した順（対局日の古い順、同じ日は登録順）に1局ずつ計算します。新しい対局ほど、今のレートに反映されます。保存はせず、表示のたびに全履歴から計算し直します。</div>
       <div>・1局で動く幅は、対局が${RATING_K_SWITCH_GAMES}局未満の間は最大${RATING_K_NEW}点、それ以降は最大${RATING_K_SETTLED}点です。予想どおりの勝ちは小さく、意外な勝ちほど大きく動きます。</div>
-      <div>・数えない対局：指導対局、無勝負。持碁は黒番（下手）の勝ちとして数えます。イレギュラー対局は、記録した手合いのまま数えます（連勝カウントとは扱いが違います）。</div>
+      <div>・数えない対局：指導対局、楽番、無勝負。持碁は黒番（下手）の勝ちとして数えます。イレギュラー対局は、記録した手合いのまま数えます（連勝カウントとは扱いが違います）。</div>
       <div>・今のシーズンの対局が計算の対象です。新シーズンを始めると、その時点のレートと対局数を引き継ぐので、1500には戻りません（対局数も引き継ぐため、「暫定」やKの切り替えも続きます）。途中から入る人や、実力とずれた人は、設定タブの「シーズン開始時のレート」で直せます。</div>
       <div>・${RATING_PROVISIONAL_GAMES}局未満の人は「暫定」です。対局が少ないうちは、順番や相手の偏りの影響を受けやすい値です。100点以内の差は、誤差の範囲として読んでください。</div>
       <div>・順位表や手合い割の判定には使いません。あくまで参考値です。</div>
@@ -1784,7 +1810,7 @@ function renderKinsa() {
   const close = {}, total = {}, cw = {}, cl = {};
   state.players.forEach(p => { close[p] = 0; total[p] = 0; cw[p] = 0; cl[p] = 0; });
   state.history.forEach(m => {
-    if (m.shidou || m.type === "mushoubu") return;
+    if (isCasual(m) || m.type === "mushoubu") return;
     const ps = m.type === "jigo" ? [m.p1, m.p2] : [m.winner, m.loser];
     const isClose = isCloseGame(m);
     ps.forEach(p => {
@@ -1848,7 +1874,7 @@ function renderHanme() {
   const counts = {};
   state.players.forEach(p => counts[p] = 0);
   state.history.forEach(m => {
-    if (m.shidou) return; // 指導対局は除外
+    if (isCasual(m)) return; // 指導対局・楽番は除外
     if (m.type === "moku" && m.mokusuu === 0.5 && counts[m.winner] !== undefined) {
       counts[m.winner]++;
     }
@@ -1887,7 +1913,7 @@ function calcRoleStats() {
   const s = {};
   state.players.forEach(p => s[p] = { upperW:0, upperL:0, lowerW:0, lowerL:0 });
   state.history.forEach(m => {
-    if (m.shidou) return; // 指導対局は除外
+    if (isCasual(m)) return; // 指導対局・楽番は除外
     if (m.type === "jigo") {
       // 持碁は下手（黒番）の勝ちとして登録されるため、上手・下手の役割は確定している
       const jw = jigoWinner(m);
@@ -1918,7 +1944,7 @@ function calcColorStats() {
   const s = {};
   state.players.forEach(p => s[p] = { blackW:0, blackL:0, whiteW:0, whiteL:0 });
   state.history.forEach(m => {
-    if (m.shidou) return; // 指導対局は除外
+    if (isCasual(m)) return; // 指導対局・楽番は除外
     if (m.type === "jigo") return; // 持碁は互先にならないため対象外
     const tw = m.teai_w;
     if (tw === "互黒") {
@@ -1937,7 +1963,7 @@ function calcColorStats() {
 function calcRoleOverall() {
   let upperWins = 0, lowerWins = 0;
   state.history.forEach(m => {
-    if (m.shidou) return; // 指導対局は除外
+    if (isCasual(m)) return; // 指導対局・楽番は除外
     if (m.type === "jigo") {
       const jw = jigoWinner(m);
       if (!jw) return;
@@ -1956,7 +1982,7 @@ function calcRoleOverall() {
 function calcColorOverall() {
   let blackWins = 0, whiteWins = 0;
   state.history.forEach(m => {
-    if (m.shidou) return; // 指導対局は除外
+    if (isCasual(m)) return; // 指導対局・楽番は除外
     if (m.type === "jigo") return;
     if (m.teai_w === "互黒")      blackWins++;
     else if (m.teai_w === "互白") whiteWins++;
@@ -2547,7 +2573,7 @@ function matchListHTML(filtered, anchorPlayer, readOnly) {
     return `
       <div class="hist-item" style="flex-direction:column;align-items:stretch">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
-          <div>${leftName} vs ${rightName} ${badgeHTML(m)}${m.shidou ? '<span class="badge badge-shidou" title="指導対局として記録されており、連勝・手合いや順位表・各種成績の集計には使われていません（決着内容の内訳には含まれます）">📚指導対局</span>' : ""}${currentIrregularMatches.has(m) ? '<span class="badge badge-irregular" title="記録された手合いが、その時点の正規の手合いと異なるため、連勝・手合いには反映されていません">イレギュラー</span>' : ""}${m.kifuUrl ? `<a href="${escapeAttr(m.kifuUrl)}" target="_blank" rel="noopener noreferrer" class="badge badge-kifu" title="つぶや棋譜を開きます">📄棋譜①</a>` : ""}${m.kifuUrl2 ? `<a href="${escapeAttr(m.kifuUrl2)}" target="_blank" rel="noopener noreferrer" class="badge badge-kifu2" title="棋譜見てねを開きます">📄棋譜②</a>` : ""}${m.kifuUrl3 ? `<a href="${escapeAttr(m.kifuUrl3)}" target="_blank" rel="noopener noreferrer" class="badge badge-kifu3" title="下地会ブログを開きます">📄下地会ブログ</a>` : ""}<br>
+          <div>${leftName} vs ${rightName} ${badgeHTML(m)}${m.shidou ? '<span class="badge badge-shidou" title="指導対局として記録されており、連勝・手合いや順位表・各種成績の集計には使われていません（決着内容の内訳には含まれます）">📚指導対局</span>' : ""}${m.rakuban ? '<span class="badge badge-rakuban" title="楽番として記録されており、連勝・手合いや順位表・各種成績・レーティングには使われていません（決着内容の内訳には含まれます）">🍵楽番</span>' : ""}${currentIrregularMatches.has(m) ? '<span class="badge badge-irregular" title="記録された手合いが、その時点の正規の手合いと異なるため、連勝・手合いには反映されていません">イレギュラー</span>' : ""}${m.kifuUrl ? `<a href="${escapeAttr(m.kifuUrl)}" target="_blank" rel="noopener noreferrer" class="badge badge-kifu" title="つぶや棋譜を開きます">📄棋譜①</a>` : ""}${m.kifuUrl2 ? `<a href="${escapeAttr(m.kifuUrl2)}" target="_blank" rel="noopener noreferrer" class="badge badge-kifu2" title="棋譜見てねを開きます">📄棋譜②</a>` : ""}${m.kifuUrl3 ? `<a href="${escapeAttr(m.kifuUrl3)}" target="_blank" rel="noopener noreferrer" class="badge badge-kifu3" title="下地会ブログを開きます">📄下地会ブログ</a>` : ""}<br>
           <span class="hist-date">${m.date}</span></div>
           ${readOnly ? "" : `<div style="display:flex;gap:6px;flex-shrink:0">
             <button class="comment-btn" data-id="${m.id || idx}" style="background:#f0ede4;color:#888;border:1px solid #ddd;padding:5px 8px;border-radius:4px;font-size:0.78rem;cursor:pointer">💬</button>
@@ -2603,7 +2629,7 @@ function renderHistory() {
 
   // 指導対局は「勝敗・順位に関わらない学びの対局」として個人成績の集計からは除外する
   // （対局履歴の一覧そのものにはバッジ付きで残す。matchListHTMLはallFilteredを使い続ける）
-  const statsFiltered = allFiltered.filter(({ m }) => !m.shidou);
+  const statsFiltered = allFiltered.filter(({ m }) => !isCasual(m));
   // 決着内容の内訳には、指導対局（勝敗がついたもの・無勝負とも）も含める
   // （手合い・連勝や順位表などの成績には使わないが、決着の種類としては数える）
   const decisionFiltered = allFiltered;
@@ -2806,7 +2832,7 @@ function pairKey(pA, pB) {
 // 既存履歴からlevels/streaksを計算して移行（後方互換用）
 function calcFromHistory(pA, pB) {
   const matches = chronologicalHistory().filter(m => {
-    if (m.shidou) return false; // 指導対局・無勝負は連勝・手合いの計算対象外
+    if (isCasual(m)) return false; // 指導対局・楽番・無勝負は連勝・手合いの計算対象外
     if (m.type === "jigo") return (m.p1===pA&&m.p2===pB)||(m.p1===pB&&m.p2===pA);
     return (m.winner===pA&&m.loser===pB)||(m.winner===pB&&m.loser===pA);
   });
@@ -2841,7 +2867,7 @@ function migrateFromHistory() {
 // 対局（イレギュラー対局）をそこへ集め、その対局については連勝・手合いの更新をスキップする。
 // 対局結果自体（勝敗記録・順位・履歴）は別途、通常どおり反映される。
 function updateLevelsAndStreaks(m, target, irregularSet) {
-  if (m.shidou) return; // 指導対局は連勝・手合い変更の対象外（イレギュラー扱いにはしない）
+  if (isCasual(m)) return; // 指導対局・楽番は連勝・手合い変更の対象外（イレギュラー扱いにはしない）
   const levels  = target ? target.levels  : state.levels;
   const streaks = target ? target.streaks : state.streaks;
   let winner;
@@ -3247,7 +3273,7 @@ document.getElementById("save-handicap-elo").addEventListener("click", () => {
 //       候補の総当たりで探して提案する。採用するかどうかは人間が決める。
 //
 // 使わない対局（表示用レーティング computeRatings と同じ除外）：
-//   ・指導対局（shidou）
+//   ・指導対局（shidou）・楽番（rakuban）
 //   ・無勝負（mushoubu）
 //   ・現在の名簿にいない対局者が含まれるもの
 // 持碁は黒番（下手）の勝ちとして扱う（jigoWinner）。
@@ -3271,7 +3297,7 @@ function estimateHandicapElo() {
   // レーティング対象の対局だけを、対局日の古い順に集める
   const games = [];
   chronologicalHistory().forEach(m => {
-    if (m.shidou || m.type === "mushoubu") return; // 指導・無勝負は除外（computeRatings と同じ）
+    if (isCasual(m) || m.type === "mushoubu") return; // 指導・無勝負は除外（computeRatings と同じ）
     let w, l;
     if (m.type === "jigo") {
       w = jigoWinner(m); // 持碁は黒番（下手）の勝ち
@@ -3496,6 +3522,9 @@ function openEditModal(m, idx) {
   const editShidouEl = document.getElementById("edit-shidou");
   editShidouEl.checked = !!m.shidou;
   editShidouEl.disabled = m.type === "mushoubu";
+  const editRakubanEl = document.getElementById("edit-rakuban");
+  editRakubanEl.checked = !!m.rakuban && m.type !== "mushoubu";
+  editRakubanEl.disabled = m.type === "mushoubu";
 
   document.getElementById("edit-kifu-url").value = m.kifuUrl || "";
   document.getElementById("edit-kifu-url2").value = m.kifuUrl2 || "";
@@ -3554,12 +3583,15 @@ document.getElementById("edit-result").addEventListener("change", function() {
     document.getElementById("edit-label-teai-pair").textContent = "対局者B";
     editShidouEl.checked = true;
     editShidouEl.disabled = true;
+    document.getElementById("edit-rakuban").checked = false;
+    document.getElementById("edit-rakuban").disabled = true;
   } else {
     document.getElementById("edit-label-left").textContent  = "勝者 👑";
     document.getElementById("edit-label-right").textContent = "敗者";
     document.getElementById("edit-label-teai").textContent  = "勝者の手合い";
     document.getElementById("edit-label-teai-pair").textContent = "敗者";
     editShidouEl.disabled = false;
+    document.getElementById("edit-rakuban").disabled = false;
   }
 });
 
@@ -3646,6 +3678,8 @@ document.getElementById("edit-save").addEventListener("click", () => {
   // 指導対局フラグ
   if (document.getElementById("edit-shidou").checked) updated.shidou = true;
   else delete updated.shidou;
+  if (document.getElementById("edit-rakuban").checked) updated.rakuban = true;
+  else delete updated.rakuban;
 
   // 棋譜URL
   const editKifuVal = document.getElementById("edit-kifu-url").value.trim();
@@ -3746,6 +3780,12 @@ document.getElementById("toast-undo").addEventListener("click", () => {
     renderAll();
     showToast("元に戻しました");
   }
+});
+
+// 指導対局と楽番は同時にONにできない（どちらか一方）
+[["shidou-flag", "rakuban-flag"], ["edit-shidou", "edit-rakuban"]].forEach(([a, b]) => {
+  document.getElementById(a).addEventListener("change", e => { if (e.target.checked) document.getElementById(b).checked = false; });
+  document.getElementById(b).addEventListener("change", e => { if (e.target.checked) document.getElementById(a).checked = false; });
 });
 
 // Initial render
