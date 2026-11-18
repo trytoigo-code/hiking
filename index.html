@@ -529,7 +529,7 @@ function buildIgoTelopItems(state) {
       if (!players.includes(p)) return;
       if (!lastPlayed[p] || val > lastPlayed[p].val) lastPlayed[p] = { val, date: m.date };
     });
-    if (m.shidou || m.type === "mushoubu") return; // 指導対局・無勝負は勝数に数えない
+    if (m.shidou || m.rakuban || m.type === "mushoubu") return; // 指導対局・楽番・無勝負は勝数に数えない
     let w, l;
     if (m.type === "jigo") { w = telopIgoJigoWinner(m); if (!w) return; l = (w === m.p1) ? m.p2 : m.p1; }
     else { w = m.winner; l = m.loser; }
@@ -562,7 +562,7 @@ function buildIgoTelopItems(state) {
   const streaks = {};
   players.forEach(p => { streaks[p] = 0; });
   ordered.forEach(m => {
-    if (m.shidou || m.type === "mushoubu") return;
+    if (m.shidou || m.rakuban || m.type === "mushoubu") return;
     let w, l;
     if (m.type === "jigo") { w = telopIgoJigoWinner(m); if (!w) return; l = (w === m.p1) ? m.p2 : m.p1; }
     else { w = m.winner; l = m.loser; }
@@ -575,7 +575,7 @@ function buildIgoTelopItems(state) {
   // 半目職人（半目差での勝利数が最も多い人）
   const hanmeCounts = {};
   history.forEach(m => {
-    if (m.shidou) return;
+    if (m.shidou || m.rakuban) return;
     if (m.type === "moku" && m.mokusuu === 0.5) hanmeCounts[m.winner] = (hanmeCounts[m.winner] || 0) + 1;
   });
   const hanmeTop = Object.keys(hanmeCounts).sort((a, b) => hanmeCounts[b] - hanmeCounts[a])[0];
