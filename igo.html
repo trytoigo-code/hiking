@@ -74,8 +74,9 @@
       完全リセットでは開始値も消えて全員1500に戻る（換算値 state.handicapElo は消さない）。
       sogo.html・shinsei.html の複製ロジックも startRatings を読む。
       レーティング表示中は、順位の上に推移グラフを表示する（横軸はレートの対象になった対局の順で全員共通、
-      縦軸はレート。全員の線を色分けで重ね、対局のない人の線は横に伸ばす。名前のボタンをタップすると
-      その人の線を強調し、他は薄くする。点線は1500）。
+      縦軸はレート。全員の線を色分けで重ね、対局のない人の線は横に伸ばす。右端に名前ラベル（近いときは
+      縦にずらす）。月が変わる位置に薄い縦線と「n月」。名前のボタンをタップするとその人の線を太く強調し
+      途中の点を付け、他はかなり薄くする。点線は1500）。
       手合い換算値（HANDICAP_ELO）の調整：設定タブで手動変更できる。また「データから推定（簡易版）」で、
       過去の対局結果を一番うまく説明する換算値を候補の総当たりで探し、提案する。採用すると
       state.handicapElo に保存され全員に同期される。サンプルが少ない段差は参考表示になる。
@@ -1570,7 +1571,8 @@ function computeRatings() {
 
 // ---------- レーティングの推移グラフ ----------
 // 横軸は、レートの対象になった対局の順（全員共通）。縦軸はレート。対局のない人の線は、その間そのまま横に伸びる。
-// 名前のボタンをタップすると、その人の線を太く強調し、他の人は薄くする（もう一度押すと解除）。
+// 右端に名前ラベル（近いときは縦にずらす）。月が変わる位置に薄い縦線と「n月」。
+// 名前のボタンをタップすると、その人の線を太く強調し途中の点を付け、他の人はかなり薄くする（もう一度押すと解除）。
 let ratingChartFocus = null;
 const esc = str => String(str == null ? "" : str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const RATING_CHART_COLORS = ["#c0392b", "#2980b9", "#27ae60", "#d68910", "#8e44ad", "#16a085", "#c2185b"];
@@ -1579,7 +1581,8 @@ function ratingChartHTML(ratings, focus) {
   const total = (ratings.gameDates || []).length;
   if (ratings.length === 0 || total < 1) return `<p class="note" style="margin-top:0">レーティングの対象になる対局が、まだありません。</p>`;
   const colorOf = p => RATING_CHART_COLORS[Math.max(0, state.players.indexOf(p)) % RATING_CHART_COLORS.length];
-  const W = 300, H = 170, padL = 30, padR = 8, padT = 10, padB = 22;
+  // 高さを広げ、右余白に名前ラベルを置く。左はレート数字用。
+  const W = 320, H = 230, padL = 32, padR = 48, padT = 12, padB = 30;
   const all = ratings.flatMap(rt => ratings.series[rt.name]);
   const vMin = Math.min(...all), vMax = Math.max(...all);
   const range = vMax - vMin;
@@ -1588,33 +1591,100 @@ function ratingChartHTML(ratings, focus) {
   const x = i => padL + (W - padL - padR) * i / total;
   const y = v => padT + (H - padT - padB) * (1 - (v - lo) / (hi - lo));
 
+  // 横グリッド（1500は点線）
   let grid = "";
   for (let v = lo; v <= hi; v += step) {
     const base = v === RATING_BASE;
     grid += `<line x1="${padL}" y1="${y(v).toFixed(1)}" x2="${W - padR}" y2="${y(v).toFixed(1)}" stroke="${base ? "#bbb" : "#eee"}" stroke-width="1"${base ? ' stroke-dasharray="3 3"' : ""}/>`
           + `<text x="${padL - 3}" y="${(y(v) + 3).toFixed(1)}" font-size="8" text-anchor="end" fill="#999">${v}</text>`;
   }
+
+  // 月の区切り：対局日の月が変わる位置に薄い縦線と「n月」ラベル
+  // gameDates[i] は i 局目の対局日。series の添字は 0=開始時、1..=各対局後。
+  let monthLines = "";
+  let prevYM = null;
+  for (let i = 0; i < total; i++) {
+    const d = String(ratings.gameDates[i] || "");
+    const parts = d.split(" ")[0].split("/");
+    if (parts.length < 2) continue;
+    const ym = parts[0] + "/" + parts[1];
+    if (ym === prevYM) continue;
+    // 最初の月は左端と重なりやすいので、2ヶ月目以降だけ線を引く（ラベルは出す）
+    const xi = x(i + 1); // その対局「後」の位置（series の i+1）
+    if (prevYM !== null) {
+      monthLines += `<line x1="${xi.toFixed(1)}" y1="${padT}" x2="${xi.toFixed(1)}" y2="${H - padB}" stroke="#e0dbcd" stroke-width="1"/>`;
+    }
+    const mo = parseInt(parts[1], 10);
+    if (!isNaN(mo)) {
+      const lx = prevYM === null ? x(1) : xi;
+      monthLines += `<text x="${lx.toFixed(1)}" y="${H - 8}" font-size="8" text-anchor="${prevYM === null ? "start" : "middle"}" fill="#b0a898">${mo}月</text>`;
+    }
+    prevYM = ym;
+  }
+
   // 強調中の人を最後（いちばん手前）に描く
   const order = ratings.map(rt => rt.name).sort((a, b) => (a === focus) - (b === focus));
   let lines = "";
   order.forEach(name => {
-    const pts = ratings.series[name].map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
-    const dim = focus && name !== focus;
-    const color = colorOf(name), last = ratings.series[name][total];
-    lines += `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="${name === focus ? 3 : 1.8}" stroke-linejoin="round" opacity="${dim ? 0.2 : 1}"/>`
-           + `<circle cx="${x(total).toFixed(1)}" cy="${y(last).toFixed(1)}" r="${name === focus ? 4 : 3}" fill="${color}" opacity="${dim ? 0.2 : 1}"/>`;
+    const series = ratings.series[name];
+    const pts = series.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+    const isFocus = name === focus;
+    const dim = focus && !isFocus;
+    const color = colorOf(name);
+    const last = series[total];
+    const sw = isFocus ? 3.5 : 1.6;
+    const op = dim ? 0.12 : 1;
+    lines += `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="${sw}" stroke-linejoin="round" opacity="${op}"/>`;
+    lines += `<circle cx="${x(total).toFixed(1)}" cy="${y(last).toFixed(1)}" r="${isFocus ? 4.5 : 2.8}" fill="${color}" opacity="${op}"/>`;
+    // 強調中だけ、途中の点を付けて動きを追いやすくする
+    if (isFocus && total >= 2) {
+      for (let i = 1; i < total; i++) {
+        lines += `<circle cx="${x(i).toFixed(1)}" cy="${y(series[i]).toFixed(1)}" r="2.2" fill="${color}" opacity="0.9"/>`;
+      }
+    }
   });
+
+  // 右端の名前ラベル（最終レート位置）。近いものは縦にずらして重なりを避ける
+  const labelGap = 11;
+  const labelItems = ratings.map(rt => {
+    const last = ratings.series[rt.name][total];
+    return { name: rt.name, y: y(last), color: colorOf(rt.name), dim: focus && rt.name !== focus };
+  }).sort((a, b) => a.y - b.y);
+  for (let i = 1; i < labelItems.length; i++) {
+    if (labelItems[i].y - labelItems[i - 1].y < labelGap) {
+      labelItems[i].y = labelItems[i - 1].y + labelGap;
+    }
+  }
+  const yMax = H - padB - 2;
+  for (let i = labelItems.length - 2; i >= 0; i--) {
+    if (labelItems[i + 1].y > yMax) labelItems[i + 1].y = yMax;
+    if (labelItems[i + 1].y - labelItems[i].y < labelGap) {
+      labelItems[i].y = labelItems[i + 1].y - labelGap;
+    }
+  }
+  if (labelItems.length && labelItems[0].y < padT + 2) {
+    const shift = (padT + 2) - labelItems[0].y;
+    labelItems.forEach(it => { it.y += shift; });
+  }
+  let labels = "";
+  labelItems.forEach(it => {
+    labels += `<text x="${(W - padR + 5).toFixed(1)}" y="${(it.y + 3).toFixed(1)}" font-size="9" font-weight="bold" fill="${it.color}" opacity="${it.dim ? 0.2 : 1}">${esc(it.name)}</text>`;
+  });
+
+  // 同じ月だけのときは従来どおり開始日・終了日を表示
   const d0 = ratings.gameDates[0], d1 = ratings.gameDates[total - 1];
-  const axis = total > 1
-    ? `<text x="${x(1).toFixed(1)}" y="${H - 6}" font-size="8" text-anchor="start" fill="#999">${esc(d0)}</text><text x="${x(total).toFixed(1)}" y="${H - 6}" font-size="8" text-anchor="end" fill="#999">${esc(d1)}</text>`
-    : `<text x="${x(1).toFixed(1)}" y="${H - 6}" font-size="8" text-anchor="end" fill="#999">${esc(d0)}</text>`;
+  let axis = "";
+  if (prevYM === null || (String(d0).split("/")[1] === String(d1).split("/")[1] && String(d0).split("/")[0] === String(d1).split("/")[0])) {
+    axis = total > 1
+      ? `<text x="${x(1).toFixed(1)}" y="${H - 8}" font-size="8" text-anchor="start" fill="#999">${esc(d0)}</text><text x="${x(total).toFixed(1)}" y="${H - 8}" font-size="8" text-anchor="end" fill="#999">${esc(d1)}</text>`
+      : `<text x="${x(1).toFixed(1)}" y="${H - 8}" font-size="8" text-anchor="start" fill="#999">${esc(d0)}</text>`;
+  }
 
   const buttons = ratings.map(rt => `<button type="button" class="filter-btn rating-focus-btn ${focus === rt.name ? "active" : ""}" data-name="${esc(rt.name)}" style="display:inline-flex;align-items:center;gap:5px"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${colorOf(rt.name)}"></span>${esc(rt.name)} ${Math.round(rt.rating)}</button>`).join("");
-  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;background:#faf9f5;border:1px solid #e8e4da;border-radius:6px">${grid}${lines}${axis}</svg>`
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;background:#faf9f5;border:1px solid #e8e4da;border-radius:6px">${grid}${monthLines}${lines}${labels}${axis}</svg>`
     + `<div style="display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 4px">${buttons}</div>`
-    + `<p class="note" style="margin:4px 0 12px">横軸はレートの対象になった対局の順（全${total}局）です。名前をタップすると、その人の線を強調します。点線は${RATING_BASE}です。</p>`;
+    + `<p class="note" style="margin:4px 0 12px">横軸はレートの対象になった対局の順（全${total}局）。縦の薄い線は月の切り替わりです。名前をタップすると、その人の線を強調します。点線は${RATING_BASE}です。</p>`;
 }
-
 function renderRatingChart(ratings) {
   const el = document.getElementById("rating-chart");
   if (!el) return;
