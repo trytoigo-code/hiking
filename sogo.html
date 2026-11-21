@@ -35,8 +35,8 @@
   - バニラJS（React・Babel 不使用）
   - 星取・点棒それぞれのレーティング計算ロジック（Elo方式）を、この中に複製して使用する
     （星取側で除外している指導対局（shidou）・楽番（rakuban）・無勝負も、同じく除外する）
-    （igo.html/mahjong.htmlの実装と同じ定数・同じ計算式。星取側の「手合い差の重み」は
-    標準（×1）固定とする）
+    （igo.html/mahjong.htmlの実装と同じ定数・同じ計算式。星取の startRatings（シーズン開始時の
+    レート・対局数）と handicapElo（手合い換算値）も読み、本体と同じ開始値・換算値で計算する）
   - 外部ライブラリなし・ビルド不要・1ファイル完結
 
 【共同編集の進め方】
@@ -56,7 +56,10 @@
 【主な機能（現時点）】
   - 🏅総合順位タブ：メンバーごとに、囲碁順位・麻雀順位（暫定マーク付き）・総合スコアを
       一覧表示。対局（レーティング）がまだ無い競技は「対局なし（1点）」と表示する。
-      総合スコアが高い順に並べ、現在の比重設定も冒頭に表示する
+      総合スコアが高い順に並べ、現在の比重設定も冒頭に表示する。
+      一覧の上に総合スコアの推移グラフ（両アプリの対局を時系列に再現。直近20／30／50／
+      すべて切替。保存はせず表示のたびに計算。右端に名前、月の区切り。名前を最大2人まで
+      選んで比較、縦軸はスコア／順位を切替可能）
   - ⚙️設定タブ→管理者の仕事：
       比重設定（囲碁・麻雀の比重。初期値70%／30%、合計は常に100%になるよう自動調整）
       メンバーの対応づけ（表示名・星取での名前・点棒での名前を1人ずつ登録できる。
@@ -66,9 +69,9 @@
   - 合言葉認証・Firebase同期ステータス表示・トースト通知など、他アプリ共通のUI部品
 
 【今後の改良候補】
-  - 星取側の「手合い差の重み（小・標準・大）」設定をこちらにも反映するか検討
+  - （対応済み）星取の startRatings・handicapElo を読んでレート計算を本体に合わせる
   - メンバーの増減があった場合の、過去の総合スコア推移の記録（現状はその場計算のみ）
-  - 総合スコアの推移グラフ
+  - （対応済み）総合スコアの推移グラフ（直近N・2人比較・スコア／順位切替）
 ================================================================================
 -->
 <!DOCTYPE html>
@@ -156,6 +159,14 @@
   }
   .mm-del-btn:active { background: #e74c3c; color: #fff; }
 
+  .filter-btn {
+    padding: 5px 10px; border-radius: 14px; border: 1px solid #ddd8cc;
+    background: #fff; font-size: 0.78rem; cursor: pointer; color: #555; font-weight: bold;
+  }
+  .filter-btn.active {
+    background: #2c3e50; color: #fff; border-color: #2c3e50;
+  }
+
   #toast {
     position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
     background: #2c3e50; color: #fff; padding: 10px 18px;
@@ -195,6 +206,7 @@
   <div id="content">
 
     <div class="panel active" id="panel-sogo">
+      <div id="sogo-chart"></div>
       <div id="sogo-list"></div>
     </div>
 
@@ -257,7 +269,7 @@ const isConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY";
 // ---------- State ----------
 // igoState・mjStateは、igo.html/mahjong.html自身のFirebaseノードを読み取り専用で参照する
 // （このアプリからは一切書き込まない）。configだけ、このアプリ専用ノードに読み書きする。
-let igoState = { players: [], history: [] };
+let igoState = { players: [], history: [], startRatings: {}, handicapElo: null };
 let mjState  = { players: [], history: [], chipRate: 1 };
 let config   = { members: [], weights: { igo: 0.7, mahjong: 0.3 } };
 let igoLoaded = false, mjLoaded = false, configLoaded = false;
@@ -276,7 +288,10 @@ if (isConfigured) {
       const data = snap.val();
       igoState = {
         players: (data && Array.isArray(data.players)) ? data.players : [],
-        history: (data && Array.isArray(data.history)) ? data.history : []
+        history: (data && Array.isArray(data.history)) ? data.history : [],
+        // 星取本体と同じ開始値・手合い換算値でレートを出すために読む（このアプリからは書かない）
+        startRatings: (data && data.startRatings && typeof data.startRatings === "object") ? data.startRatings : {},
+        handicapElo: (data && Array.isArray(data.handicapElo) && data.handicapElo.length === 5) ? data.handicapElo : null
       };
       igoLoaded = true;
       onDataReady();
@@ -384,12 +399,20 @@ function showToast(msg) {
 // ============================================================
 //  星取（igo.html）のレーティング計算ロジックの複製
 //  igo.html本体のロジックが変わったら、ここも合わせて更新する。
-//  手合い差の重みは、igo.html側の「小・標準・大」切り替えのうち「標準（×1）」で固定する。
+//  startRatings（シーズン開始時のレート・対局数）と handicapElo（手合い換算値）も
+//  go-league/state から読み、本体の computeRatings と同じ開始値・換算値で計算する。
 // ============================================================
-const HANDICAP_ELO = [0, 50, 150, 250, 350];
+const HANDICAP_ELO_DEFAULT = [0, 50, 150, 250, 350];
 const RATING_BASE = 1500;
 const RATING_PROVISIONAL_GAMES = 30;
 const IGO_K_SWITCH_GAMES = 20, IGO_K_NEW = 40, IGO_K_SETTLED = 24;
+
+// state.handicapElo があればそれを使い、無ければ初期値（igo.html の applyHandicapEloFromState と同じ）
+function igoHandicapElo(state) {
+  const h = state && state.handicapElo;
+  if (Array.isArray(h) && h.length === 5 && h.every(v => typeof v === "number" && isFinite(v))) return h;
+  return HANDICAP_ELO_DEFAULT;
+}
 const UPPER_TEAI = ["向先","向2","向3","向4"];
 const BLACK_TEAI = ["先", "2子", "3子", "4子"];
 
@@ -433,10 +456,18 @@ function igoChronological(history) {
   return [...history].reverse().sort((a, b) => igoDateSortValue(a.date) - igoDateSortValue(b.date));
 }
 // 星取の対局履歴から、対局者ごとのレーティング（参考値）・対局数・暫定フラグを計算する
+// （igo.html の computeRatings と同じ開始値・換算値・更新式。推移 series は持たない）
 function computeIgoRatings(state) {
   const names = state.players || [];
   const r = {}, n = {};
-  names.forEach(p => { r[p] = RATING_BASE; n[p] = 0; });
+  const sr = state.startRatings || {};
+  // 前のシーズンの終わりのレートと対局数から始める（無い人は1500・0局）
+  names.forEach(p => {
+    const s0 = sr[p];
+    r[p] = s0 ? s0.rating : RATING_BASE;
+    n[p] = s0 ? (s0.games || 0) : 0;
+  });
+  const helo = igoHandicapElo(state);
   const expect = d => 1 / (1 + Math.pow(10, -d / 400));
   const kOf = p => n[p] < IGO_K_SWITCH_GAMES ? IGO_K_NEW : IGO_K_SETTLED;
 
@@ -454,7 +485,7 @@ function computeIgoRatings(state) {
     const info = igoMatchTeaiInfo(m);
     let wb = 0;
     if (info) {
-      const bonus = HANDICAP_ELO[Math.min(info.absLevel, HANDICAP_ELO.length - 1)];
+      const bonus = helo[Math.min(info.absLevel, helo.length - 1)];
       wb = info.isUpperWinner ? -bonus : bonus;
     }
     const miss = 1 - expect(r[w] + wb - r[l]);
@@ -466,7 +497,10 @@ function computeIgoRatings(state) {
 
   const result = {};
   names.forEach(p => {
-    if (n[p] > 0) result[p] = { rating: r[p], games: n[p], provisional: n[p] < RATING_PROVISIONAL_GAMES };
+    // 今シーズン未対局でも、開始レートがある人は順位計算に含める（本体と同じ）
+    if (n[p] > 0 || sr[p]) {
+      result[p] = { rating: r[p], games: n[p], provisional: n[p] < RATING_PROVISIONAL_GAMES };
+    }
   });
   return result;
 }
@@ -580,6 +614,295 @@ function computeDisciplinePoints(members, ratingMap) {
 }
 
 // ============================================================
+//  総合スコアの推移（履歴から再現。保存はしない）
+// ============================================================
+// 両アプリの対局を日付順に足していき、各時点の総合スコアを記録する。
+// 「当時画面に出ていた数字」のログではなく、今のルール・比重・対応づけで再計算した値。
+// 名前ボタンで最大2人まで選択（未選択＝全員）。縦軸はスコア／順位を切替。
+let sogoChartRange = 30; // null = 全期間
+let sogoChartSelected = []; // member id 最大2
+let sogoChartMode = "score"; // "score" | "rank"
+const SOGO_CHART_RANGE_PRESETS = [20, 30, 50, null];
+const SOGO_CHART_COLORS = ["#c0392b", "#2980b9", "#27ae60", "#d68910", "#8e44ad", "#16a085", "#c2185b", "#7f8c8d"];
+
+function computeSogoScoreSeries(members, weights) {
+  if (!members || members.length === 0) return null;
+
+  const events = [];
+  igoChronological(igoState.history || []).forEach((m, i) => {
+    events.push({ kind: "igo", date: m.date || "", m, i });
+  });
+  const mjEntries = (mjState.history || []).map((m, idx) => ({ m, idx }))
+    .sort((a, b) => mjDateSortValue(a.m.date) - mjDateSortValue(b.m.date) || a.idx - b.idx);
+  mjEntries.forEach(({ m, idx }) => {
+    events.push({ kind: "mj", date: m.date || "", m, i: idx });
+  });
+  events.sort((a, b) => {
+    const da = a.kind === "igo" ? igoDateSortValue(a.date) : mjDateSortValue(a.date);
+    const db = b.kind === "igo" ? igoDateSortValue(b.date) : mjDateSortValue(b.date);
+    if (da !== db) return da - db;
+    if (a.kind !== b.kind) return a.kind === "igo" ? -1 : 1;
+    return a.i - b.i;
+  });
+
+  const igoHist = [];
+  const mjHist = [];
+  const series = {};
+  members.forEach(m => { series[m.id] = []; });
+  const gameDates = [];
+
+  function snapshot() {
+    const igoRatings = computeIgoRatings({ ...igoState, history: igoHist });
+    const mjRatings = computeMahjongRatings({ ...mjState, history: mjHist });
+    const igoRatingMap = {}, mjRatingMap = {};
+    members.forEach(m => {
+      if (m.igoName && igoRatings[m.igoName]) igoRatingMap[m.id] = igoRatings[m.igoName];
+      if (m.mahjongName && mjRatings[m.mahjongName]) mjRatingMap[m.id] = mjRatings[m.mahjongName];
+    });
+    const igoPoints = computeDisciplinePoints(members, igoRatingMap);
+    const mjPoints = computeDisciplinePoints(members, mjRatingMap);
+    members.forEach(m => {
+      const total = igoPoints[m.id].point * weights.igo + mjPoints[m.id].point * weights.mahjong;
+      series[m.id].push(Number(total.toFixed(2)));
+    });
+  }
+
+  snapshot();
+  events.forEach(ev => {
+    if (ev.kind === "igo") igoHist.push(ev.m);
+    else mjHist.push(ev.m);
+    snapshot();
+    gameDates.push(ev.date || "");
+  });
+
+  return { series, gameDates, eventCount: events.length };
+}
+
+// 各時点の総合スコアから順位系列を作る（1＝最高スコア。同率は密集順位）
+function buildSogoRankSeries(members, scoreSeries) {
+  const ids = members.map(m => m.id);
+  const out = {};
+  ids.forEach(id => { out[id] = []; });
+  const len = scoreSeries[ids[0]].length;
+  for (let i = 0; i < len; i++) {
+    const ordered = ids.slice().sort((a, b) => scoreSeries[b][i] - scoreSeries[a][i]);
+    let rank = 1;
+    for (let k = 0; k < ordered.length; k++) {
+      if (k > 0 && scoreSeries[ordered[k]][i] < scoreSeries[ordered[k - 1]][i]) rank = k + 1;
+      out[ordered[k]].push(rank);
+    }
+  }
+  return out;
+}
+
+function renderSogoChart(members, weights, rows) {
+  const el = document.getElementById("sogo-chart");
+  if (!el) return;
+  if (!members || members.length === 0) { el.innerHTML = ""; return; }
+
+  // 消えたメンバーの選択を外す
+  const idSet = new Set(members.map(m => m.id));
+  sogoChartSelected = sogoChartSelected.filter(id => idSet.has(id));
+
+  const data = computeSogoScoreSeries(members, weights);
+  if (!data || data.eventCount < 1) {
+    el.innerHTML = `<p class="note" style="margin:0 0 14px">対局がまだ無いため、推移グラフはありません。</p>`;
+    return;
+  }
+
+  const isRank = sogoChartMode === "rank";
+  const hasSel = sogoChartSelected.length > 0;
+  const rankSeries = isRank ? buildSogoRankSeries(members, data.series) : null;
+  const valueOf = (id, i) => isRank ? rankSeries[id][i] : data.series[id][i];
+
+  const total = data.eventCount;
+  const rangeN = sogoChartRange;
+  const useAll = rangeN == null || rangeN >= total;
+  const startEv = useAll ? 0 : total - rangeN;
+  const s0 = startEv;
+  const s1 = total;
+  const nPts = s1 - s0;
+  const shown = nPts;
+
+  const colorOf = (id, idx) => SOGO_CHART_COLORS[idx % SOGO_CHART_COLORS.length];
+  const idxOf = id => Math.max(0, members.findIndex(m => m.id === id));
+
+  const W = 320, H = 260, padL = 36, padR = 52, padT = 12, padB = 30;
+  const x = i => padL + (W - padL - padR) * i / nPts;
+
+  let lo, hi, step, y;
+  const scaleIds = hasSel ? sogoChartSelected : members.map(m => m.id);
+  if (isRank) {
+    lo = 1;
+    hi = Math.max(members.length, 2);
+    step = 1;
+    y = v => padT + (H - padT - padB) * ((v - lo) / (hi - lo)); // 1位が上
+  } else {
+    const allVals = [];
+    scaleIds.forEach(id => {
+      for (let i = s0; i <= s1; i++) allVals.push(valueOf(id, i));
+    });
+    let vMin = Math.min(...allVals), vMax = Math.max(...allVals);
+    if (vMin === vMax) { vMin -= 1; vMax += 1; }
+    const vRange = vMax - vMin;
+    step = vRange <= 4 ? 0.5 : vRange <= 10 ? 1 : vRange <= 25 ? 2 : 5;
+    lo = Math.floor((vMin - step * 0.2) / step) * step;
+    hi = Math.ceil((vMax + step * 0.2) / step) * step;
+    y = v => padT + (H - padT - padB) * (1 - (v - lo) / (hi - lo));
+  }
+
+  let grid = "";
+  if (isRank) {
+    for (let v = lo; v <= hi; v += step) {
+      grid += `<line x1="${padL}" y1="${y(v).toFixed(1)}" x2="${W - padR}" y2="${y(v).toFixed(1)}" stroke="#eee" stroke-width="1"/>`
+            + `<text x="${padL - 3}" y="${(y(v) + 3).toFixed(1)}" font-size="8" text-anchor="end" fill="#999">${v}位</text>`;
+    }
+  } else {
+    for (let v = lo; v <= hi + 1e-9; v = Number((v + step).toFixed(4))) {
+      grid += `<line x1="${padL}" y1="${y(v).toFixed(1)}" x2="${W - padR}" y2="${y(v).toFixed(1)}" stroke="#eee" stroke-width="1"/>`
+            + `<text x="${padL - 3}" y="${(y(v) + 3).toFixed(1)}" font-size="8" text-anchor="end" fill="#999">${v}</text>`;
+    }
+  }
+
+  let monthLines = "";
+  let prevYM = null;
+  for (let gi = startEv; gi < total; gi++) {
+    const d = String(data.gameDates[gi] || "");
+    const parts = d.split(" ")[0].split("/");
+    if (parts.length < 2) continue;
+    const ym = parts[0] + "/" + parts[1];
+    if (ym === prevYM) continue;
+    const rel = gi - startEv;
+    const xi = x(rel + 1);
+    if (prevYM !== null) {
+      monthLines += `<line x1="${xi.toFixed(1)}" y1="${padT}" x2="${xi.toFixed(1)}" y2="${H - padB}" stroke="#e0dbcd" stroke-width="1"/>`;
+    }
+    const mo = parseInt(parts[1], 10);
+    if (!isNaN(mo)) {
+      const lx = prevYM === null ? x(1) : xi;
+      monthLines += `<text x="${lx.toFixed(1)}" y="${H - 8}" font-size="8" text-anchor="${prevYM === null ? "start" : "middle"}" fill="#b0a898">${mo}月</text>`;
+    }
+    prevYM = ym;
+  }
+
+  // 表示する人：未選択＝全員、選択時はその人だけ
+  const visible = hasSel
+    ? members.filter(m => sogoChartSelected.includes(m.id))
+    : members;
+
+  let lines = "";
+  visible.forEach(m => {
+    const pts = [];
+    for (let i = s0; i <= s1; i++) {
+      pts.push(`${x(i - s0).toFixed(1)},${y(valueOf(m.id, i)).toFixed(1)}`);
+    }
+    const color = colorOf(m.id, idxOf(m.id));
+    const last = valueOf(m.id, s1);
+    const thick = hasSel;
+    lines += `<polyline points="${pts.join(" ")}" fill="none" stroke="${color}" stroke-width="${thick ? 3.2 : 1.7}" stroke-linejoin="round"/>`;
+    lines += `<circle cx="${x(nPts).toFixed(1)}" cy="${y(last).toFixed(1)}" r="${thick ? 4.5 : 2.8}" fill="${color}"/>`;
+    if (hasSel && nPts >= 2) {
+      for (let i = s0 + 1; i < s1; i++) {
+        lines += `<circle cx="${x(i - s0).toFixed(1)}" cy="${y(valueOf(m.id, i)).toFixed(1)}" r="2.2" fill="${color}" opacity="0.9"/>`;
+      }
+    }
+  });
+
+  const labelGap = 11;
+  const labelItems = visible.map(m => ({
+    name: m.name || "（無題）",
+    y: y(valueOf(m.id, s1)),
+    color: colorOf(m.id, idxOf(m.id))
+  })).sort((a, b) => a.y - b.y);
+  for (let i = 1; i < labelItems.length; i++) {
+    if (labelItems[i].y - labelItems[i - 1].y < labelGap) labelItems[i].y = labelItems[i - 1].y + labelGap;
+  }
+  const yMax = H - padB - 2;
+  for (let i = labelItems.length - 2; i >= 0; i--) {
+    if (labelItems[i + 1].y > yMax) labelItems[i + 1].y = yMax;
+    if (labelItems[i + 1].y - labelItems[i].y < labelGap) labelItems[i].y = labelItems[i + 1].y - labelGap;
+  }
+  if (labelItems.length && labelItems[0].y < padT + 2) {
+    const shift = (padT + 2) - labelItems[0].y;
+    labelItems.forEach(it => { it.y += shift; });
+  }
+  let labels = "";
+  labelItems.forEach(it => {
+    const nm = String(it.name).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    labels += `<text x="${(W - padR + 4).toFixed(1)}" y="${(it.y + 3).toFixed(1)}" font-size="9" font-weight="bold" fill="${it.color}">${nm}</text>`;
+  });
+
+  const modeBtns = ["score", "rank"].map(m => {
+    const label = m === "score" ? "スコア" : "順位";
+    return `<button type="button" class="filter-btn sogo-mode-btn ${sogoChartMode === m ? "active" : ""}" data-mode="${m}">${label}</button>`;
+  }).join("");
+
+  const rangeBtns = SOGO_CHART_RANGE_PRESETS.map(n => {
+    const label = n == null ? "すべて" : String(n);
+    const active = (n == null && rangeN == null) || (n != null && rangeN === n);
+    return `<button type="button" class="filter-btn sogo-range-btn ${active ? "active" : ""}" data-range="${n == null ? "all" : n}">${label}</button>`;
+  }).join("");
+
+  // 最新スコア（rows）順でボタンを並べると一覧と対応しやすい
+  const btnOrder = (rows && rows.length) ? rows.map(r => r.member) : members;
+  const nameBtns = btnOrder.map(m => {
+    const on = sogoChartSelected.includes(m.id);
+    const score = data.series[m.id][s1];
+    const nm = escapeHtml(m.name || "（無題）");
+    return `<button type="button" class="filter-btn sogo-focus-btn ${on ? "active" : ""}" data-id="${m.id}" style="display:inline-flex;align-items:center;gap:5px"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${colorOf(m.id, idxOf(m.id))}"></span>${nm} ${score}</button>`;
+  }).join("");
+
+  const rangeNote = useAll ? `全${total}件` : `直近${shown}件（全${total}件中）`;
+  const selNote = hasSel
+    ? `選んだ人だけを表示。もう一度タップで解除。`
+    : `名前を最大2人まで選ぶと、その人の線だけを表示します。`;
+  const modeNote = isRank ? `縦軸は各時点の総合順位（1位が上）です。` : `縦軸は総合スコアです。`;
+
+  el.innerHTML = `
+    <h3 style="margin-top:0">総合スコアの推移</h3>
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+      <span style="font-size:0.78rem;color:#666;font-weight:bold">縦軸</span>${modeBtns}
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+      <span style="font-size:0.78rem;color:#666;font-weight:bold">表示</span>${rangeBtns}
+    </div>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;background:#faf9f5;border:1px solid #e8e4da;border-radius:6px">${grid}${monthLines}${lines}${labels}</svg>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 4px">${nameBtns}</div>
+    <p class="note" style="margin:4px 0 18px">横軸は囲碁・麻雀の対局を古い順に並べた出来事（${rangeNote}）。各時点の値は、今の比重・メンバー対応づけ・レート計算で履歴から再現した参考値です（当時の画面の記録ではありません）。${selNote}${modeNote}縦の薄い線は月の切り替わりです。</p>`;
+
+  el.querySelectorAll(".sogo-range-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const v = btn.dataset.range;
+      sogoChartRange = v === "all" ? null : parseInt(v, 10);
+      renderSogoTab();
+    });
+  });
+  el.querySelectorAll(".sogo-mode-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      sogoChartMode = btn.dataset.mode;
+      renderSogoTab();
+    });
+  });
+  el.querySelectorAll(".sogo-focus-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.id;
+      const idx = sogoChartSelected.indexOf(id);
+      if (idx >= 0) {
+        sogoChartSelected = sogoChartSelected.filter(x => x !== id);
+      } else if (sogoChartSelected.length < 2) {
+        sogoChartSelected = [...sogoChartSelected, id];
+      } else {
+        sogoChartSelected = [sogoChartSelected[1], id];
+      }
+      renderSogoTab();
+    });
+  });
+}
+
+// ============================================================
+//  🏅総合順位タブ
+// ============================================================
+// ============================================================
 //  🏅総合順位タブ
 // ============================================================
 function renderSogoTab() {
@@ -589,6 +912,8 @@ function renderSogoTab() {
   const members = config.members || [];
   if (members.length === 0) {
     el.innerHTML = `<p class="note" style="margin:0">⚙️設定タブでメンバーを登録してください（両アプリの名簿から自動生成できます）。</p>`;
+    const ch = document.getElementById("sogo-chart");
+    if (ch) ch.innerHTML = "";
     return;
   }
 
@@ -614,6 +939,8 @@ function renderSogoTab() {
   const igoPct = Math.round(weights.igo * 100);
   const mjPct  = 100 - igoPct;
   const medals = ["🥇","🥈","🥉"];
+
+  renderSogoChart(members, weights, rows);
 
   let html = `<p class="note" style="margin-top:0">囲碁と麻雀、それぞれのメンバー内での順位をポイント化し、現在の比重（囲碁${igoPct}%／麻雀${mjPct}%）で合算したスコアです。囲碁レートと麻雀レートを直接比較・合算したものではありません。</p>`;
 
