@@ -75,8 +75,8 @@
       sogo.html・shinsei.html の複製ロジックも startRatings を読む。
       レーティング表示中は、順位の上に推移グラフを表示する（横軸はレートの対象になった対局の順で全員共通、
       縦軸はレート。全員の線を色分けで重ね、対局のない人の線は横に伸ばす。右端に名前ラベル（近いときは
-      縦にずらす）。月が変わる位置に薄い縦線と「n月」。名前のボタンをタップするとその人の線を太く強調し
-      途中の点を付け、他はかなり薄くする。点線は1500）。
+      縦にずらす）。月が変わる位置に薄い縦線と「n月」。直近20／30／50局と全期間を切り替え可能（初期は直近30局）。
+      名前のボタンをタップするとその人の線を太く強調し途中の点を付け、他はかなり薄くする。点線は1500）。
       手合い換算値（HANDICAP_ELO）の調整：設定タブで手動変更できる。また「データから推定（簡易版）」で、
       過去の対局結果を一番うまく説明する換算値を候補の総当たりで探し、提案する。採用すると
       state.handicapElo に保存され全員に同期される。サンプルが少ない段差は参考表示になる。
@@ -1573,22 +1573,37 @@ function computeRatings() {
 // 横軸は、レートの対象になった対局の順（全員共通）。縦軸はレート。対局のない人の線は、その間そのまま横に伸びる。
 // 右端に名前ラベル（近いときは縦にずらす）。月が変わる位置に薄い縦線と「n月」。
 // 名前のボタンをタップすると、その人の線を太く強調し途中の点を付け、他の人はかなり薄くする（もう一度押すと解除）。
+// 直近N局／全期間の切替（プリセット 20・30・50・すべて。初期は30）。
 let ratingChartFocus = null;
+let ratingChartRange = 30; // null = 全期間、数値 = 直近N局
+const RATING_CHART_RANGE_PRESETS = [20, 30, 50, null]; // null は「すべて」
 const esc = str => String(str == null ? "" : str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const RATING_CHART_COLORS = ["#c0392b", "#2980b9", "#27ae60", "#d68910", "#8e44ad", "#16a085", "#c2185b"];
 
-function ratingChartHTML(ratings, focus) {
+function ratingChartHTML(ratings, focus, rangeN) {
   const total = (ratings.gameDates || []).length;
   if (ratings.length === 0 || total < 1) return `<p class="note" style="margin-top:0">レーティングの対象になる対局が、まだありません。</p>`;
   const colorOf = p => RATING_CHART_COLORS[Math.max(0, state.players.indexOf(p)) % RATING_CHART_COLORS.length];
-  // 高さを広げ、右余白に名前ラベルを置く。左はレート数字用。
-  const W = 320, H = 230, padL = 32, padR = 48, padT = 12, padB = 30;
-  const all = ratings.flatMap(rt => ratings.series[rt.name]);
+
+  // 表示範囲：直近 rangeN 局（null / 全件以上なら全期間）
+  const useAll = rangeN == null || rangeN >= total;
+  const startGame = useAll ? 0 : total - rangeN; // gameDates の開始インデックス
+  // series の添字：0=開始時、1..=各対局後。窓の左端は startGame 時点のレート（対局 startGame の直前＝series[startGame]）
+  const s0 = startGame;          // series 開始
+  const s1 = total;              // series 終了（含む）
+  const nPts = s1 - s0;          // 折れ線の区間数（＝表示する対局数）
+  const shownGames = nPts;       // 表示中の対局数
+
+  // 高さ・余白（右に名前ラベル）
+  const W = 320, H = 280, padL = 32, padR = 48, padT = 12, padB = 30;
+
+  // 縦軸は「表示中の範囲」だけから取る（直近にすると動きが見やすい）
+  const all = ratings.flatMap(rt => ratings.series[rt.name].slice(s0, s1 + 1));
   const vMin = Math.min(...all), vMax = Math.max(...all);
-  const range = vMax - vMin;
-  const step = range <= 150 ? 25 : range <= 300 ? 50 : 100;
+  const vRange = vMax - vMin;
+  const step = vRange <= 150 ? 25 : vRange <= 300 ? 50 : 100;
   const lo = Math.floor((vMin - 5) / step) * step, hi = Math.ceil((vMax + 5) / step) * step;
-  const x = i => padL + (W - padL - padR) * i / total;
+  const x = i => padL + (W - padL - padR) * i / nPts; // i = 0 .. nPts（series 相対）
   const y = v => padT + (H - padT - padB) * (1 - (v - lo) / (hi - lo));
 
   // 横グリッド（1500は点線）
@@ -1599,18 +1614,17 @@ function ratingChartHTML(ratings, focus) {
           + `<text x="${padL - 3}" y="${(y(v) + 3).toFixed(1)}" font-size="8" text-anchor="end" fill="#999">${v}</text>`;
   }
 
-  // 月の区切り：対局日の月が変わる位置に薄い縦線と「n月」ラベル
-  // gameDates[i] は i 局目の対局日。series の添字は 0=開始時、1..=各対局後。
+  // 月の区切り（表示中の対局だけ）
   let monthLines = "";
   let prevYM = null;
-  for (let i = 0; i < total; i++) {
-    const d = String(ratings.gameDates[i] || "");
+  for (let gi = startGame; gi < total; gi++) {
+    const d = String(ratings.gameDates[gi] || "");
     const parts = d.split(" ")[0].split("/");
     if (parts.length < 2) continue;
     const ym = parts[0] + "/" + parts[1];
     if (ym === prevYM) continue;
-    // 最初の月は左端と重なりやすいので、2ヶ月目以降だけ線を引く（ラベルは出す）
-    const xi = x(i + 1); // その対局「後」の位置（series の i+1）
+    const rel = gi - startGame;       // 0-based within window
+    const xi = x(rel + 1);            // その対局「後」の位置
     if (prevYM !== null) {
       monthLines += `<line x1="${xi.toFixed(1)}" y1="${padT}" x2="${xi.toFixed(1)}" y2="${H - padB}" stroke="#e0dbcd" stroke-width="1"/>`;
     }
@@ -1627,27 +1641,28 @@ function ratingChartHTML(ratings, focus) {
   let lines = "";
   order.forEach(name => {
     const series = ratings.series[name];
-    const pts = series.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+    const pts = [];
+    for (let i = s0; i <= s1; i++) pts.push(`${x(i - s0).toFixed(1)},${y(series[i]).toFixed(1)}`);
     const isFocus = name === focus;
     const dim = focus && !isFocus;
     const color = colorOf(name);
-    const last = series[total];
+    const last = series[s1];
     const sw = isFocus ? 3.5 : 1.6;
     const op = dim ? 0.12 : 1;
-    lines += `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="${sw}" stroke-linejoin="round" opacity="${op}"/>`;
-    lines += `<circle cx="${x(total).toFixed(1)}" cy="${y(last).toFixed(1)}" r="${isFocus ? 4.5 : 2.8}" fill="${color}" opacity="${op}"/>`;
-    // 強調中だけ、途中の点を付けて動きを追いやすくする
-    if (isFocus && total >= 2) {
-      for (let i = 1; i < total; i++) {
-        lines += `<circle cx="${x(i).toFixed(1)}" cy="${y(series[i]).toFixed(1)}" r="2.2" fill="${color}" opacity="0.9"/>`;
+    lines += `<polyline points="${pts.join(" ")}" fill="none" stroke="${color}" stroke-width="${sw}" stroke-linejoin="round" opacity="${op}"/>`;
+    lines += `<circle cx="${x(nPts).toFixed(1)}" cy="${y(last).toFixed(1)}" r="${isFocus ? 4.5 : 2.8}" fill="${color}" opacity="${op}"/>`;
+    // 強調中だけ途中の点（表示範囲内）
+    if (isFocus && nPts >= 2) {
+      for (let i = s0 + 1; i < s1; i++) {
+        lines += `<circle cx="${x(i - s0).toFixed(1)}" cy="${y(series[i]).toFixed(1)}" r="2.2" fill="${color}" opacity="0.9"/>`;
       }
     }
   });
 
-  // 右端の名前ラベル（最終レート位置）。近いものは縦にずらして重なりを避ける
+  // 右端の名前ラベル（最終＝表示範囲の右端レート）。近いものは縦にずらす
   const labelGap = 11;
   const labelItems = ratings.map(rt => {
-    const last = ratings.series[rt.name][total];
+    const last = ratings.series[rt.name][s1];
     return { name: rt.name, y: y(last), color: colorOf(rt.name), dim: focus && rt.name !== focus };
   }).sort((a, b) => a.y - b.y);
   for (let i = 1; i < labelItems.length; i++) {
@@ -1671,19 +1686,36 @@ function ratingChartHTML(ratings, focus) {
     labels += `<text x="${(W - padR + 5).toFixed(1)}" y="${(it.y + 3).toFixed(1)}" font-size="9" font-weight="bold" fill="${it.color}" opacity="${it.dim ? 0.2 : 1}">${esc(it.name)}</text>`;
   });
 
-  // 同じ月だけのときは従来どおり開始日・終了日を表示
-  const d0 = ratings.gameDates[0], d1 = ratings.gameDates[total - 1];
+  // 同じ月だけのときは日付を表示
+  const d0 = ratings.gameDates[startGame], d1 = ratings.gameDates[total - 1];
   let axis = "";
   if (prevYM === null || (String(d0).split("/")[1] === String(d1).split("/")[1] && String(d0).split("/")[0] === String(d1).split("/")[0])) {
-    axis = total > 1
-      ? `<text x="${x(1).toFixed(1)}" y="${H - 8}" font-size="8" text-anchor="start" fill="#999">${esc(d0)}</text><text x="${x(total).toFixed(1)}" y="${H - 8}" font-size="8" text-anchor="end" fill="#999">${esc(d1)}</text>`
+    axis = shownGames > 1
+      ? `<text x="${x(1).toFixed(1)}" y="${H - 8}" font-size="8" text-anchor="start" fill="#999">${esc(d0)}</text><text x="${x(nPts).toFixed(1)}" y="${H - 8}" font-size="8" text-anchor="end" fill="#999">${esc(d1)}</text>`
       : `<text x="${x(1).toFixed(1)}" y="${H - 8}" font-size="8" text-anchor="start" fill="#999">${esc(d0)}</text>`;
   }
 
-  const buttons = ratings.map(rt => `<button type="button" class="filter-btn rating-focus-btn ${focus === rt.name ? "active" : ""}" data-name="${esc(rt.name)}" style="display:inline-flex;align-items:center;gap:5px"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${colorOf(rt.name)}"></span>${esc(rt.name)} ${Math.round(rt.rating)}</button>`).join("");
-  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;background:#faf9f5;border:1px solid #e8e4da;border-radius:6px">${grid}${monthLines}${lines}${labels}${axis}</svg>`
-    + `<div style="display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 4px">${buttons}</div>`
-    + `<p class="note" style="margin:4px 0 12px">横軸はレートの対象になった対局の順（全${total}局）。縦の薄い線は月の切り替わりです。名前をタップすると、その人の線を強調します。点線は${RATING_BASE}です。</p>`;
+  // 範囲切替ボタン
+  const rangeBtns = RATING_CHART_RANGE_PRESETS.map(n => {
+    const label = n == null ? "すべて" : String(n);
+    // 選択中のプリセットをハイライト（対局数がN未満でも、選んだボタンを維持）
+    const active = (n == null && rangeN == null) || (n != null && rangeN === n);
+    return `<button type="button" class="filter-btn rating-range-btn ${active ? "active" : ""}" data-range="${n == null ? "all" : n}">${label}</button>`;
+  }).join("");
+
+  const nameBtns = ratings.map(rt => `<button type="button" class="filter-btn rating-focus-btn ${focus === rt.name ? "active" : ""}" data-name="${esc(rt.name)}" style="display:inline-flex;align-items:center;gap:5px"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${colorOf(rt.name)}"></span>${esc(rt.name)} ${Math.round(rt.rating)}</button>`).join("");
+
+  const rangeNote = useAll
+    ? `全${total}局`
+    : `直近${shownGames}局（全${total}局中）`;
+
+  return `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+      <span style="font-size:0.78rem;color:#666;font-weight:bold">表示</span>
+      ${rangeBtns}
+    </div>`
+    + `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;background:#faf9f5;border:1px solid #e8e4da;border-radius:6px">${grid}${monthLines}${lines}${labels}${axis}</svg>`
+    + `<div style="display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 4px">${nameBtns}</div>`
+    + `<p class="note" style="margin:4px 0 12px">横軸はレートの対象になった対局の順（${rangeNote}）。縦の薄い線は月の切り替わりです。名前をタップすると、その人の線を強調します。点線は${RATING_BASE}です。</p>`;
 }
 function renderRatingChart(ratings) {
   const el = document.getElementById("rating-chart");
@@ -1691,14 +1723,22 @@ function renderRatingChart(ratings) {
   if (sortMode !== "rating" || !ratings) { el.style.display = "none"; el.innerHTML = ""; return; }
   if (ratingChartFocus && !ratings.some(rt => rt.name === ratingChartFocus)) ratingChartFocus = null;
   el.style.display = "";
-  el.innerHTML = ratingChartHTML(ratings, ratingChartFocus);
+  el.innerHTML = ratingChartHTML(ratings, ratingChartFocus, ratingChartRange);
   el.querySelectorAll(".rating-focus-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       ratingChartFocus = ratingChartFocus === btn.dataset.name ? null : btn.dataset.name;
       renderRatingChart(ratings);
     });
   });
+  el.querySelectorAll(".rating-range-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const v = btn.dataset.range;
+      ratingChartRange = v === "all" ? null : parseInt(v, 10);
+      renderRatingChart(ratings);
+    });
+  });
 }
+
 
 // レーティング表示中だけ、現在の換算値と説明を順位の上に出す。
 // ・換算値（HANDICAP_ELO）：設定タブで保存・推定した基準値。ここに出すのは現状の共有用。
