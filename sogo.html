@@ -166,6 +166,14 @@
   .filter-btn.active {
     background: #2c3e50; color: #fff; border-color: #2c3e50;
   }
+  .help-details { margin: 4px 0 18px; }
+  .help-details > summary {
+    font-size: 0.8rem; font-weight: bold; color: #2c3e50;
+    cursor: pointer; list-style: none; padding: 2px 0;
+  }
+  .help-details > summary::-webkit-details-marker { display: none; }
+  .help-details > summary::before { content: "▶ "; font-size: 0.65rem; color: #b89752; }
+  .help-details[open] > summary::before { content: "▼ "; }
 
   #toast {
     position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
@@ -868,7 +876,16 @@ function renderSogoChart(members, weights, rows) {
     </div>
     <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;background:#faf9f5;border:1px solid #e8e4da;border-radius:6px">${grid}${monthLines}${lines}${labels}</svg>
     <div style="display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 4px">${nameBtns}</div>
-    <p class="note" style="margin:4px 0 18px">横軸は囲碁・麻雀の対局を古い順に並べた出来事（${rangeNote}）。各時点の値は、今の比重・メンバー対応づけ・レート計算で履歴から再現した参考値です（当時の画面の記録ではありません）。${selNote}${modeNote}縦の薄い線は月の切り替わりです。</p>`;
+    <details class="help-details">
+      <summary>グラフの見方</summary>
+      <div class="note" style="margin:6px 0 0;line-height:1.7">
+        <div>・横軸は、囲碁・麻雀の対局を古い順に並べた出来事です（${rangeNote}）。</div>
+        <div>・各時点の値は、今の比重・メンバー対応づけ・レート計算で履歴から再現した参考値です（当時の画面に出ていた記録ではありません）。</div>
+        <div>・${selNote}</div>
+        <div>・${modeNote}</div>
+        <div>・縦の薄い線は月の切り替わりです。</div>
+      </div>
+    </details>`;
 
   el.querySelectorAll(".sogo-range-btn").forEach(btn => {
     btn.addEventListener("click", () => {
