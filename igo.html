@@ -153,7 +153,7 @@
       全体（上手勝ち/下手勝ちの局数・割合）と対局者ごとの勝敗を集計）
   - 互先 黒白成績（順位タブ。互先のうち色が分かっている対局＝互白・互黒、で
       全体（黒番勝ち/白番勝ちの局数・割合）と対局者ごとの勝敗を集計。色不明の「互先」は対象外）
-  - 対局コメント（履歴から各対局にコメントを追加・修正可能。入力欄はスマホで書きやすい高さ・文字サイズにし、文字数に応じて自動で伸長。既存コメントを編集すると投稿者名も引き継ぐ。短文はそのまま表示、長文は折りたたみ）
+  - 対局コメント（選択肢から複数の文章を追加でき、自由記入と合わせて一つのコメントとして保存。短文はそのまま表示、長文は折りたたみ）
   - コメントへのリアクション（👍いいね・😄楽しい・😮驚き・🔥熱い・👏お見事・🤔なるほど・
       😢惜しい・🙏ありがとう・🎉おめでとう・💡気づきの10種。プルダウンで「絵文字＋意味」を見ながら選ぶと、名前を選ぶ
       画面が開く（8個のボタンを並べると幅が足りないため、プルダウンにしている）。
@@ -359,6 +359,53 @@
       color: #777;
       font-size: 0.78rem;
       line-height: 1.6;
+    }
+    .comment-choice-area {
+      margin: 10px 0 12px;
+      padding: 10px;
+      background: #fffdf8;
+      border: 1px solid #e6dfd0;
+      border-radius: 7px;
+    }
+    .comment-choice-area-title {
+      margin-bottom: 8px;
+      color: #555;
+      font-size: 0.8rem;
+      font-weight: bold;
+    }
+    .comment-choice-group + .comment-choice-group { margin-top: 10px; }
+    .comment-choice-group-title {
+      margin-bottom: 5px;
+      color: #777;
+      font-size: 0.74rem;
+      font-weight: bold;
+    }
+    .comment-choice-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .comment-choice {
+      min-height: 38px;
+      padding: 7px 10px;
+      border: 1px solid #d8d2c5;
+      border-radius: 18px;
+      background: #fff;
+      color: #444;
+      font-family: inherit;
+      font-size: 0.78rem;
+      line-height: 1.4;
+      text-align: left;
+      cursor: pointer;
+    }
+    .comment-choice.is-added {
+      border-color: #7d9f83;
+      background: #edf5ed;
+      color: #315d39;
+    }
+    .comment-choice:focus-visible {
+      outline: 2px solid rgba(184,151,82,0.55);
+      outline-offset: 2px;
     }
     .comment-editor-author {
       width: 100%;
@@ -801,7 +848,35 @@
       <select id="edit-comment-author" class="comment-editor-author">
         <option value="">（名前を選択してください）</option>
       </select>
-      <label for="edit-comment-text" style="display:block;margin:10px 0 5px;font-size:0.82rem;color:#555">コメント</label>
+      <div class="comment-choice-area">
+        <div class="comment-choice-area-title">感じたこと（複数選択できます）</div>
+        <div class="comment-editor-help">タップすると下のコメント欄に追加されます。追加後は自由に編集・削除できます。</div>
+        <div class="comment-choice-group">
+          <div class="comment-choice-group-title">自分の対局について</div>
+          <div class="comment-choice-list">
+            <button type="button" class="comment-choice" data-choice="自分でも、よく打てた！" aria-pressed="false">＋ 自分でも、よく打てた！</button>
+            <button type="button" class="comment-choice" data-choice="不本意だ" aria-pressed="false">＋ 不本意だ</button>
+            <button type="button" class="comment-choice" data-choice="ちょっと悔しい" aria-pressed="false">＋ ちょっと悔しい</button>
+          </div>
+        </div>
+        <div class="comment-choice-group">
+          <div class="comment-choice-group-title">相手・仲間の碁について</div>
+          <div class="comment-choice-list">
+            <button type="button" class="comment-choice" data-choice="自分には思いつかない一手があった" aria-pressed="false">＋ 自分には思いつかない一手があった</button>
+            <button type="button" class="comment-choice" data-choice="いつもと違う一面が見えた" aria-pressed="false">＋ いつもと違う一面が見えた</button>
+            <button type="button" class="comment-choice" data-choice="自分も試してみたい" aria-pressed="false">＋ 自分も試してみたい</button>
+          </div>
+        </div>
+        <div class="comment-choice-group">
+          <div class="comment-choice-group-title">一局を振り返って</div>
+          <div class="comment-choice-list">
+            <button type="button" class="comment-choice" data-choice="惜しい場面があった" aria-pressed="false">＋ 惜しい場面があった</button>
+            <button type="button" class="comment-choice" data-choice="最後まで気が抜けなかった" aria-pressed="false">＋ 最後まで気が抜けなかった</button>
+            <button type="button" class="comment-choice" data-choice="もう一度振り返りたい一局だった" aria-pressed="false">＋ もう一度振り返りたい一局だった</button>
+          </div>
+        </div>
+      </div>
+      <label for="edit-comment-text" style="display:block;margin:10px 0 5px;font-size:0.82rem;color:#555">コメント（選択した文章もここに入ります）</label>
       <textarea id="edit-comment-text" class="comment-editor-text" rows="5" placeholder="感じたことや気づいたことを自由に書いてください"></textarea>
     </div>
   </div>
@@ -2766,6 +2841,68 @@ function decisionBreakdownOverallHTML(matches) {
   return html;
 }
 
+// コメント欄に追加する選択肢。保存時は自由記入と一緒に一つの本文として保存する。
+const COMMENT_CHOICE_GROUPS = [
+  {
+    title: "自分の対局について",
+    items: ["自分でも、よく打てた！", "不本意だ", "ちょっと悔しい"]
+  },
+  {
+    title: "相手・仲間の碁について",
+    items: ["自分には思いつかない一手があった", "いつもと違う一面が見えた", "自分も試してみたい"]
+  },
+  {
+    title: "一局を振り返って",
+    items: ["惜しい場面があった", "最後まで気が抜けなかった", "もう一度振り返りたい一局だった"]
+  }
+];
+
+// 選択肢は入力補助。選択した文章はtextareaへ追加し、別データとしては保存しない。
+function commentChoiceHTML() {
+  return `<div class="comment-choice-area">
+    <div class="comment-choice-area-title">感じたこと（複数選択できます）</div>
+    <div class="comment-editor-help">タップすると下のコメント欄に追加されます。追加後は自由に編集・削除できます。</div>
+    ${COMMENT_CHOICE_GROUPS.map(group => `
+      <div class="comment-choice-group">
+        <div class="comment-choice-group-title">${group.title}</div>
+        <div class="comment-choice-list">
+          ${group.items.map(item => `<button type="button" class="comment-choice" data-choice="${escapeAttr(item)}" aria-pressed="false">＋ ${item}</button>`).join("")}
+        </div>
+      </div>`).join("")}
+  </div>`;
+}
+
+// 選択肢の文章を一つのコメント欄へ追加する。同じ行が既にあれば重複追加しない。
+function addCommentChoice(button) {
+  const editor = button.closest(".comment-editor");
+  const textarea = editor ? editor.querySelector("textarea") : null;
+  if (!textarea) return;
+  const choice = button.dataset.choice || "";
+  const existingLines = textarea.value.split(/\r?\n/).map(line => line.trim());
+  if (existingLines.includes(choice)) {
+    refreshCommentChoiceStates(editor);
+    return;
+  }
+  const current = textarea.value.replace(/\s+$/, "");
+  textarea.value = current ? `${current}\n\n${choice}` : choice;
+  autoGrowTextarea(textarea);
+  refreshCommentChoiceStates(editor);
+}
+
+// コメント欄の内容に応じて、追加済みの選択肢を表示する。
+function refreshCommentChoiceStates(editor) {
+  if (!editor) return;
+  const textarea = editor.querySelector("textarea");
+  if (!textarea) return;
+  const lines = textarea.value.split(/\r?\n/).map(line => line.trim());
+  editor.querySelectorAll(".comment-choice").forEach(button => {
+    const added = lines.includes(button.dataset.choice || "");
+    button.classList.toggle("is-added", added);
+    button.setAttribute("aria-pressed", added ? "true" : "false");
+    button.textContent = `${added ? "✓" : "＋"} ${button.dataset.choice || ""}`;
+  });
+}
+
 // 通常の対局履歴リストHTML
 function matchListHTML(filtered, anchorPlayer, readOnly) {
   // anchorPlayer が指定されている場合、その人を常に左側に表示する
@@ -2862,7 +2999,8 @@ function matchListHTML(filtered, anchorPlayer, readOnly) {
             <option value="">（名前を選択してください）</option>
             ${playerOptions}
           </select>
-          <label for="comment-input-${m.id || idx}" style="display:block;margin:10px 0 5px;font-size:0.82rem;color:#555">コメント</label>
+          ${commentChoiceHTML()}
+          <label for="comment-input-${m.id || idx}" style="display:block;margin:10px 0 5px;font-size:0.82rem;color:#555">コメント（選択した文章もここに入ります）</label>
           <textarea id="comment-input-${m.id || idx}" class="comment-input comment-editor-text" rows="5" placeholder="例：この一手は思いつかなかった／ここは迷った／次はこう打ってみたい">${savedText}</textarea>
           <div class="comment-editor-actions">
             <button class="comment-cancel comment-editor-cancel" data-id="${m.id || idx}" type="button">キャンセル</button>
@@ -3005,9 +3143,17 @@ function renderHistory() {
     });
   });
 
-  // コメント入力欄の自動リサイズ（文字数に合わせて高さを伸ばす）
+  // コメント入力欄の自動リサイズと、選択肢の追加済み表示を更新
   el.querySelectorAll(".comment-input").forEach(ta => {
-    ta.addEventListener("input", () => autoGrowTextarea(ta));
+    ta.addEventListener("input", () => {
+      autoGrowTextarea(ta);
+      refreshCommentChoiceStates(ta.closest(".comment-editor"));
+    });
+  });
+
+  // 選択肢をタップすると、同じコメント欄へ文章を追加
+  el.querySelectorAll(".comment-choice").forEach(button => {
+    button.addEventListener("click", () => addCommentChoice(button));
   });
 
   // コメントボタンリスナー
@@ -3030,6 +3176,7 @@ function renderHistory() {
           ? (savedComment.author || "") : "";
         if (authorSelect) authorSelect.value = savedAuthor;
         autoGrowTextarea(ta);
+        refreshCommentChoiceStates(form);
         ta.focus();
       }
     });
@@ -3848,7 +3995,9 @@ function openEditModal(m, idx) {
     authorSel.value = "";
     document.getElementById("edit-comment-text").value = existComment;
   }
-  autoGrowTextarea(document.getElementById("edit-comment-text"));
+  const editCommentText = document.getElementById("edit-comment-text");
+  autoGrowTextarea(editCommentText);
+  refreshCommentChoiceStates(editCommentText.closest(".comment-editor"));
 }
 
 // 結果種別変更で目数差欄・ラベル・指導対局ロックを切替
@@ -3890,6 +4039,11 @@ document.getElementById("edit-teai").addEventListener("change", function() {
 // コメント入力欄の自動リサイズ（文字数に合わせて高さを伸ばす）
 document.getElementById("edit-comment-text").addEventListener("input", function() {
   autoGrowTextarea(this);
+  refreshCommentChoiceStates(this.closest(".comment-editor"));
+});
+
+document.querySelectorAll("#edit-modal .comment-choice").forEach(button => {
+  button.addEventListener("click", () => addCommentChoice(button));
 });
 
 // 保存
