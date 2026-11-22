@@ -153,7 +153,7 @@
       全体（上手勝ち/下手勝ちの局数・割合）と対局者ごとの勝敗を集計）
   - 互先 黒白成績（順位タブ。互先のうち色が分かっている対局＝互白・互黒、で
       全体（黒番勝ち/白番勝ちの局数・割合）と対局者ごとの勝敗を集計。色不明の「互先」は対象外）
-  - 対局コメント（履歴から各対局に一言メモを後から追記可能。短文はそのまま表示、長文は折りたたみ）
+  - 対局コメント（履歴から各対局にコメントを追加・修正可能。入力欄はスマホで書きやすい高さ・文字サイズにし、文字数に応じて自動で伸長。既存コメントを編集すると投稿者名も引き継ぐ。短文はそのまま表示、長文は折りたたみ）
   - コメントへのリアクション（👍いいね・😄楽しい・😮驚き・🔥熱い・👏お見事・🤔なるほど・
       😢惜しい・🙏ありがとう・🎉おめでとう・💡気づきの10種。プルダウンで「絵文字＋意味」を見ながら選ぶと、名前を選ぶ
       画面が開く（8個のボタンを並べると幅が足りないため、プルダウンにしている）。
@@ -339,6 +339,89 @@
     .badge-kifu { background: #27ae60; text-decoration: none; cursor: pointer; }
     .badge-kifu2 { background: #2f6fd0; text-decoration: none; cursor: pointer; }
     .badge-kifu3 { background: #16a085; text-decoration: none; cursor: pointer; }
+
+    /* コメント入力・修正欄：スマホで読み書きしやすい共通UI */
+    .comment-editor {
+      margin-top: 8px;
+      padding: 12px;
+      background: #f7f5ee;
+      border: 1px solid #e0dbcd;
+      border-radius: 8px;
+    }
+    .comment-editor-title {
+      margin-bottom: 8px;
+      color: #2c3e50;
+      font-size: 0.9rem;
+      font-weight: bold;
+    }
+    .comment-editor-help {
+      margin: 0 0 10px;
+      color: #777;
+      font-size: 0.78rem;
+      line-height: 1.6;
+    }
+    .comment-editor-author {
+      width: 100%;
+      min-height: 44px;
+      padding: 9px 10px;
+      border: 1px solid #d8d2c5;
+      border-radius: 7px;
+      background: #fff;
+      color: #333;
+      font-family: inherit;
+      font-size: 16px;
+    }
+    .comment-editor-text {
+      display: block;
+      width: 100%;
+      min-height: 132px;
+      padding: 11px 12px;
+      border: 1px solid #cfc8b9;
+      border-radius: 7px;
+      background: #fff;
+      color: #333;
+      font-family: inherit;
+      font-size: 16px;
+      line-height: 1.7;
+      resize: vertical;
+      overflow: hidden;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    .comment-editor-text:focus,
+    .comment-editor-author:focus {
+      outline: 2px solid rgba(184,151,82,0.35);
+      border-color: #b89752;
+    }
+    .comment-editor-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .comment-editor-actions button {
+      flex: 1;
+      min-height: 44px;
+      padding: 9px 12px;
+      border-radius: 7px;
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .comment-editor-cancel {
+      background: #fff;
+      color: #555;
+      border: 1px solid #d8d2c5;
+    }
+    .comment-editor-save {
+      background: #2c3e50;
+      color: #fff;
+      border: 1px solid #2c3e50;
+    }
+    @media (max-width: 380px) {
+      .comment-editor { padding: 10px; }
+      .comment-editor-text { min-height: 120px; }
+    }
 
     /* Toast */
     #toast {
@@ -711,15 +794,15 @@
       <button class="btn" id="edit-save">保存する</button>
       <button class="btn" id="edit-cancel" style="background:#999">キャンセル</button>
     </div>
-    <div style="margin-top:16px;border-top:1px solid #e0dbcd;padding-top:14px">
-      <div style="font-size:0.88rem;font-weight:bold;color:#2c3e50;margin-bottom:8px">💬 コメント</div>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-        <span style="font-size:0.82rem;color:#555;white-space:nowrap">名前：</span>
-        <select id="edit-comment-author" style="flex:1;border:1px solid #ddd;border-radius:6px;padding:5px 8px;font-size:0.85rem;font-family:inherit;background:#fff">
-          <option value="">（なし）</option>
-        </select>
-      </div>
-      <textarea id="edit-comment-text" rows="2" style="width:100%;box-sizing:border-box;border:1px solid #ddd;border-radius:6px;padding:6px 8px;font-size:0.85rem;font-family:inherit;resize:vertical;overflow:hidden" placeholder="一言メモ（任意）"></textarea>
+    <div class="comment-editor" style="margin-top:18px">
+      <div class="comment-editor-title">💬 対局コメント</div>
+      <p class="comment-editor-help">この対局についてのコメントを追加・修正できます。空欄にして保存するとコメントを削除します。</p>
+      <label for="edit-comment-author" style="display:block;margin-bottom:5px;font-size:0.82rem;color:#555">投稿者</label>
+      <select id="edit-comment-author" class="comment-editor-author">
+        <option value="">（名前を選択してください）</option>
+      </select>
+      <label for="edit-comment-text" style="display:block;margin:10px 0 5px;font-size:0.82rem;color:#555">コメント</label>
+      <textarea id="edit-comment-text" class="comment-editor-text" rows="5" placeholder="感じたことや気づいたことを自由に書いてください"></textarea>
     </div>
   </div>
 </div>
@@ -2771,18 +2854,19 @@ function matchListHTML(filtered, anchorPlayer, readOnly) {
           </div>`}
         </div>
         ${commentHTML}
-        ${readOnly ? "" : `<div class="comment-form" data-id="${m.id || idx}" style="display:none;margin-top:8px">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-            <span style="font-size:0.82rem;color:#555;white-space:nowrap">名前：</span>
-            <select class="comment-author" style="flex:1;border:1px solid #ddd;border-radius:6px;padding:5px 8px;font-size:0.85rem;font-family:inherit;background:#fff">
-              <option value="">（選択してください）</option>
-              ${playerOptions}
-            </select>
-          </div>
-          <textarea class="comment-input" rows="2" style="width:100%;box-sizing:border-box;border:1px solid #ddd;border-radius:6px;padding:6px 8px;font-size:0.85rem;font-family:inherit;resize:vertical;overflow:hidden" placeholder="一言メモを入力…">${savedText}</textarea>
-          <div style="display:flex;gap:6px;margin-top:4px;justify-content:flex-end">
-            <button class="comment-cancel" data-id="${m.id || idx}" style="background:#f0ede4;border:1px solid #ddd;padding:4px 12px;border-radius:4px;font-size:0.8rem;cursor:pointer">キャンセル</button>
-            <button class="comment-save" data-id="${m.id || idx}" style="background:#2c3e50;color:#fff;border:none;padding:4px 12px;border-radius:4px;font-size:0.8rem;cursor:pointer">保存</button>
+        ${readOnly ? "" : `<div class="comment-form comment-editor" data-id="${m.id || idx}" style="display:none">
+          <div class="comment-editor-title">💬 この対局についてコメント</div>
+          <p class="comment-editor-help">感じたことや気づいたことを、短くても自由に書いてください。</p>
+          <label for="comment-author-${m.id || idx}" style="display:block;margin-bottom:5px;font-size:0.82rem;color:#555">投稿者</label>
+          <select id="comment-author-${m.id || idx}" class="comment-author comment-editor-author">
+            <option value="">（名前を選択してください）</option>
+            ${playerOptions}
+          </select>
+          <label for="comment-input-${m.id || idx}" style="display:block;margin:10px 0 5px;font-size:0.82rem;color:#555">コメント</label>
+          <textarea id="comment-input-${m.id || idx}" class="comment-input comment-editor-text" rows="5" placeholder="例：この一手は思いつかなかった／ここは迷った／次はこう打ってみたい">${savedText}</textarea>
+          <div class="comment-editor-actions">
+            <button class="comment-cancel comment-editor-cancel" data-id="${m.id || idx}" type="button">キャンセル</button>
+            <button class="comment-save comment-editor-save" data-id="${m.id || idx}" type="button">コメントを保存</button>
           </div>
         </div>`}
       </div>`;
@@ -2938,8 +3022,15 @@ function renderHistory() {
       form.style.display = isOpen ? "none" : "";
       if (!isOpen) {
         const ta = form.querySelector(".comment-input");
-        ta.focus();
+        const authorSelect = form.querySelector(".comment-author");
+        // 既存コメントの修正時は、保存済みの投稿者名も引き継ぐ
+        const match = state.history.find(m => (m.id || String(state.history.indexOf(m))) === id);
+        const savedComment = match ? match.comment : null;
+        const savedAuthor = savedComment && typeof savedComment === "object"
+          ? (savedComment.author || "") : "";
+        if (authorSelect) authorSelect.value = savedAuthor;
         autoGrowTextarea(ta);
+        ta.focus();
       }
     });
   });
