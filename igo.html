@@ -2845,6 +2845,7 @@ const COMMENT_CHOICE_GROUPS = [
     items: [
       "自分でも、よく打てた！",
       "不本意な一手があった。",
+      "不本意な展開になってしまった。",
       "ちょっと悔しい。"
     ]
   }
@@ -2877,7 +2878,7 @@ function addCommentChoice(button) {
     return;
   }
   const current = textarea.value.replace(/\s+$/, "");
-  textarea.value = current ? `${current}\n\n${choice}` : choice;
+  textarea.value = current ? `${current}\n${choice}` : choice;
   autoGrowTextarea(textarea);
   refreshCommentChoiceStates(editor);
 }
