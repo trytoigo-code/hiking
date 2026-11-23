@@ -153,7 +153,7 @@
       全体（上手勝ち/下手勝ちの局数・割合）と対局者ごとの勝敗を集計）
   - 互先 黒白成績（順位タブ。互先のうち色が分かっている対局＝互白・互黒、で
       全体（黒番勝ち/白番勝ちの局数・割合）と対局者ごとの勝敗を集計。色不明の「互先」は対象外）
-  - 対局コメント（選択肢から複数の文章を追加でき、自由記入と合わせて一つのコメントとして保存。短文はそのまま表示、長文は折りたたみ）
+  - 対局コメント（共通の選択肢から複数の文章をコメント欄へ追加でき、自由記入・編集も同じ一つの本文で行う。選択肢の選択履歴は別保存しない。新規コメント欄と対局修正モーダルで同じ選択肢を使用。短文はそのまま表示、長文は折りたたみ）
   - コメントへのリアクション（👍いいね・😄楽しい・😮驚き・🔥熱い・👏お見事・🤔なるほど・
       😢惜しい・🙏ありがとう・🎉おめでとう・💡気づきの10種。プルダウンで「絵文字＋意味」を見ながら選ぶと、名前を選ぶ
       画面が開く（8個のボタンを並べると幅が足りないため、プルダウンにしている）。
@@ -848,34 +848,7 @@
       <select id="edit-comment-author" class="comment-editor-author">
         <option value="">（名前を選択してください）</option>
       </select>
-      <div class="comment-choice-area">
-        <div class="comment-choice-area-title">感じたこと（複数選択できます）</div>
-        <div class="comment-editor-help">タップすると下のコメント欄に追加されます。追加後は自由に編集・削除できます。</div>
-        <div class="comment-choice-group">
-          <div class="comment-choice-group-title">自分の対局について</div>
-          <div class="comment-choice-list">
-            <button type="button" class="comment-choice" data-choice="自分でも、よく打てた！" aria-pressed="false">＋ 自分でも、よく打てた！</button>
-            <button type="button" class="comment-choice" data-choice="不本意だ" aria-pressed="false">＋ 不本意だ</button>
-            <button type="button" class="comment-choice" data-choice="ちょっと悔しい" aria-pressed="false">＋ ちょっと悔しい</button>
-          </div>
-        </div>
-        <div class="comment-choice-group">
-          <div class="comment-choice-group-title">相手・仲間の碁について</div>
-          <div class="comment-choice-list">
-            <button type="button" class="comment-choice" data-choice="自分には思いつかない一手があった" aria-pressed="false">＋ 自分には思いつかない一手があった</button>
-            <button type="button" class="comment-choice" data-choice="いつもと違う一面が見えた" aria-pressed="false">＋ いつもと違う一面が見えた</button>
-            <button type="button" class="comment-choice" data-choice="自分も試してみたい" aria-pressed="false">＋ 自分も試してみたい</button>
-          </div>
-        </div>
-        <div class="comment-choice-group">
-          <div class="comment-choice-group-title">一局を振り返って</div>
-          <div class="comment-choice-list">
-            <button type="button" class="comment-choice" data-choice="惜しい場面があった" aria-pressed="false">＋ 惜しい場面があった</button>
-            <button type="button" class="comment-choice" data-choice="最後まで気が抜けなかった" aria-pressed="false">＋ 最後まで気が抜けなかった</button>
-            <button type="button" class="comment-choice" data-choice="もう一度振り返りたい一局だった" aria-pressed="false">＋ もう一度振り返りたい一局だった</button>
-          </div>
-        </div>
-      </div>
+      <div id="edit-comment-choice-container"></div>
       <label for="edit-comment-text" style="display:block;margin:10px 0 5px;font-size:0.82rem;color:#555">コメント（選択した文章もここに入ります）</label>
       <textarea id="edit-comment-text" class="comment-editor-text" rows="5" placeholder="感じたことや気づいたことを自由に書いてください"></textarea>
     </div>
@@ -2844,16 +2817,36 @@ function decisionBreakdownOverallHTML(matches) {
 // コメント欄に追加する選択肢。保存時は自由記入と一緒に一つの本文として保存する。
 const COMMENT_CHOICE_GROUPS = [
   {
+    title: "発見・興味",
+    items: [
+      "自分の感覚にはなかった手があった。",
+      "自分も試してみたい。"
+    ]
+  },
+  {
+    title: "石の扱い方・攻防",
+    items: [
+      "弱い石をどう扱うかが印象に残った。",
+      "捨てる判断が参考になった。",
+      "相手に嫌な手を打たせる攻めが印象に残った。"
+    ]
+  },
+  {
+    title: "大局的な判断",
+    items: [
+      "戦う場所の選び方が印象に残った。",
+      "強い石に余計な手をかけない打ち方が印象に残った。",
+      "大きいところを見極める判断が印象に残った。",
+      "先手を取る判断が印象に残った。"
+    ]
+  },
+  {
     title: "自分の対局について",
-    items: ["自分でも、よく打てた！", "不本意だ", "ちょっと悔しい"]
-  },
-  {
-    title: "相手・仲間の碁について",
-    items: ["自分には思いつかない一手があった", "いつもと違う一面が見えた", "自分も試してみたい"]
-  },
-  {
-    title: "一局を振り返って",
-    items: ["惜しい場面があった", "最後まで気が抜けなかった", "もう一度振り返りたい一局だった"]
+    items: [
+      "自分でも、よく打てた！",
+      "不本意な一手があった。",
+      "ちょっと悔しい。"
+    ]
   }
 ];
 
@@ -2861,7 +2854,7 @@ const COMMENT_CHOICE_GROUPS = [
 function commentChoiceHTML() {
   return `<div class="comment-choice-area">
     <div class="comment-choice-area-title">感じたこと（複数選択できます）</div>
-    <div class="comment-editor-help">タップすると下のコメント欄に追加されます。追加後は自由に編集・削除できます。</div>
+    <div class="comment-editor-help">タップすると下のコメント欄に文章が追加されます。複数選択もでき、追加後は自由に編集・削除できます。保存先はこの一つのコメント欄です。</div>
     ${COMMENT_CHOICE_GROUPS.map(group => `
       <div class="comment-choice-group">
         <div class="comment-choice-group-title">${group.title}</div>
@@ -3983,7 +3976,8 @@ function openEditModal(m, idx) {
 
   document.getElementById("edit-modal").style.display = "";
 
-  // コメントフィールドを初期化
+  // コメント欄と選択肢を初期化（新規コメント欄と同じ共通選択肢を使う）
+  document.getElementById("edit-comment-choice-container").innerHTML = commentChoiceHTML();
   const authorSel = document.getElementById("edit-comment-author");
   authorSel.innerHTML = `<option value="">（なし）</option>` +
     state.players.map(p => `<option value="${p}">${p}</option>`).join("");
@@ -4042,8 +4036,10 @@ document.getElementById("edit-comment-text").addEventListener("input", function(
   refreshCommentChoiceStates(this.closest(".comment-editor"));
 });
 
-document.querySelectorAll("#edit-modal .comment-choice").forEach(button => {
-  button.addEventListener("click", () => addCommentChoice(button));
+// 修正モーダルは選択肢を開くたびに共通関数で描画するため、イベント委譲で受け取る。
+document.getElementById("edit-modal").addEventListener("click", event => {
+  const button = event.target.closest(".comment-choice");
+  if (button && event.currentTarget.contains(button)) addCommentChoice(button);
 });
 
 // 保存
